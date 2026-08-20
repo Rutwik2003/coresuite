@@ -1,0 +1,34 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "entries": [
+      {
+        "threshold": 10001,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/fish_cod"
+        }
+      },
+      {
+        "threshold": 10006,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/fish_golden_tuna"
+        }
+      },
+      {
+        "threshold": 10007,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/fish_kraken"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "minecraft:item/cod"
+    }
+  }
+}

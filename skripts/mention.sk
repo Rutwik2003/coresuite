@@ -1,0 +1,46 @@
+#-- THANK YOU --
+
+#Thank you for using my skripts. For any further assistance or troubles make sure,
+#to message me on my discord account, which can be found on my builtbybit page.
+
+#That's it!
+#Happy crafting!
+
+#[OPTIONS] - This can be edited and should be.
+options:
+    prefix: <##ffe474>&lMENTIONS &7→ &f#Prefix for the command and messages, you can use hex colors here. (eg. <##FF0000>)
+    mention-sound: BLOCK_NOTE_BLOCK_BIT
+
+on join: #This sets the option to toggle mentions on, if it's not set yet.
+  if {mention-toggle::%player's uuid%} isn't set:
+    set {mention-toggle::%player's uuid%} to true
+
+
+command /togglementions:
+  trigger:
+    # YOU CAN DELETE THESE 2 LINES, BUT IT'S BEST TO KEEP THEM HERE
+    if {mention-toggle::%player's uuid%} isn't set:
+      set {mention-toggle::%player's uuid%} to true
+      play sound "ENTITY_EXPERIENCE_ORB_PICKUP" with volume 2 to player
+      send "{@prefix}&aEnabled &fchat mentions for you."
+    # 
+    else if {mention-toggle::%player's uuid%} is true:
+      set {mention-toggle::%player's uuid%} to false
+      play sound "ENTITY_EXPERIENCE_ORB_PICKUP" with volume 2 to player
+      send "{@prefix}&cDisabled &fchat mentions for you."
+    #
+    else if {mention-toggle::%player's uuid%} is false:
+      set {mention-toggle::%player's uuid%} to true
+      play sound "ENTITY_EXPERIENCE_ORB_PICKUP" with volume 2 to player
+      send "{@prefix}&aEnabled &fchat mentions for you."
+
+
+on chat:
+  loop all players:
+    if message contains "%loop-player%":
+      if {mention-toggle::%loop-player's uuid%} is true:
+        replace "%loop-player%" with "@%loop-player%" in message
+        play sound "{@mention-sound}" with volume 1 and pitch 1 to loop-player
+
+#That's it!
+# - acknown

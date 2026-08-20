@@ -1,0 +1,27 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "entries": [
+      {
+        "threshold": 10004,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/fish_bluegill"
+        }
+      },
+      {
+        "threshold": 10005,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/fish_koi"
+        }
+      }
+    ],
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "minecraft:item/tropical_fish"
+    }
+  }
+}

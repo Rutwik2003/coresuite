@@ -1,0 +1,722 @@
+# =====================================================================================
+#  PlaytimeReward - Core System
+#  File: playtimereward.sk
+#  Requires: Skript 2.15.4+, SkBee 3.25.1+ (needs SkBee's Statistic expression,
+#            present since SkBee 1.17.0), Vault
+#  Server: Paper 26.1.2
+# =====================================================================================
+#
+#  DATA STORAGE: native Skript variables (UUID-keyed), persisted automatically by
+#  Skript's variable storage. No custom save-loop is needed for that reason - Skript
+#  flushes variables on its own configured interval.
+#
+#  TIME SOURCE (v3 - AFK-filtered): playtime is read live from Minecraft's own
+#  vanilla "play_one_minute" statistic via SkBee (in ticks -> /20 for seconds), which
+#  every server already tracks per-player, persisted forever, survives restarts, and
+#  needs zero bookkeeping on our end for the RAW number.
+#
+#  However that raw stat counts AFK time too. To filter AFK back out without paying
+#  for a full custom playtime-tracking loop, this version runs a lightweight
+#  per-second loop that does ONLY ONE THING: increments {ptr::afkseconds::%uuid%} for
+#  each online player who is currently AFK. Effective playtime = raw vanilla seconds
+#  minus accumulated AFK seconds minus admin adjustment offset, clamped at 0. This is
+#  much cheaper than the old v1 loop (no per-player unlock-checking every second, no
+#  writing the playtime variable every second - just one counter increment for idle
+#  players).
+#
+#  KNOWN CAVEAT: if you run AuthMe (or similar) and freeze players pre-login, the
+#  vanilla stat still ticks up from the moment their client fully joins the world,
+#  not from the moment they finish authenticating. A few seconds of login-screen time
+#  can count toward playtime unless they're also flagged AFK during that window
+#  (unlikely, since no activity has happened yet - see the join handler below, which
+#  starts them AFK-eligible immediately).
+# =====================================================================================
+
+options:
+	ptr: ptr
+	ptrPrefix: &8[&6&lPlaytime&e&lRewards&8] &r
+
+
+# =====================================================================================
+#  SCRIPT LOAD
+# =====================================================================================
+
+on script load:
+	if {ptr::config::max-accounts-per-ip} is not set:
+		set {ptr::config::max-accounts-per-ip} to 0
+	if {ptr::config::claim-cooldown} is not set:
+		set {ptr::config::claim-cooldown} to 3 seconds
+	if {ptr::config::afk-timeout} is not set:
+		set {ptr::config::afk-timeout} to 120
+	if {ptr::config::debug} is not set:
+		set {ptr::config::debug} to false
+	if {ptr::config::system-enabled} is not set:
+		set {ptr::config::system-enabled} to true
+	if {ptr::config::gui-title} is not set:
+		set {ptr::config::gui-title} to "&8&lPlaytime Rewards"
+	if {ptr::config::rewards-per-page} is not set:
+		set {ptr::config::rewards-per-page} to 21
+	if {ptr::clock} is not set:
+		set {ptr::clock} to 0
+
+	delete {ptr::rewards::*}
+	delete {ptr::reward-ids::*}
+	_ptr_registerDefaultRewards()
+
+	send "{@ptrPrefix}&aScript loaded. %size of {ptr::rewards::*}% rewards registered." to console
+	_ptr_log("Script (re)loaded successfully.")
+
+
+# =====================================================================================
+#  DEFAULT REWARD REGISTRATION
+# =====================================================================================
+
+function _ptr_registerDefaultRewards():
+	_ptr_defineReward("reward_30m", 1800, "BREAD", "&e30 Minute Newbie Reward", "&730 Minute Newbie Reward", "&f$2500 &7+ &f16x Bread &7+ &f8x Apple &7+ &f32x Oak Log &7+ &f1x Common Key", 1, false, false, 0, "give {player} minecraft:bread 16;;give {player} minecraft:apple 8;;give {player} minecraft:oak_log 32;;crate key give {player} Common 1", 2500, "", "&aYou claimed the 30 Minute Newbie Reward!", "&e{player} claimed the 30 Minute Newbie Reward!", "ENTITY_PLAYER_LEVELUP", true, 10)
+	_ptr_defineReward("reward_1h", 3600, "IRON_INGOT", "&f1 Hour Starter Reward", "&71 Hour Starter Reward", "&f$5000 &7+ &f24x Iron Ingot &7+ &f16x Coal &7+ &f1x Common Key", 1, false, false, 0, "give {player} minecraft:iron_ingot 24;;give {player} minecraft:coal 16;;crate key give {player} Common 1", 5000, "", "&aYou claimed the 1 Hour Starter Reward!", "&e{player} claimed the 1 Hour Starter Reward!", "ENTITY_PLAYER_LEVELUP", true, 11)
+	_ptr_defineReward("reward_2h", 7200, "IRON_PICKAXE", "&62 Hour Gear Reward", "&72 Hour Gear Reward", "&f$6000 &7+ &f1x Iron Pickaxe (unbreaking) &7+ &f16x Cooked Beef &7+ &f16x Coal &7+ &f1x Common Key", 1, false, false, 0, "give {player} minecraft:iron_pickaxe[enchantments={levels:{""minecraft:unbreaking"":1}}] 1;;give {player} minecraft:cooked_beef 16;;give {player} minecraft:coal 16;;crate key give {player} Common 1", 6000, "", "&aYou claimed the 2 Hour Gear Reward!", "&e{player} claimed the 2 Hour Gear Reward!", "ENTITY_PLAYER_LEVELUP", true, 12)
+	_ptr_defineReward("reward_2h_food", 7200, "GOLDEN_CARROT", "&62 Hour Foodie Reward", "&72 Hour Foodie Reward", "&f$6000 &7+ &f8x Golden Carrot &7+ &f16x Cooked Beef &7+ &f1x Common Key", 1, false, true, 43200, "give {player} minecraft:golden_carrot 8;;give {player} minecraft:cooked_beef 16;;crate key give {player} Common 1", 6000, "", "&aYou claimed the 2 Hour Foodie Reward!", "&e{player} claimed the 2 Hour Foodie Reward!", "ENTITY_PLAYER_LEVELUP", true, 13)
+	_ptr_defineReward("reward_3h", 10800, "RAW_IRON", "&63 Hour Ironwork Reward", "&73 Hour Ironwork Reward", "&f$8000 &7+ &f32x Raw Iron &7+ &f8x Golden Carrot &7+ &f16x Coal &7+ &f2x Common Key", 1, false, false, 0, "give {player} minecraft:raw_iron 32;;give {player} minecraft:golden_carrot 8;;give {player} minecraft:coal 16;;crate key give {player} Common 2", 8000, "", "&aYou claimed the 3 Hour Ironwork Reward!", "&e{player} claimed the 3 Hour Ironwork Reward!", "ENTITY_PLAYER_LEVELUP", true, 14)
+	_ptr_defineReward("reward_4h", 14400, "DIAMOND", "&b4 Hour Diamond Breakthrough", "&74 Hour Diamond Breakthrough", "&f$10000 &7+ &f4x Diamond &7+ &f1x Iron Pickaxe (unbreaking) &7+ &f16x Cooked Beef &7+ &f1x Uncommon Key", 1, false, false, 0, "give {player} minecraft:diamond 4;;give {player} minecraft:iron_pickaxe[enchantments={levels:{""minecraft:unbreaking"":2}}] 1;;give {player} minecraft:cooked_beef 16;;crate key give {player} Uncommon 1", 10000, "", "&aYou claimed the 4 Hour Diamond Breakthrough!", "&e{player} claimed the 4 Hour Diamond Breakthrough!", "ENTITY_PLAYER_LEVELUP", true, 15)
+	_ptr_defineReward("reward_6h", 21600, "EMERALD", "&a6 Hour Trader Reward", "&76 Hour Trader Reward", "&f$15000 &7+ &f24x Emerald &7+ &f1x Enchanted Book (mending) &7+ &f1x Uncommon Key", 1, false, false, 0, "give {player} minecraft:emerald 24;;give {player} minecraft:enchanted_book[enchantments={levels:{""minecraft:mending"":1}}] 1;;crate key give {player} Uncommon 1", 15000, "", "&aYou claimed the 6 Hour Trader Reward!", "&e{player} claimed the 6 Hour Trader Reward!", "ENTITY_PLAYER_LEVELUP", true, 16)
+	_ptr_defineReward("reward_8h", 28800, "GOLD_BLOCK", "&e8 Hour Wealth Builder", "&78 Hour Wealth Builder", "&f$18000 &7+ &f2x Gold Block &7+ &f2x Golden Apple &7+ &f8x Golden Carrot &7+ &f1x Uncommon Key", 1, false, true, 86400, "give {player} minecraft:gold_block 2;;give {player} minecraft:golden_apple 2;;give {player} minecraft:golden_carrot 8;;crate key give {player} Uncommon 1", 18000, "", "&aYou claimed the 8 Hour Wealth Builder!", "&e{player} claimed the 8 Hour Wealth Builder!", "ENTITY_PLAYER_LEVELUP", true, 17)
+	_ptr_defineReward("reward_12h", 43200, "DIAMOND_BLOCK", "&b12 Hour Prime Reward", "&712 Hour Prime Reward", "&f$25000 &7+ &f2x Diamond Block &7+ &f1x Enchanted Golden Apple &7+ &f1x Rare Key", 1, false, false, 0, "give {player} minecraft:diamond_block 2;;give {player} minecraft:enchanted_golden_apple 1;;crate key give {player} Rare 1", 25000, "", "&aYou claimed the 12 Hour Prime Reward!", "&e{player} claimed the 12 Hour Prime Reward!", "ENTITY_PLAYER_LEVELUP", true, 18)
+	_ptr_defineReward("reward_24h", 86400, "EMERALD_BLOCK", "&a&lDaily Champion Reward", "&7Daily Champion Reward", "&f$40000 &7+ &f3x Emerald Block &7+ &f16x Golden Carrot &7+ &f16x Experience Bottle &7+ &f1x Uncommon Key", 1, false, true, 86400, "give {player} minecraft:emerald_block 3;;give {player} minecraft:golden_carrot 16;;give {player} minecraft:experience_bottle 16;;crate key give {player} Uncommon 1", 40000, "", "&aYou claimed the Daily Champion Reward!", "&e{player} claimed the Daily Champion Reward!", "ENTITY_PLAYER_LEVELUP", true, 19)
+	_ptr_defineReward("reward_36h", 129600, "DIAMOND_SWORD", "&c36 Hour Battle Ready Reward", "&736 Hour Battle Ready Reward", "&f$45000 &7+ &f1x Diamond Sword (sharpness+unbreaking) &7+ &f1x Diamond Helmet &7+ &f1x Diamond Chestplate &7+ &f1x Rare Key", 1, false, false, 0, "give {player} minecraft:diamond_sword[enchantments={levels:{""minecraft:sharpness"":3,""minecraft:unbreaking"":2}}] 1;;give {player} minecraft:diamond_helmet 1;;give {player} minecraft:diamond_chestplate 1;;crate key give {player} Rare 1", 45000, "", "&aYou claimed the 36 Hour Battle Ready Reward!", "&e{player} claimed the 36 Hour Battle Ready Reward!", "ENTITY_PLAYER_LEVELUP", true, 20)
+	_ptr_defineReward("reward_48h", 172800, "TOTEM_OF_UNDYING", "&5&l48 Hour Veteran Reward", "&748 Hour Veteran Reward", "&f$60000 &7+ &f1x Totem Of Undying &7+ &f2x Diamond Block &7+ &f1x Rare Key", 1, false, false, 0, "give {player} minecraft:totem_of_undying 1;;give {player} minecraft:diamond_block 2;;crate key give {player} Rare 1", 60000, "", "&aYou claimed the 48 Hour Veteran Reward!", "&e{player} claimed the 48 Hour Veteran Reward!", "ENTITY_PLAYER_LEVELUP", true, 21)
+	_ptr_defineReward("reward_72h", 259200, "ENCHANTING_TABLE", "&d72 Hour Enchanter Reward", "&772 Hour Enchanter Reward", "&f$75000 &7+ &f1x Enchanted Book (mending+protection) &7+ &f16x Bookshelf &7+ &f16x Experience Bottle &7+ &f2x Uncommon Key", 1, false, false, 0, "give {player} minecraft:enchanted_book[enchantments={levels:{""minecraft:mending"":1,""minecraft:protection"":4}}] 1;;give {player} minecraft:bookshelf 16;;give {player} minecraft:experience_bottle 16;;crate key give {player} Uncommon 2", 75000, "", "&aYou claimed the 72 Hour Enchanter Reward!", "&e{player} claimed the 72 Hour Enchanter Reward!", "ENTITY_PLAYER_LEVELUP", true, 22)
+	_ptr_defineReward("reward_100h", 360000, "DIAMOND_BLOCK", "&5&l100 Hour Legend Reward", "&7100 Hour Legend Reward", "&f$120000 &7+ &f6x Diamond Block &7+ &f4x Gold Block &7+ &f16x Golden Carrot &7+ &f1x Rare Key", 1, false, false, 0, "give {player} minecraft:diamond_block 6;;give {player} minecraft:gold_block 4;;give {player} minecraft:golden_carrot 16;;crate key give {player} Rare 1", 120000, "", "&aYou claimed the 100 Hour Legend Reward!", "&e{player} claimed the 100 Hour Legend Reward!", "ENTITY_PLAYER_LEVELUP", true, 23)
+	_ptr_defineReward("reward_150h", 540000, "EMERALD_BLOCK", "&6&l150 Hour Master Reward", "&7150 Hour Master Reward", "&f$150000 &7+ &f12x Emerald Block &7+ &f3x Enchanted Golden Apple &7+ &f32x Experience Bottle &7+ &f1x Rare Key", 1, false, false, 0, "give {player} minecraft:emerald_block 12;;give {player} minecraft:enchanted_golden_apple 3;;give {player} minecraft:experience_bottle 32;;crate key give {player} Rare 1", 150000, "", "&aYou claimed the 150 Hour Master Reward!", "&e{player} claimed the 150 Hour Master Reward!", "ENTITY_PLAYER_LEVELUP", true, 24)
+	_ptr_defineReward("reward_300h", 1080000, "DIAMOND_BLOCK", "&4&l300 Hour Ultimate Legend", "&7300 Hour Ultimate Legend", "&f$300000 &7+ &f12x Diamond Block &7+ &f6x Emerald Block &7+ &f16x Golden Carrot &7+ &f1x Enchanted Golden Apple &7+ &f16x Experience Bottle &7+ &f2x Rare Key", 1, false, false, 0, "give {player} minecraft:diamond_block 12;;give {player} minecraft:emerald_block 6;;give {player} minecraft:golden_carrot 16;;give {player} minecraft:enchanted_golden_apple 1;;give {player} minecraft:experience_bottle 16;;crate key give {player} Rare 2", 300000, "", "&aYou claimed the 300 Hour Ultimate Legend!", "&e{player} claimed the 300 Hour Ultimate Legend!", "ENTITY_PLAYER_LEVELUP", true, 25)
+
+function _ptr_defineReward(id: string, seconds: number, material: string, name: string, lore: string, grants: string, amount: number, glow: boolean, repeatable: boolean, interval: number, consolecmds: string, money: number, permission: string, claimmsg: string, broadcastmsg: string, sound: string, enabled: boolean, slot: number):
+	set {ptr::rewards::%{_id}%::required-seconds} to {_seconds}
+	set {ptr::rewards::%{_id}%::material} to {_material}
+	set {ptr::rewards::%{_id}%::name} to {_name}
+	set {ptr::rewards::%{_id}%::lore} to {_lore}
+	set {ptr::rewards::%{_id}%::grants} to {_grants}
+	set {ptr::rewards::%{_id}%::amount} to {_amount}
+	set {ptr::rewards::%{_id}%::glow} to {_glow}
+	set {ptr::rewards::%{_id}%::repeatable} to {_repeatable}
+	set {ptr::rewards::%{_id}%::interval-seconds} to {_interval}
+	set {ptr::rewards::%{_id}%::console-commands} to {_consolecmds}
+	set {ptr::rewards::%{_id}%::money} to {_money}
+	set {ptr::rewards::%{_id}%::permission} to {_permission}
+	set {ptr::rewards::%{_id}%::claim-message} to {_claimmsg}
+	set {ptr::rewards::%{_id}%::broadcast-message} to {_broadcastmsg}
+	set {ptr::rewards::%{_id}%::sound} to {_sound}
+	set {ptr::rewards::%{_id}%::enabled} to {_enabled}
+	set {ptr::rewards::%{_id}%::slot} to {_slot}
+	add {_id} to {ptr::rewards::*}
+	add {_id} to {ptr::reward-ids::*}
+
+
+# =====================================================================================
+#  PLAYTIME ACCESSOR (single source of truth)
+#  effective playtime = raw vanilla seconds - accumulated AFK seconds + admin
+#  adjustment, clamped at 0. Caches the result into {ptr::playtime::%uuid%} so the
+#  GUI / top-list / info commands have a value to show even for offline players.
+# =====================================================================================
+
+function _ptr_getPlaytime(op: offlineplayer) :: number:
+	set {_uuid} to uuid of {_op}
+	set {_ticks} to play one minute stat of {_op}
+	set {_rawseconds} to floor({_ticks} / 20)
+	if {ptr::adjust::%{_uuid}%} is not set:
+		set {ptr::adjust::%{_uuid}%} to 0
+	if {ptr::afkseconds::%{_uuid}%} is not set:
+		set {ptr::afkseconds::%{_uuid}%} to 0
+	set {_total} to {_rawseconds} - {ptr::afkseconds::%{_uuid}%} + {ptr::adjust::%{_uuid}%}
+	if {_total} < 0:
+		set {_total} to 0
+	set {ptr::playtime::%{_uuid}%} to {_total}
+	return {_total}
+
+
+# =====================================================================================
+#  AFK DETECTION
+#  Lightweight per-second loop: the ONLY thing it does is bump {ptr::afkseconds} for
+#  players who haven't moved/chatted/clicked in over {ptr::config::afk-timeout}
+#  seconds. It does not read the vanilla stat, does not check rewards, does not touch
+#  {ptr::playtime} - all of that stays in _ptr_getPlaytime(), called on-demand.
+# =====================================================================================
+
+on join:
+	_ptr_loadPlayer(player)
+
+on chat:
+	set {ptr::lastactivity::%uuid of player%} to {ptr::clock}
+
+on right click:
+	set {ptr::lastactivity::%uuid of player%} to {ptr::clock}
+
+on left click:
+	set {ptr::lastactivity::%uuid of player%} to {ptr::clock}
+
+every 1 seconds:
+	add 1 to {ptr::clock}
+	loop all players:
+		set {_uuid} to uuid of loop-player
+
+		if {ptr::lastloc::%{_uuid}%} is set:
+			if location of loop-player is not {ptr::lastloc::%{_uuid}%}:
+				set {ptr::lastactivity::%{_uuid}%} to {ptr::clock}
+		set {ptr::lastloc::%{_uuid}%} to location of loop-player
+
+		if {ptr::lastactivity::%{_uuid}%} is not set:
+			set {ptr::lastactivity::%{_uuid}%} to {ptr::clock}
+
+		if _ptr_isAfk(loop-player) is true:
+			if {ptr::afkseconds::%{_uuid}%} is not set:
+				set {ptr::afkseconds::%{_uuid}%} to 0
+			add 1 to {ptr::afkseconds::%{_uuid}%}
+
+
+function _ptr_isAfk(p: player) :: boolean:
+	set {_uuid} to uuid of {_p}
+	if {ptr::lastactivity::%{_uuid}%} is not set:
+		return false
+	set {_idle} to {ptr::clock} - {ptr::lastactivity::%{_uuid}%}
+	if {_idle} > {ptr::config::afk-timeout}:
+		return true
+	return false
+
+
+on quit:
+	_ptr_getPlaytime(player)
+	delete {ptr::lastloc::%uuid of player%}
+
+
+function _ptr_loadPlayer(p: player):
+	set {_uuid} to uuid of {_p}
+	set {ptr::lastname::%{_uuid}%} to "%name of {_p}%"
+	set {ptr::lastlogin::%{_uuid}%} to now
+	set {ptr::lastactivity::%{_uuid}%} to {ptr::clock}
+	_ptr_recordIp({_p})
+	_ptr_getPlaytime({_p})
+	_ptr_checkRewardsUnlocked({_p})
+	_ptr_log("Loaded data for %name of {_p}%.")
+
+
+every 20 seconds:
+	if {ptr::config::system-enabled} is not true:
+		stop trigger
+	loop all players:
+		_ptr_getPlaytime(loop-player)
+		_ptr_checkRewardsUnlocked(loop-player)
+
+
+function _ptr_recordIp(p: player):
+	set {_uuid} to uuid of {_p}
+	set {_ip} to ip of {_p}
+	set {_masked} to "%(first 7 characters of {_ip})%.xxx"
+	set {ptr::iphash::%{_uuid}%} to {_masked}
+	add {_uuid} to {ptr::ipmap::%{_ip}%::*}
+
+	if {ptr::config::max-accounts-per-ip} > 0:
+		set {_count} to size of {ptr::ipmap::%{_ip}%::*}
+		if {_count} > {ptr::config::max-accounts-per-ip}:
+			if {_p} doesn't have permission "playtimereward.bypass":
+				_ptr_flagSuspicious({_p}, "IP account limit exceeded")
+
+
+function _ptr_flagSuspicious(p: player, reason: string):
+	add "%name of {_p}% (%uuid of {_p}%) - %{_reason}%" to {ptr::suspiciouslog::*}
+	_ptr_log("SUSPICIOUS: %name of {_p}% - %{_reason}%")
+	loop all players:
+		if loop-player has permission "playtimereward.admin":
+			send "{@ptrPrefix}&c[Suspicious] &7%name of {_p}%: %{_reason}%" to loop-player
+
+
+function _ptr_checkRewardsUnlocked(p: player):
+	set {_uuid} to uuid of {_p}
+	loop {ptr::reward-ids::*}:
+		set {_id} to loop-value
+		if {ptr::rewards::%{_id}%::enabled} is true:
+			if {ptr::playtime::%{_uuid}%} >= {ptr::rewards::%{_id}%::required-seconds}:
+				if {ptr::notifiedunlock::%{_uuid}%::%{_id}%} is not true:
+					if _ptr_hasClaimed({_p}, {_id}) is false:
+						set {ptr::notifiedunlock::%{_uuid}%::%{_id}%} to true
+						send "{@ptrPrefix}&a&l%{ptr::rewards::%{_id}%::name}% &7is now claimable! Use /playtime rewards to claim it." to {_p}
+
+
+function _ptr_hasClaimed(p: player, id: string) :: boolean:
+	set {_uuid} to uuid of {_p}
+	if {ptr::rewards::%{_id}%::repeatable} is true:
+		if {ptr::lastclaimplaytime::%{_uuid}%::%{_id}%} is set:
+			set {_nextat} to {ptr::lastclaimplaytime::%{_uuid}%::%{_id}%} + {ptr::rewards::%{_id}%::interval-seconds}
+			set {_current} to _ptr_getPlaytime({_p})
+			if {_current} < {_nextat}:
+				return true
+		return false
+	else:
+		if {ptr::claimed::%{_uuid}%::%{_id}%} is true:
+			return true
+		return false
+
+
+function _ptr_insertName(text: string, p: player) :: string:
+	set {_pname} to "%name of {_p}%"
+	set {_result} to "%{_text}%"
+	replace all "{player}" in {_result} with {_pname}
+	return {_result}
+
+
+function _ptr_claimReward(p: player, id: string) :: boolean:
+	set {_uuid} to uuid of {_p}
+
+	if {ptr::config::system-enabled} is not true:
+		send "{@ptrPrefix}&cThe playtime rewards system is currently disabled." to {_p}
+		return false
+
+	if {ptr::rewards::%{_id}%::required-seconds} is not set:
+		return false
+
+	if {ptr::claimlock::%{_uuid}%} is true:
+		return false
+	set {ptr::claimlock::%{_uuid}%} to true
+
+	if {ptr::lastclaimattempt::%{_uuid}%} is set:
+		if (difference between {ptr::lastclaimattempt::%{_uuid}%} and now) < {ptr::config::claim-cooldown}:
+			delete {ptr::claimlock::%{_uuid}%}
+			return false
+	set {ptr::lastclaimattempt::%{_uuid}%} to now
+
+	if {ptr::rewards::%{_id}%::enabled} is not true:
+		delete {ptr::claimlock::%{_uuid}%}
+		return false
+
+	set {_current} to _ptr_getPlaytime({_p})
+	if {_current} < {ptr::rewards::%{_id}%::required-seconds}:
+		delete {ptr::claimlock::%{_uuid}%}
+		return false
+
+	set {_perm} to "%{ptr::rewards::%{_id}%::permission}%"
+	if {_perm} is not "":
+		if {_perm} is not "none":
+			if {_p} doesn't have permission {_perm}:
+				delete {ptr::claimlock::%{_uuid}%}
+				return false
+
+	set {_alreadyclaimed} to _ptr_hasClaimed({_p}, {_id})
+	if {_alreadyclaimed} is true:
+		delete {ptr::claimlock::%{_uuid}%}
+		return false
+
+	set {ptr::claimed::%{_uuid}%::%{_id}%} to true
+	set {ptr::lastclaimplaytime::%{_uuid}%::%{_id}%} to {_current}
+	set {ptr::lastclaimtime::%{_uuid}%::%{_id}%} to now
+
+	set {_money} to {ptr::rewards::%{_id}%::money}
+	if {_money} > 0:
+		add {_money} to {_p}'s balance
+
+	set {_cmds} to "%{ptr::rewards::%{_id}%::console-commands}%"
+	if {_cmds} is not "":
+		loop {_cmds} split at ";;":
+			set {_parsedcmd} to _ptr_insertName(loop-value, {_p})
+			execute console command "%{_parsedcmd}%"
+
+	set {_msg} to "%{ptr::rewards::%{_id}%::claim-message}%"
+	set {_grants} to "%{ptr::rewards::%{_id}%::grants}%"
+	send "{@ptrPrefix}%{_msg}%" to {_p}
+	if {_grants} is not "":
+		send "{@ptrPrefix}&7You received: %{_grants}%" to {_p}
+
+	set {_bmsg} to "%{ptr::rewards::%{_id}%::broadcast-message}%"
+	if {_bmsg} is not "":
+		set {_parsedb} to _ptr_insertName({_bmsg}, {_p})
+		broadcast "{@ptrPrefix}%{_parsedb}%"
+
+	set {_sound} to "%{ptr::rewards::%{_id}%::sound}%"
+	if {_sound} is not "":
+		play sound {_sound} with volume 1 and pitch 1 to {_p}
+
+	delete {ptr::claimlock::%{_uuid}%}
+	_ptr_log("%name of {_p}% claimed reward %{_id}%.")
+	return true
+
+
+function _ptr_parseTime(input: string) :: number:
+	set {_spaced} to "%{_input}%"
+	replace all "d" in {_spaced} with "d "
+	replace all "h" in {_spaced} with "h "
+	replace all "m" in {_spaced} with "m "
+	replace all "s" in {_spaced} with "s "
+	set {_total} to 0
+	loop {_spaced} split at " ":
+		set {_token} to loop-value
+		if length of {_token} > 1:
+			set {_unit} to last 1 characters of {_token}
+			set {_lenminus} to (length of {_token}) - 1
+			set {_numpart} to first {_lenminus} characters of {_token}
+			set {_amt} to {_numpart} parsed as number
+			if {_amt} is set:
+				if {_unit} is "d":
+					add {_amt} * 86400 to {_total}
+				else if {_unit} is "h":
+					add {_amt} * 3600 to {_total}
+				else if {_unit} is "m":
+					add {_amt} * 60 to {_total}
+				else if {_unit} is "s":
+					add {_amt} to {_total}
+	return {_total}
+
+function _ptr_formatTime(seconds: number) :: string:
+	set {_s} to {_seconds}
+	set {_d} to floor({_s} / 86400)
+	set {_s} to {_s} - ({_d} * 86400)
+	set {_h} to floor({_s} / 3600)
+	set {_s} to {_s} - ({_h} * 3600)
+	set {_m} to floor({_s} / 60)
+	set {_s} to {_s} - ({_m} * 60)
+	set {_out} to ""
+	if {_d} > 0:
+		set {_out} to "%{_out}%%{_d}%d "
+	if {_h} > 0:
+		set {_out} to "%{_out}%%{_h}%h "
+	else if {_d} > 0:
+		set {_out} to "%{_out}%%{_h}%h "
+	if {_m} > 0:
+		set {_out} to "%{_out}%%{_m}%m "
+	else if {_h} > 0:
+		set {_out} to "%{_out}%%{_m}%m "
+	else if {_d} > 0:
+		set {_out} to "%{_out}%%{_m}%m "
+	set {_out} to "%{_out}%%{_s}%s"
+	return {_out}
+
+function _ptr_log(message: string):
+	if {ptr::config::debug} is true:
+		send "[PlaytimeReward-Debug] %{_message}%" to console
+
+
+command /playtime [<text>]:
+	description: View your playtime and rewards
+	usage: /playtime [rewards|gui|top|help|stats]
+	permission: playtimereward.use
+	permission message: {@ptrPrefix}&cYou don't have permission to use this command.
+	trigger:
+		if {ptr::config::system-enabled} is not true:
+			send "{@ptrPrefix}&cThe playtime rewards system is currently disabled."
+			stop
+
+		if argument 1 is not set:
+			_ptr_openRewardsGui(player, 1)
+			stop
+
+		if argument 1 is "stats":
+			send "{@ptrPrefix}&7Your playtime: &e%_ptr_formatTime(_ptr_getPlaytime(player))%"
+			send "&7Use &e/playtime rewards &7to view and claim rewards."
+			stop
+
+		if argument 1 is "rewards":
+			if player doesn't have permission "playtimereward.gui":
+				send "{@ptrPrefix}&cYou don't have permission to open the rewards GUI."
+				stop
+			_ptr_openRewardsGui(player, 1)
+			stop
+
+		if argument 1 is "gui":
+			if player doesn't have permission "playtimereward.gui":
+				send "{@ptrPrefix}&cYou don't have permission to open the rewards GUI."
+				stop
+			_ptr_openRewardsGui(player, 1)
+			stop
+
+		if argument 1 is "top":
+			if player doesn't have permission "playtimereward.top":
+				send "{@ptrPrefix}&cYou don't have permission to view the leaderboard."
+				stop
+			_ptr_showTop(player)
+			stop
+
+		if argument 1 is "help":
+			send "{@ptrPrefix}&e/playtime &7- open rewards GUI"
+			send "{@ptrPrefix}&e/playtime stats &7- show your playtime as text"
+			send "{@ptrPrefix}&e/playtime rewards &7- open rewards GUI"
+			send "{@ptrPrefix}&e/playtime top &7- view leaderboard"
+			stop
+
+		send "{@ptrPrefix}&cUnknown subcommand. Use /playtime help."
+
+
+function _ptr_showTop(p: player):
+	send "{@ptrPrefix}&6&lTop Playtime:" to {_p}
+
+	delete {_ptr_top::*}
+	loop {ptr::playtime::*}:
+		add loop-index to {_ptr_top::*}
+
+	set {_size} to size of {_ptr_top::*}
+	if {_size} is 0:
+		send "&7No data yet." to {_p}
+		stop
+
+	set {_shown} to 0
+	loop 10 times:
+		set {_bestindex} to ""
+		set {_bestvalue} to -1
+		loop {_ptr_top::*}:
+			set {_candidate} to loop-value-2
+			if {ptr::playtime::%{_candidate}%} > {_bestvalue}:
+				set {_bestvalue} to {ptr::playtime::%{_candidate}%}
+				set {_bestindex} to {_candidate}
+		if {_bestindex} is "":
+			stop loop
+		add 1 to {_shown}
+		set {_displayname} to "%{ptr::lastname::%{_bestindex}%}%"
+		if {_displayname} is "":
+			set {_displayname} to {_bestindex}
+		send "&e#%{_shown}% &7- &f%{_displayname}% &7- &e%_ptr_formatTime({_bestvalue})%" to {_p}
+		remove {_bestindex} from {_ptr_top::*}
+
+	delete {_ptr_top::*}
+
+
+command /playtimereward <text="reload|save|addtime|removetime|settime|reset|resetreward|claim|info|debug|list|check|testall|enable|disable|toggle"> [<offlineplayer>] [<text>]:
+	description: Admin controls for PlaytimeReward
+	usage: /playtimereward <reload|save|addtime|removetime|settime|reset|resetreward|claim|info|debug|list|check|testall|enable|disable|toggle> [player] [value]
+	permission: playtimereward.admin
+	permission message: {@ptrPrefix}&cYou don't have permission to use this command.
+	trigger:
+		if argument 1 is not set:
+			send "{@ptrPrefix}&7Subcommands: reload, save, addtime, removetime, settime, reset, resetreward, claim, info, debug"
+			stop
+
+		if argument 1 is "reload":
+			_ptr_reloadConfig()
+			send "{@ptrPrefix}&aConfiguration reloaded."
+			stop
+
+		if argument 1 is "save":
+			send "{@ptrPrefix}&7Nothing to do - playtime is derived from Minecraft's own statistic plus tracked AFK time. Skript's variable storage saves the rest automatically."
+			stop
+
+		if argument 1 is "debug":
+			if {ptr::config::debug} is true:
+				set {ptr::config::debug} to false
+				send "{@ptrPrefix}&7Debug mode: &cOFF"
+			else:
+				set {ptr::config::debug} to true
+				send "{@ptrPrefix}&7Debug mode: &aON"
+			stop
+
+		if argument 1 is "addtime":
+			_ptr_cmdTimeEdit(player, "add", argument 2, argument 3)
+			stop
+
+		if argument 1 is "removetime":
+			_ptr_cmdTimeEdit(player, "remove", argument 2, argument 3)
+			stop
+
+		if argument 1 is "settime":
+			_ptr_cmdTimeEdit(player, "set", argument 2, argument 3)
+			stop
+
+		if argument 1 is "reset":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward reset <player>"
+				stop
+			set {_target} to argument 2
+			set {_uuid} to uuid of {_target}
+			set {_rawticks} to play one minute stat of {_target}
+			set {ptr::afkseconds::%{_uuid}%} to 0
+			set {ptr::adjust::%{_uuid}%} to 0 - floor({_rawticks} / 20)
+			_ptr_getPlaytime({_target})
+			delete {ptr::claimed::%{_uuid}%::*}
+			delete {ptr::lastclaimplaytime::%{_uuid}%::*}
+			delete {ptr::notifiedunlock::%{_uuid}%::*}
+			send "{@ptrPrefix}&aReset all playtime and claims for %name of {_target}%."
+			stop
+
+		if argument 1 is "resetreward":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward resetreward <player> <reward-id>"
+				stop
+			if argument 3 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward resetreward <player> <reward-id>"
+				stop
+			set {_target} to argument 2
+			set {_uuid} to uuid of {_target}
+			delete {ptr::claimed::%{_uuid}%::%argument 3%}
+			delete {ptr::lastclaimplaytime::%{_uuid}%::%argument 3%}
+			delete {ptr::notifiedunlock::%{_uuid}%::%argument 3%}
+			send "{@ptrPrefix}&aReset reward '%argument 3%' for %name of {_target}%."
+			stop
+
+		if argument 1 is "claim":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward claim <player> <reward-id>"
+				stop
+			if argument 3 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward claim <player> <reward-id>"
+				stop
+			if argument 2 is not online:
+				send "{@ptrPrefix}&cPlayer must be online."
+				stop
+			set {_targetp} to _ptr_getOnlinePlayer(argument 2)
+			set {_result} to _ptr_claimReward({_targetp}, argument 3)
+			if {_result} is true:
+				send "{@ptrPrefix}&aForced claim of '%argument 3%' for %name of {_targetp}%."
+			else:
+				send "{@ptrPrefix}&cClaim failed - reward may be locked, already claimed, or on cooldown."
+			stop
+
+		if argument 1 is "info":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward info <player>"
+				stop
+			set {_target} to argument 2
+			set {_uuid} to uuid of {_target}
+			send "{@ptrPrefix}&6Info for %name of {_target}%:"
+			send "&7Playtime: &e%_ptr_formatTime(_ptr_getPlaytime({_target}))%"
+			send "&7AFK time excluded: &e%_ptr_formatTime({ptr::afkseconds::%{_uuid}%})%"
+			send "&7Last login: &e%{ptr::lastlogin::%{_uuid}%}%"
+			send "&7Claimed rewards: &e%size of {ptr::claimed::%{_uuid}%::*}%"
+			stop
+
+		if argument 1 is "list":
+			send "{@ptrPrefix}&6&lAll Rewards (%size of {ptr::reward-ids::*}%):"
+			loop {ptr::reward-ids::*}:
+				set {_rid} to loop-value
+				set {_req} to {ptr::rewards::%{_rid}%::required-seconds}
+				set {_en} to {ptr::rewards::%{_rid}%::enabled}
+				if {_en} is true:
+					send "&f%{_rid}% &7- &f%_ptr_formatTime({_req})% &7- &aENABLED"
+				else:
+					send "&f%{_rid}% &7- &f%_ptr_formatTime({_req})% &7- &cDISABLED"
+			stop
+
+		if argument 1 is "check":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward check <player> <reward-id>"
+				stop
+			if argument 3 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward check <player> <reward-id>"
+				stop
+			set {_status} to _ptr_checkRewardStatus(argument 2, argument 3)
+			send "{@ptrPrefix}&6%argument 3% for %name of argument 2%: %{_status}%"
+			stop
+
+		if argument 1 is "testall":
+			if argument 2 is not set:
+				send "{@ptrPrefix}&cUsage: /playtimereward testall <player>"
+				stop
+			send "{@ptrPrefix}&6&lTesting all rewards for %name of argument 2%:"
+			loop {ptr::reward-ids::*}:
+				set {_rid} to loop-value
+				set {_status} to _ptr_checkRewardStatus(argument 2, {_rid})
+				send "&f%{_rid}% &7- %{_status}%"
+			stop
+
+		if argument 1 is "enable":
+			set {ptr::config::system-enabled} to true
+			send "{@ptrPrefix}&aPlaytime rewards system is now &l&aENABLED&r&a."
+			stop
+
+		if argument 1 is "disable":
+			set {ptr::config::system-enabled} to false
+			send "{@ptrPrefix}&cPlaytime rewards system is now &l&cDISABLED&r&c. Claiming is paused (the underlying vanilla stat keeps counting regardless, since that's controlled by Minecraft, not this script)."
+			stop
+
+		if argument 1 is "toggle":
+			if {ptr::config::system-enabled} is true:
+				set {ptr::config::system-enabled} to false
+				send "{@ptrPrefix}&cPlaytime rewards system is now &l&cDISABLED&r&c."
+			else:
+				set {ptr::config::system-enabled} to true
+				send "{@ptrPrefix}&aPlaytime rewards system is now &l&aENABLED&r&a."
+			stop
+
+		send "{@ptrPrefix}&cUnknown subcommand."
+
+
+function _ptr_cmdTimeEdit(sender: player, mode: string, target: offlineplayer, timestr: string):
+	if {_target} is not set:
+		send "{@ptrPrefix}&cUsage: /playtimereward %{_mode}%time <player> <time>" to {_sender}
+		stop
+	if {_timestr} is not set:
+		send "{@ptrPrefix}&cUsage: /playtimereward %{_mode}%time <player> <time>" to {_sender}
+		stop
+	set {_seconds} to _ptr_parseTime({_timestr})
+	if {_seconds} <= 0:
+		send "{@ptrPrefix}&cInvalid time format. Example: 1d12h30m" to {_sender}
+		stop
+	set {_uuid} to uuid of {_target}
+	if {ptr::adjust::%{_uuid}%} is not set:
+		set {ptr::adjust::%{_uuid}%} to 0
+
+	if {_mode} is "add":
+		add {_seconds} to {ptr::adjust::%{_uuid}%}
+	if {_mode} is "remove":
+		remove {_seconds} from {ptr::adjust::%{_uuid}%}
+	if {_mode} is "set":
+		set {_rawticks} to play one minute stat of {_target}
+		if {ptr::afkseconds::%{_uuid}%} is not set:
+			set {ptr::afkseconds::%{_uuid}%} to 0
+		set {ptr::adjust::%{_uuid}%} to {_seconds} - floor({_rawticks} / 20) + {ptr::afkseconds::%{_uuid}%}
+
+	set {_new} to _ptr_getPlaytime({_target})
+	send "{@ptrPrefix}&aUpdated %name of {_target}%'s playtime to &e%_ptr_formatTime({_new})%" to {_sender}
+
+
+function _ptr_checkRewardStatus(op: offlineplayer, id: string) :: string:
+	if {ptr::rewards::%{_id}%::required-seconds} is not set:
+		return "&cReward ID does not exist"
+
+	if {ptr::rewards::%{_id}%::enabled} is not true:
+		return "&8Disabled"
+
+	set {_required} to {ptr::rewards::%{_id}%::required-seconds}
+	set {_played} to _ptr_getPlaytime({_op})
+
+	if {_played} < {_required}:
+		set {_remaining} to {_required} - {_played}
+		return "&eLocked &7- needs %_ptr_formatTime({_remaining})% more"
+
+	set {_uuid} to uuid of {_op}
+	set {_alreadyclaimed} to _ptr_hasClaimed({_op}, {_id})
+	if {_alreadyclaimed} is true:
+		if {ptr::rewards::%{_id}%::repeatable} is true:
+			set {_nextat} to {ptr::lastclaimplaytime::%{_uuid}%::%{_id}%} + {ptr::rewards::%{_id}%::interval-seconds}
+			set {_wait} to {_nextat} - {_played}
+			return "&8On cooldown &7- repeatable, needs %_ptr_formatTime({_wait})% more playtime"
+		return "&8Already claimed (one-time reward)"
+
+	set {_perm} to "%{ptr::rewards::%{_id}%::permission}%"
+	if {_perm} is not "":
+		if {_perm} is not "none":
+			if {_op} is online:
+				if {_op} doesn't have permission {_perm}:
+					return "&cUnlocked but missing permission: %{_perm}%"
+
+	return "&a&lCLAIMABLE NOW"
+
+
+function _ptr_getOnlinePlayer(op: offlineplayer) :: player:
+	loop all players:
+		if uuid of loop-player is uuid of {_op}:
+			set {_found} to loop-player
+			return {_found}
+	set {_fallback} to player
+	return {_fallback}
+
+
+function _ptr_reloadConfig():
+	_ptr_log("Config values re-validated on reload.")
+
+
+# =====================================================================================
+#  KNOWN LIMITATIONS:
+#  - A few seconds of pre-authentication (AuthMe login screen) time can count, since
+#    the vanilla stat starts the moment the client fully joins, not on successful
+#    login, and no activity has happened yet to distinguish it from "just idle."
+#  - Account age is not enforced.
+#  - IP masking is obfuscation only, not cryptographic hashing.
+#  - The 20-second unlock-check interval is hardcoded (Skript can't parse a config
+#    variable into a trigger interval) - edit that line directly if you want it
+#    faster/slower.
+#  - {ptr::afkseconds} only advances for players currently online, which is correct:
+#    offline players can't be AFK, and the vanilla stat is also frozen while offline.
+# =====================================================================================

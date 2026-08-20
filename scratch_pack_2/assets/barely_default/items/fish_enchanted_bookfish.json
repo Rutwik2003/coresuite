@@ -1,0 +1,37 @@
+{
+	"model": {
+		"type": "select",
+		"cases": [
+			{
+				"model": {
+					"type": "model",
+					"model": "barely_default:item/fish/enchanted_bookfish_halloween"
+				},
+				"when": [
+					"10-30",
+					"10-31",
+					"11-01"
+				]
+			},
+			{
+				"model": {
+					"type": "model",
+					"model": "barely_default:item/fish/enchanted_bookfish_christmas"
+				},
+				"when": [
+					"12-23",
+					"12-24",
+					"12-25",
+					"12-26",
+					"12-27"
+				]
+			}
+		],
+		"fallback": {
+			"type": "model",
+			"model": "barely_default:item/fish/enchanted_bookfish"
+		},
+		"pattern": "MM-dd",
+		"property": "local_time"
+	}
+}

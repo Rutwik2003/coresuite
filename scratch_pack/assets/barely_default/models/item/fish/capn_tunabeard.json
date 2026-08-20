@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "barely_default:item/fish/tuna",
+	"textures": {
+		"layer0": "barely_default:item/fish/capn_tunabeard"
+	}
+}

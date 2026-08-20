@@ -1,0 +1,113 @@
+options:
+    line: &8&m                                                                    &r
+    tag: &8[&6&lMeerMC&8]&r
+
+# ===================================================
+#                AUTO MESSAGER SCRIPT
+# ===================================================
+# Commands:
+#   /automsg reload         - reloads the default message list
+#   /automsg toggle         - enables/disables broadcasting
+#   /automsg list           - lists all current messages
+#   /automsg add <text>     - adds a new message
+#   /automsg remove <number>- removes a message by its number
+# Permission: automessager.admin
+# ===================================================
+
+function getOnlinePlayerCountAM() :: number:
+    set {_count} to 0
+    loop all players:
+        add 1 to {_count}
+    return {_count}
+
+function loadDefaultMessages():
+    delete {automsg::messages::*}
+    add "&b&l✦ &fWebsite &7» &fmeermc.vercel.app &7— vote, donate & more!" to {automsg::messages::*}
+    add "&a&l✦ &fEarn &e&l100 Claim Blocks &fevery hour, just by playing!" to {automsg::messages::*}
+    add "&d&l✦ &fLost? Type &e/spawn &for &e/hub &fto head back to spawn!" to {automsg::messages::*}
+    add "&d&l✦ &fTrapped? Type &e/trapped &fto get to a safe location!" to {automsg::messages::*}
+    add "&6&l✦ &fFeeling lucky? Visit the &e/warp crates &farea for rewards!" to {automsg::messages::*}
+    add "&c&l✦ &fNew here? Make sure to read our rules with &e/rules&f!" to {automsg::messages::*}
+    add "&e&l✦ &fSupport the server & get &6free crate keys &fwith &e/vote&f!" to {automsg::messages::*}
+    add "&6&l✦ &fAlready voted? Claim your rewards anytime at &e/voteshop&f!" to {automsg::messages::*}
+    add "&2&l✦ &fProtect your builds from griefers using &e/claim&f!" to {automsg::messages::*}
+    add "&9&l✦ &fSet a base with &e/sethome &fand return anytime with &e/home&f!" to {automsg::messages::*}
+    add "&5&l✦ &fTeam up with friends! Create a team using &e/team create&f!" to {automsg::messages::*}
+    add "&6&l✦ &fFeeling rich? Check the top balances with &e/baltop&f!" to {automsg::messages::*}
+    add "&b&l✦ &fInvite your friends with &e/referral &fand earn exclusive rewards!" to {automsg::messages::*}
+    add "&a&l✦ &fBuy & sell items instantly at the &e/shop&f!" to {automsg::messages::*}
+    add "&d&l✦ &fWant to visit a friend? Use &e/tpa <player>&f!" to {automsg::messages::*}
+    add "&c&l✦ &fNeed help? Reach out to staff or use &e/helpop&f!" to {automsg::messages::*}
+    add "&3&l✦ &fShow off your style! Change your skin with &e/skin <name>&f!" to {automsg::messages::*}
+    add "&7&l✦ &fStepping away? Toggle &e/afk &fso others know you're busy!" to {automsg::messages::*}
+    add "&4&l✦ &fTired of spam? Silence players with &e/ignore <player>&f!" to {automsg::messages::*}
+    add "&e&l✦ &fCurious how long you've played? Check &e/playertime&f!" to {automsg::messages::*}
+    add "&2&l✦ &fSecure your account! Always &e/register &for &e/login &fon join!" to {automsg::messages::*}
+
+on load:
+    if {automsg::messages::*} is not set:
+        loadDefaultMessages()
+    if {automsg::index} is not set:
+        set {automsg::index} to 1
+    if {automsg::enabled} is not set:
+        set {automsg::enabled} to true
+
+every 10 minutes:
+    if getOnlinePlayerCountAM() < 1:
+        stop trigger
+    if {automsg::enabled} is true:
+        if size of {automsg::messages::*} > 0:
+            if {automsg::index} is not set:
+                set {automsg::index} to 1
+            if {automsg::index} > size of {automsg::messages::*}:
+                set {automsg::index} to 1
+            set {_msg} to {automsg::messages::%{automsg::index}%}
+            broadcast "{@line}"
+            broadcast "  {@tag} &r%{_msg}%"
+            broadcast "{@line}"
+            add 1 to {automsg::index}
+
+command /automsg <text> [<text>]:
+    permission: automessager.admin
+    permission message: &cYou don't have permission to use this command.
+    trigger:
+        if arg-1 is "reload":
+            loadDefaultMessages()
+            set {automsg::index} to 1
+            send "{@tag} &aDefault auto messages have been reloaded!" to player
+
+        else if arg-1 is "toggle":
+            if {automsg::enabled} is true:
+                set {automsg::enabled} to false
+                send "{@tag} &cAuto messages have been disabled." to player
+            else:
+                set {automsg::enabled} to true
+                send "{@tag} &aAuto messages have been enabled." to player
+
+        else if arg-1 is "list":
+            send "&6&lCurrent Auto Messages:" to player
+            loop {automsg::messages::*}:
+                send "&7#%loop-index% &f%loop-value%" to player
+
+        else if arg-1 is "add":
+            if arg-2 is set:
+                add arg-2 to {automsg::messages::*}
+                send "{@tag} &aMessage added! There are now &e%size of {automsg::messages::*}% &amessages." to player
+            else:
+                send "{@tag} &cUsage: /automsg add <message>" to player
+
+        else if arg-1 is "remove":
+            if arg-2 is set:
+                if arg-2 is a number:
+                    if {automsg::messages::%arg-2%} is set:
+                        delete {automsg::messages::%arg-2%}
+                        send "{@tag} &aMessage #%arg-2% removed." to player
+                    else:
+                        send "{@tag} &cNo message found with that number." to player
+                else:
+                    send "{@tag} &cPlease provide a valid message number." to player
+            else:
+                send "{@tag} &cUsage: /automsg remove <number>" to player
+
+        else:
+            send "{@tag} &cUsage: &f/automsg <reload/toggle/list/add/remove>" to player

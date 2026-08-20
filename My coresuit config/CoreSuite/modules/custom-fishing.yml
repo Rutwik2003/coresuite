@@ -1,0 +1,6125 @@
+prefix: '&8[&b&lFishing&8] &r'
+
+streak-timeout: 45
+
+streak:
+
+  multiplier-cap: 5.0
+
+fatigue:
+
+  threshold: 25
+
+  message: '&c&oGetting tired...'
+
+messages:
+
+  streak-message: '&7Streak: &b{streak}x&8/&7{cap} &8| &7Angler Lv.&b{level}'
+
+  junk-catch-message: '&7You caught {name}&7... not exactly treasure.'
+
+  level-up: '&a&lLEVEL UP! &7You are now Angler Level &b{level}&7!'
+
+pond-event:
+
+  enabled: true
+
+  interval-minutes: 30
+
+  forming-minutes: 10
+
+  duration-minutes: 10
+
+  forming-sound: BLOCK_NOTE_BLOCK_CHIME
+
+  start-sound: UI_TOAST_CHALLENGE_COMPLETE
+
+  min-players: 2
+
+  spawn-radius: 8000
+
+  radius: 5.0
+
+  reward-multiplier: 2.0
+
+  weight-multiplier: 2.0
+
+  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for
+
+    bonus rewards!'
+
+  leave-message: '&7✦ You left the Legendary Fishing Pond area.'
+
+enchants:
+
+  lure_of_the_deep:
+
+    name: '&bLure of the Deep'
+
+    description: Increases chance of catching fish.
+
+    base-price: 100000.0
+
+    price-multiplier: 1.5
+
+    max-level: 3
+
+    xp-required: 45
+
+    catches-required: 30
+
+  heavyweight:
+
+    name: '&cHeavyweight'
+
+    description: Increases the weight of fish caught.
+
+    base-price: 250000.0
+
+    price-multiplier: 1.8
+
+    max-level: 5
+
+    xp-required: 45
+
+    catches-required: 100
+
+  double_hook:
+
+    name: '&aDouble Hook'
+
+    description: Chance to catch two fish at once.
+
+    base-price: 500000.0
+
+    price-multiplier: 2.0
+
+    max-level: 3
+
+    xp-required: 60
+
+    catches-required: 150
+
+  treasure_hunter:
+
+    name: '&6Treasure Hunter'
+
+    description: Increases chance to find rare rewards.
+
+    base-price: 500000.0
+
+    price-multiplier: 2.5
+
+    max-level: 3
+
+    xp-required: 60
+
+    catches-required: 175
+
+bag-pages:
+
+  '2':
+
+    price: 15000.0
+
+    level-required: 5
+
+  '3':
+
+    price: 30000.0
+
+    level-required: 10
+
+  '4':
+
+    price: 50000.0
+
+    level-required: 15
+
+  '5':
+    price: 75000.0
+    level-required: 20
+  '6':
+    price: 100000.0
+    level-required: 30
+  '7':
+    price: 150000.0
+    level-required: 40
+  '8':
+    price: 200000.0
+    level-required: 50
+  '9':
+    price: 300000.0
+    level-required: 65
+  '10':
+    price: 500000.0
+    level-required: 80
+
+tournament:
+  enabled: true
+  reset-day: MONDAY
+  reset-hour: 0
+  prizes:
+    1st: 500000.0
+    2nd: 250000.0
+    3rd: 100000.0
+  prize-commands:
+    1st: ""
+    2nd: ""
+    3rd: ""
+  min-participants: 3
+
+rod-tiers:
+  bronze:
+    name: "&6Bronze"
+    enchant-multiplier: 1.15
+    price: 50000.0
+    level-required: 5
+  silver:
+    name: "&fSilver"
+    enchant-multiplier: 1.30
+    price: 150000.0
+    level-required: 15
+  gold:
+    name: "&eGold"
+    enchant-multiplier: 1.50
+    price: 350000.0
+    level-required: 25
+  diamond:
+    name: "&bDiamond"
+    enchant-multiplier: 1.75
+    price: 750000.0
+    level-required: 40
+  netherite:
+    name: "&4Netherite"
+    enchant-multiplier: 2.0
+    price: 1500000.0
+    level-required: 60
+
+baits:
+  worm:
+    name: "&aEarthworm Bait"
+    material: SLIME_BALL
+    item-model: ""
+    lore:
+      - "&8&oStandard fishing bait"
+      - ""
+      - "&7A classic, reliable earthworm used"
+      - "&7by novice anglers to quickly attract"
+      - "&7nearby fish."
+      - ""
+      - "&b&lStats:"
+      - " &8▪ &7Catch Chance: &a+15%"
+      - " &8▪ &7Durability: &e20 Casts"
+      - ""
+      - "&eClick to apply to your rod!"
+    price: 35000.0
+    type: casts
+    casts: 20
+    duration-seconds: 0
+    catch-chance-bonus: 0.15
+    weight-bonus: 0.0
+    rarity-bias: ""
+  golden_lure:
+    name: "&6Gilded Spinner"
+    material: GOLD_NUGGET
+    item-model: ""
+    lore:
+      - "&8&oHeavyweight fishing lure"
+      - ""
+      - "&7This shimmering golden lure flashes"
+      - "&7brightly in the water, aggressively"
+      - "&7attracting much heavier fish than usual."
+      - ""
+      - "&b&lStats:"
+      - " &8▪ &7Weight Bonus: &a+25%"
+      - " &8▪ &7Durability: &e15 Casts"
+      - ""
+      - "&eClick to apply to your rod!"
+    price: 75000.0
+    type: casts
+    casts: 15
+    duration-seconds: 0
+    catch-chance-bonus: 0.0
+    weight-bonus: 0.25
+    rarity-bias: ""
+  tide_essence:
+    name: "&bTide's Blessing"
+    material: HEART_OF_THE_SEA
+    item-model: ""
+    lore:
+      - "&8&oMagical ocean essence"
+      - ""
+      - "&7A potent vial of ocean magic. Pouring"
+      - "&7this over your line guarantees an"
+      - "&7incredible bite rate for a limited time."
+      - ""
+      - "&b&lStats:"
+      - " &8▪ &7Catch Chance: &a+20%"
+      - " &8▪ &7Duration: &e5 Minutes"
+      - ""
+      - "&eClick to apply to your rod!"
+    price: 125000.0
+    type: time
+    casts: 0
+    duration-seconds: 300
+    catch-chance-bonus: 0.20
+    weight-bonus: 0.0
+    rarity-bias: ""
+  mythical_chum:
+    name: "&d&lAbyssal Chum"
+    material: MAGMA_CREAM
+    item-model: ""
+    lore:
+      - "&8&oLegendary deep-sea bait"
+      - ""
+      - "&7A pungent, ancient mixture of deep sea"
+      - "&7remains. Its scent drives the rarest"
+      - "&7and most elusive fish into a frenzy."
+      - ""
+      - "&b&lStats:"
+      - " &8▪ &7Rarity Bias: &dEpic+"
+      - " &8▪ &7Rarity Chance: &a+50%"
+      - " &8▪ &7Duration: &e3 Minutes"
+      - ""
+      - "&eClick to apply to your rod!"
+    price: 250000.0
+    type: time
+    casts: 0
+    duration-seconds: 180
+    catch-chance-bonus: 0.0
+    weight-bonus: 0.0
+    rarity-bias: "epic"
+
+rewards:
+
+- 5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon
+
+  1
+
+- 3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1
+
+- 0.5|Legendary|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player}
+
+  potions 1
+
+- 0.1|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player}
+
+  elite 1
+
+- 0.1|Legendary|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player}
+
+  spawner 1
+
+- 10.0|Junk|&8Old Boot|entity.item.break|give {player} leather_boots 1
+
+species:
+
+  alexpaima:
+
+    name: '&7Alexpaima'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.23
+
+    min-weight: 1.84
+
+    max-weight: 4.01
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_alexpaima
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  alpha_spiderfish:
+
+    name: '&9Alpha Spiderfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.89
+
+    min-weight: 1.2
+
+    max-weight: 12.65
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_alpha_spiderfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  amanita_fungifin:
+
+    name: '&9Amanita Fungifin'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.44
+
+    min-weight: 3.33
+
+    max-weight: 45.18
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_amanita_fungifin
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  anchovy:
+
+    name: '&7Anchovy'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.58
+
+    min-weight: 4.5
+
+    max-weight: 34.32
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_anchovy
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  angelfish:
+
+    name: '&aAngelfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.99
+
+    min-weight: 4.86
+
+    max-weight: 40.87
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_angelfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  arapaima:
+
+    name: '&9Arapaima'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.8
+
+    min-weight: 2.1
+
+    max-weight: 43.65
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_arapaima
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  arch_wyverntail:
+
+    name: '&7Arch Wyverntail'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.42
+
+    min-weight: 3.3
+
+    max-weight: 29.97
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_arch_wyverntail
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  ariwana:
+
+    name: '&aAriwana'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.1
+
+    min-weight: 3.98
+
+    max-weight: 48.22
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_ariwana
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  armored_cavefish:
+
+    name: '&7Armored Cavefish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.84
+
+    min-weight: 0.79
+
+    max-weight: 30.1
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_armored_cavefish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  armor_trimfish:
+
+    name: '&7Armor Trimfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.01
+
+    min-weight: 3.25
+
+    max-weight: 26.63
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_armor_trimfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  arowana:
+
+    name: '&7Arowana'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.21
+
+    min-weight: 0.87
+
+    max-weight: 37.8
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_arowana
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  ash_soul_gaper:
+
+    name: '&7Ash Soul Gaper'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.39
+
+    min-weight: 1.16
+
+    max-weight: 16.72
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_ash_soul_gaper
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  atlantic_cod:
+
+    name: '&7Atlantic Cod'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.4
+
+    min-weight: 1.16
+
+    max-weight: 18.05
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_atlantic_cod
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  barbel_steed:
+
+    name: '&aBarbel Steed'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.06
+
+    min-weight: 2.15
+
+    max-weight: 37.97
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_barbel_steed
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  barred_knifejaw:
+
+    name: '&5Barred Knifejaw'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 3.2
+
+    min-weight: 3.31
+
+    max-weight: 64.16
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_barred_knifejaw
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  barreleye:
+
+    name: '&7Barreleye'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.28
+
+    min-weight: 1.32
+
+    max-weight: 5.76
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_barreleye
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  batfish:
+
+    name: '&5Batfish'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 4.01
+
+    min-weight: 2.95
+
+    max-weight: 74.84
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_batfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  betta:
+
+    name: '&7Betta'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.06
+
+    min-weight: 2.63
+
+    max-weight: 34.48
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_betta
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  bitterling:
+
+    name: '&7Bitterling'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.13
+
+    min-weight: 0.65
+
+    max-weight: 49.6
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_bitterling
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  black_bass:
+
+    name: '&aBlack Bass'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.43
+
+    min-weight: 0.69
+
+    max-weight: 20.22
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_black_bass
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  black_minnow:
+
+    name: '&aBlack Minnow'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.7
+
+    min-weight: 4.25
+
+    max-weight: 24.57
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_black_minnow
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  blowfish:
+
+    name: '&9Blowfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.56
+
+    min-weight: 3.61
+
+    max-weight: 12.72
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_blowfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  bluegill:
+
+    name: '&aBluegill'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.85
+
+    min-weight: 4.95
+
+    max-weight: 34.93
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_bluegill
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  blue_marlin:
+
+    name: '&aBlue Marlin'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.61
+
+    min-weight: 3.07
+
+    max-weight: 28.54
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_blue_marlin
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  bonefish:
+
+    name: '&9Bonefish'
+    rarity: 'Rare'
+    lore:
+    - '&7Rarity: &9Rare'
+    - '&7A beautiful fish found in the wild.'
+    chance: 6.98
+
+    min-weight: 4.19
+
+    max-weight: 20.58
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_bonefish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  bumblebee_tuna:
+
+    name: '&7Bumblebee Tuna'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.82
+
+    min-weight: 0.76
+
+    max-weight: 48.98
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_bumblebee_tuna
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  butterfly_fish:
+
+    name: '&9Butterfly Fish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.74
+
+    min-weight: 0.99
+
+    max-weight: 41.08
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_butterfly_fish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  capn_tunabeard:
+
+    name: '&7Capn Tunabeard'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.16
+
+    min-weight: 2.81
+
+    max-weight: 8.98
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_capn_tunabeard
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  carp:
+
+    name: '&7Carp'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.48
+
+    min-weight: 1.35
+
+    max-weight: 30.57
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_carp
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  catfish:
+
+    name: '&7Catfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.29
+
+    min-weight: 4.27
+
+    max-weight: 40.67
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_catfish
+
+    biomes:
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+    - RIVER
+
+  catfishfish:
+
+    name: '&7Catfishfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.19
+
+    min-weight: 3.81
+
+    max-weight: 8.9
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_catfishfish
+
+    biomes:
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+    - RIVER
+
+  cat_fish:
+
+    name: '&7Cat Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.17
+
+    min-weight: 1.36
+
+    max-weight: 7.31
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_cat_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  chaos_fish:
+
+    name: '&7Chaos Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.76
+
+    min-weight: 1.6
+
+    max-weight: 7.38
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_chaos_fish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  char:
+
+    name: '&6Char'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 1.23
+
+    min-weight: 1.61
+
+    max-weight: 50.82
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_char
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  cheep_cheep:
+
+    name: '&7Cheep Cheep'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.79
+
+    min-weight: 3.05
+
+    max-weight: 37.74
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_cheep_cheep
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  cherry_salmon:
+
+    name: '&6Cherry Salmon'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 1.53
+
+    min-weight: 1.29
+
+    max-weight: 64.58
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_cherry_salmon
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  chickenfish:
+
+    name: '&9Chickenfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.33
+
+    min-weight: 1.05
+
+    max-weight: 21.36
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_chickenfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  chicken_jockeyfish:
+
+    name: '&7Chicken Jockeyfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.22
+
+    min-weight: 0.75
+
+    max-weight: 45.14
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_chicken_jockeyfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  cloudfish:
+
+    name: '&7Cloudfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.48
+
+    min-weight: 0.67
+
+    max-weight: 3.6
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_cloudfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  coelacanth:
+
+    name: '&9Coelacanth'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.04
+
+    min-weight: 3.99
+
+    max-weight: 48.63
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_coelacanth
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  corrupted_slimefish:
+
+    name: '&aCorrupted Slimefish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.32
+
+    min-weight: 0.53
+
+    max-weight: 39.85
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_corrupted_slimefish
+
+    biomes:
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+    - RIVER
+
+  crimson_tigerfish:
+
+    name: '&aCrimson Tigerfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.36
+
+    min-weight: 3.55
+
+    max-weight: 40.46
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_crimson_tigerfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  crucian_carp:
+
+    name: '&7Crucian Carp'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.95
+
+    min-weight: 1.78
+
+    max-weight: 41.11
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_crucian_carp
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  cursedfish:
+
+    name: '&aCursedfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.82
+
+    min-weight: 3.88
+
+    max-weight: 33.59
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_cursedfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  cykloppsfish:
+
+    name: '&7Cykloppsfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.25
+
+    min-weight: 4.55
+
+    max-weight: 16.79
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_cykloppsfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  dab:
+
+    name: '&7Dab'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.81
+
+    min-weight: 1.23
+
+    max-weight: 37.45
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_dab
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  dace:
+
+    name: '&7Dace'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.31
+
+    min-weight: 0.61
+
+    max-weight: 20.04
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_dace
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  damselfish:
+
+    name: '&7Damselfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.95
+
+    min-weight: 3.77
+
+    max-weight: 11.73
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_damselfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  deathly_fin:
+
+    name: '&7Deathly Fin'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.63
+
+    min-weight: 3.34
+
+    max-weight: 14.62
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_deathly_fin
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  demonic_netherfish:
+
+    name: '&9Demonic Netherfish'
+    rarity: 'Rare'
+    lore:
+    - '&7Rarity: &9Rare'
+    - '&7A beautiful fish found in the wild.'
+    chance: 7.23
+
+    min-weight: 4.32
+
+    max-weight: 24.55
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_demonic_netherfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  derpfish:
+
+    name: '&7Derpfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.95
+
+    min-weight: 3.81
+
+    max-weight: 16.16
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_derpfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  dirtfish:
+
+    name: '&7Dirtfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.57
+
+    min-weight: 2.35
+
+    max-weight: 22.32
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_dirtfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  dorado:
+
+    name: '&9Dorado'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.17
+
+    min-weight: 4.09
+
+    max-weight: 50.0
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_dorado
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  double_cod:
+
+    name: '&aDouble Cod'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.43
+
+    min-weight: 1.05
+
+    max-weight: 9.01
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_double_cod
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  eater_of_plankton:
+
+    name: '&7Eater Of Plankton'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.76
+
+    min-weight: 2.45
+
+    max-weight: 10.4
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_eater_of_plankton
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  ebonkoi:
+
+    name: '&9Ebonkoi'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.93
+
+    min-weight: 1.45
+
+    max-weight: 15.95
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_ebonkoi
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  eel:
+
+    name: '&7Eel'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.21
+
+    min-weight: 4.74
+
+    max-weight: 37.49
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_eel
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  efelounder:
+
+    name: '&7Efelounder'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.27
+
+    min-weight: 3.81
+
+    max-weight: 49.75
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_efelounder
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  enchanted_bookfish:
+
+    name: '&d&lEnchanted Bookfish'
+    rarity: 'Mythical'
+    lore:
+    - '&7Rarity: &dMythical'
+    - '&7A legendary artifact from the depths...'
+    chance: 0.25
+
+    min-weight: 4.93
+
+    max-weight: 42.39
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_enchanted_bookfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  enchanted_bookfish_christmas:
+
+    name: '&d&lEnchanted Bookfish Christmas'
+    rarity: 'Mythical'
+    lore:
+    - '&7Rarity: &dMythical'
+    - '&7A festive artifact from the depths...'
+    chance: 0.25
+
+    min-weight: 3.41
+
+    max-weight: 45.45
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_enchanted_bookfish_christmas
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  enchanted_bookfish_halloween:
+
+    name: '&d&lEnchanted Bookfish Halloween'
+    rarity: 'Mythical'
+    lore:
+    - '&7Rarity: &dMythical'
+    - '&7A spooky artifact from the depths...'
+    chance: 0.25
+
+    min-weight: 4.24
+
+    max-weight: 13.47
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_enchanted_bookfish_halloween
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  fallen_starfish:
+
+    name: '&7Fallen Starfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.75
+
+    min-weight: 4.22
+
+    max-weight: 39.03
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_fallen_starfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  filet_o_fish:
+
+    name: '&7Filet O Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.92
+
+    min-weight: 0.7
+
+    max-weight: 37.11
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_filet_o_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  fish:
+
+    name: '&7Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.3
+
+    min-weight: 4.08
+
+    max-weight: 8.67
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_fish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  fishbrine:
+
+    name: '&7Fishbrine'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.8
+
+    min-weight: 1.64
+
+    max-weight: 22.05
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishbrine
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  fishing_rod_fish:
+
+    name: '&6Fishing Rod Fish'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 1.49
+
+    min-weight: 1.02
+
+    max-weight: 91.98
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishing_rod_fish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  fishlin:
+
+    name: '&aFishlin'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.42
+
+    min-weight: 4.38
+
+    max-weight: 32.24
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishlin
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  fishotron:
+
+    name: '&7Fishotron'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.04
+
+    min-weight: 4.08
+
+    max-weight: 46.33
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishotron
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  fishotron_prime:
+
+    name: '&aFishotron Prime'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.92
+
+    min-weight: 3.6
+
+    max-weight: 30.16
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishotron_prime
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  fishron:
+
+    name: '&7Fishron'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.5
+
+    min-weight: 3.57
+
+    max-weight: 12.87
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_fishron
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  flarefin_koi:
+
+    name: '&7Flarefin Koi'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.15
+
+    min-weight: 3.76
+
+    max-weight: 10.22
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_flarefin_koi
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  flint_and_steelfish:
+
+    name: '&aFlint And Steelfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.12
+
+    min-weight: 1.81
+
+    max-weight: 30.15
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_flint_and_steelfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  flying_fish:
+
+    name: '&7Flying Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.72
+
+    min-weight: 2.89
+
+    max-weight: 45.14
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_flying_fish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  football_fish:
+
+    name: '&aFootball Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.67
+
+    min-weight: 4.46
+
+    max-weight: 38.55
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_football_fish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  freshwater_goby:
+
+    name: '&aFreshwater Goby'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.1
+
+    min-weight: 3.11
+
+    max-weight: 46.33
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_freshwater_goby
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  frost_minnow:
+
+    name: '&aFrost Minnow'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.19
+
+    min-weight: 2.16
+
+    max-weight: 44.67
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_frost_minnow
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+    - FROZEN_RIVER
+
+  gar:
+
+    name: '&aGar'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.31
+
+    min-weight: 0.53
+
+    max-weight: 14.68
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_gar
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  giant_snakehead:
+
+    name: '&5Giant Snakehead'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 3.99
+
+    min-weight: 0.62
+
+    max-weight: 13.94
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_giant_snakehead
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  giant_trevally:
+
+    name: '&7Giant Trevally'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.78
+
+    min-weight: 4.83
+
+    max-weight: 31.74
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_giant_trevally
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  golden_carp:
+
+    name: '&7Golden Carp'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.23
+
+    min-weight: 1.31
+
+    max-weight: 32.85
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_golden_carp
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  golden_trout:
+
+    name: '&7Golden Trout'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.1
+
+    min-weight: 0.98
+
+    max-weight: 43.68
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_golden_trout
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  goldfish:
+
+    name: '&7Goldfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.67
+
+    min-weight: 1.27
+
+    max-weight: 21.84
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_goldfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  guppy:
+
+    name: '&aGuppy'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.53
+
+    min-weight: 1.82
+
+    max-weight: 26.65
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_guppy
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  harpyfish:
+
+    name: '&aHarpyfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.59
+
+    min-weight: 1.89
+
+    max-weight: 16.8
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_harpyfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  heartfish:
+
+    name: '&7Heartfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.99
+
+    min-weight: 1.54
+
+    max-weight: 45.78
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_heartfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  hemopiranha:
+
+    name: '&7Hemopiranha'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.63
+
+    min-weight: 2.96
+
+    max-weight: 44.82
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_hemopiranha
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+    - WARM_OCEAN
+
+  honeyfin:
+
+    name: '&aHoneyfin'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.2
+
+    min-weight: 2.36
+
+    max-weight: 38.49
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_honeyfin
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  horse_mackerel:
+
+    name: '&9Horse Mackerel'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.65
+
+    min-weight: 3.03
+
+    max-weight: 40.5
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_horse_mackerel
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  hungerfish:
+
+    name: '&7Hungerfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.37
+
+    min-weight: 2.17
+
+    max-weight: 35.3
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_hungerfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  infected_scabbardfish:
+
+    name: '&7Infected Scabbardfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.75
+
+    min-weight: 3.87
+
+    max-weight: 34.89
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_infected_scabbardfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  i_am_stevefish:
+
+    name: '&7I Am Stevefish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.67
+
+    min-weight: 0.87
+
+    max-weight: 37.78
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_i_am_stevefish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  jack_o_fish:
+
+    name: '&7Jack O Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.63
+
+    min-weight: 3.22
+
+    max-weight: 6.87
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_jack_o_fish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  jake_the_fish:
+
+    name: '&aJake The Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.88
+
+    min-weight: 2.21
+
+    max-weight: 51.39
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_jake_the_fish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  jewelfish:
+
+    name: '&7Jewelfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.53
+
+    min-weight: 1.26
+
+    max-weight: 10.83
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_jewelfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  kai_carp:
+
+    name: '&aKai Carp'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.08
+
+    min-weight: 0.76
+
+    max-weight: 9.59
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_kai_carp
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  killifish:
+
+    name: '&7Killifish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.5
+
+    min-weight: 4.47
+
+    max-weight: 47.97
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_killifish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  king_of_the_pond:
+
+    name: '&aKing Of The Pond'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.33
+
+    min-weight: 2.87
+
+    max-weight: 21.59
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_king_of_the_pond
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  king_salmon:
+
+    name: '&7King Salmon'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.37
+
+    min-weight: 3.28
+
+    max-weight: 52.34
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_king_salmon
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  koi:
+
+    name: '&9Koi'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.43
+
+    min-weight: 1.64
+
+    max-weight: 42.2
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_koi
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  lavager:
+
+    name: '&aLavager'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.61
+
+    min-weight: 2.86
+
+    max-weight: 36.47
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_lavager
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  lava_particle:
+
+    name: '&6Lava Particle'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 1.23
+
+    min-weight: 2.77
+
+    max-weight: 74.32
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_lava_particle
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  laviathan_fry:
+
+    name: '&7Laviathan Fry'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.62
+
+    min-weight: 2.78
+
+    max-weight: 46.05
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_laviathan_fry
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  loach:
+
+    name: '&aLoach'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.31
+
+    min-weight: 2.73
+
+    max-weight: 36.32
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_loach
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  loovar:
+
+    name: '&7Loovar'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.85
+
+    min-weight: 0.67
+
+    max-weight: 41.21
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_loovar
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  mahi_mahi:
+
+    name: '&7Mahi Mahi'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.96
+
+    min-weight: 2.55
+
+    max-weight: 20.41
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_mahi_mahi
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+    - WARM_OCEAN
+
+  makenarel:
+
+    name: '&aMakenarel'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.45
+
+    min-weight: 1.91
+
+    max-weight: 29.35
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_makenarel
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  mickey_joefish:
+
+    name: '&9Mickey Joefish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.42
+
+    min-weight: 4.25
+
+    max-weight: 48.87
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_mickey_joefish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  mirage_fish:
+
+    name: '&aMirage Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.11
+
+    min-weight: 2.18
+
+    max-weight: 29.61
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_mirage_fish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  moray_eel:
+
+    name: '&aMoray Eel'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.49
+
+    min-weight: 0.51
+
+    max-weight: 24.48
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_moray_eel
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  mudfish:
+
+    name: '&7Mudfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.61
+
+    min-weight: 2.69
+
+    max-weight: 49.4
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_mudfish
+
+    biomes:
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+    - RIVER
+
+  mutant_flinxfin:
+
+    name: '&7Mutant Flinxfin'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.46
+
+    min-weight: 3.07
+
+    max-weight: 25.9
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_mutant_flinxfin
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  mutated_cod:
+
+    name: '&7Mutated Cod'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.96
+
+    min-weight: 1.92
+
+    max-weight: 19.44
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_mutated_cod
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  mystery_fish:
+
+    name: '&aMystery Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.77
+
+    min-weight: 4.3
+
+    max-weight: 6.65
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_mystery_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  napoleonfish:
+
+    name: '&9Napoleonfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.41
+
+    min-weight: 0.54
+
+    max-weight: 25.71
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_napoleonfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  neon_tetra:
+
+    name: '&aNeon Tetra'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.45
+
+    min-weight: 1.53
+
+    max-weight: 6.26
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_neon_tetra
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  neptoona:
+
+    name: '&7Neptoona'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.08
+
+    min-weight: 4.54
+
+    max-weight: 31.56
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_neptoona
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  netherwrasse:
+
+    name: '&5Netherwrasse'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 4.36
+
+    min-weight: 3.82
+
+    max-weight: 105.38
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_netherwrasse
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  nibbler:
+
+    name: '&7Nibbler'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.23
+
+    min-weight: 2.07
+
+    max-weight: 43.04
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_nibbler
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  nibble_fish:
+
+    name: '&7Nibble Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.38
+
+    min-weight: 2.76
+
+    max-weight: 31.26
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_nibble_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  noor_tetra:
+
+    name: '&aNoor Tetra'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.16
+
+    min-weight: 1.76
+
+    max-weight: 45.15
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_noor_tetra
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  oarfish:
+
+    name: '&aOarfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.31
+
+    min-weight: 2.11
+
+    max-weight: 36.33
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_oarfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  obsidifish:
+
+    name: '&aObsidifish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.53
+
+    min-weight: 3.71
+
+    max-weight: 21.37
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_obsidifish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  ocean_sunfish:
+
+    name: '&7Ocean Sunfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.76
+
+    min-weight: 2.9
+
+    max-weight: 15.97
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_ocean_sunfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  olive_flounder:
+
+    name: '&7Olive Flounder'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.9
+
+    min-weight: 1.47
+
+    max-weight: 34.42
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_olive_flounder
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  pale_chub:
+
+    name: '&aPale Chub'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.31
+
+    min-weight: 1.72
+
+    max-weight: 20.64
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_pale_chub
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  pamf:
+
+    name: '&7Pamf'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.26
+
+    min-weight: 4.24
+
+    max-weight: 7.55
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_pamf
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  pengfish:
+
+    name: '&aPengfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.66
+
+    min-weight: 4.81
+
+    max-weight: 16.5
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_pengfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+    - FROZEN_RIVER
+
+  pike:
+
+    name: '&9Pike'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.91
+
+    min-weight: 0.66
+
+    max-weight: 14.57
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_pike
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  piranha:
+
+    name: '&aPiranha'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.82
+
+    min-weight: 2.78
+
+    max-weight: 11.03
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_piranha
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+    - WARM_OCEAN
+
+  pixiefish:
+
+    name: '&7Pixiefish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.48
+
+    min-weight: 3.67
+
+    max-weight: 30.19
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_pixiefish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  plain_ol_fish:
+
+    name: '&7Plain Ol Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.71
+
+    min-weight: 4.35
+
+    max-weight: 36.32
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_plain_ol_fish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  plankton:
+
+    name: '&7Plankton'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.26
+
+    min-weight: 4.81
+
+    max-weight: 51.55
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_plankton
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  pond_smelt:
+
+    name: '&9Pond Smelt'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.67
+
+    min-weight: 1.03
+
+    max-weight: 20.83
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_pond_smelt
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  popeyed_goldfish:
+
+    name: '&7Popeyed Goldfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.52
+
+    min-weight: 0.75
+
+    max-weight: 27.83
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_popeyed_goldfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  princess_fish:
+
+    name: '&aPrincess Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.74
+
+    min-weight: 0.8
+
+    max-weight: 39.06
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_princess_fish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  prismite:
+
+    name: '&7Prismite'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.89
+
+    min-weight: 0.59
+
+    max-weight: 19.91
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_prismite
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  rabbitfish:
+
+    name: '&7Rabbitfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.69
+
+    min-weight: 3.39
+
+    max-weight: 22.18
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_rabbitfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  rainbowfish:
+
+    name: '&7Rainbowfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.14
+
+    min-weight: 4.64
+
+    max-weight: 11.7
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_rainbowfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  rainbow_trout:
+
+    name: '&9Rainbow Trout'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.35
+
+    min-weight: 2.45
+
+    max-weight: 13.71
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_rainbow_trout
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  ranchu_goldfish:
+
+    name: '&5Ranchu Goldfish'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 4.17
+
+    min-weight: 3.66
+
+    max-weight: 45.0
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_ranchu_goldfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  red_snapper:
+
+    name: '&aRed Snapper'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.6
+
+    min-weight: 1.08
+
+    max-weight: 9.44
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_red_snapper
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  resinfish:
+
+    name: '&5Resinfish'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 4.71
+
+    min-weight: 3.77
+
+    max-weight: 46.1
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_resinfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  ribbon_eel:
+
+    name: '&7Ribbon Eel'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.46
+
+    min-weight: 4.09
+
+    max-weight: 17.14
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_ribbon_eel
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  rusty_marlin:
+
+    name: '&9Rusty Marlin'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.61
+
+    min-weight: 2.05
+
+    max-weight: 15.33
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_rusty_marlin
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  saddled_bichir:
+
+    name: '&7Saddled Bichir'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.69
+
+    min-weight: 4.25
+
+    max-weight: 50.49
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_saddled_bichir
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  scarab_fish:
+
+    name: '&aScarab Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.9
+
+    min-weight: 3.55
+
+    max-weight: 34.54
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_scarab_fish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  scorpio_fish:
+
+    name: '&7Scorpio Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.39
+
+    min-weight: 2.97
+
+    max-weight: 45.69
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_scorpio_fish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  sea_bass:
+
+    name: '&6Sea Bass'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 1.54
+
+    min-weight: 1.46
+
+    max-weight: 25.5
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_sea_bass
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  seven_finned_death:
+
+    name: '&7Seven Finned Death'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.36
+
+    min-weight: 2.34
+
+    max-weight: 33.48
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_seven_finned_death
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  skippyjack:
+
+    name: '&7Skippyjack'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.61
+
+    min-weight: 3.35
+
+    max-weight: 18.65
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_skippyjack
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  slimefish:
+
+    name: '&aSlimefish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.69
+
+    min-weight: 2.73
+
+    max-weight: 21.53
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_slimefish
+
+    biomes:
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+    - RIVER
+
+  small_fry:
+
+    name: '&9Small Fry'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.97
+
+    min-weight: 2.41
+
+    max-weight: 20.33
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_small_fry
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  soulfish:
+
+    name: '&7Soulfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.2
+
+    min-weight: 4.34
+
+    max-weight: 53.93
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_soulfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  specular_fish:
+
+    name: '&7Specular Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.16
+
+    min-weight: 3.19
+
+    max-weight: 35.2
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_specular_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  spiderfish:
+
+    name: '&9Spiderfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.31
+
+    min-weight: 3.43
+
+    max-weight: 46.89
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_spiderfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  spiderfish_queen:
+
+    name: '&5Spiderfish Queen'
+    rarity: 'Epic'
+
+    lore:
+
+    - '&7Rarity: &5Epic'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 4.67
+
+    min-weight: 3.32
+
+    max-weight: 39.48
+
+    price-per-kg: 500.0
+
+    material: COD
+
+    item-model: barely_default:fish_spiderfish_queen
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  stevelapia:
+
+    name: '&7Stevelapia'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.74
+
+    min-weight: 4.17
+
+    max-weight: 53.45
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_stevelapia
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  stinkfish:
+
+    name: '&7Stinkfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.21
+
+    min-weight: 1.87
+
+    max-weight: 37.37
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_stinkfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  stowfish:
+
+    name: '&7Stowfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.34
+
+    min-weight: 2.31
+
+    max-weight: 31.01
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_stowfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  stringfish:
+
+    name: '&aStringfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.81
+
+    min-weight: 1.9
+
+    max-weight: 49.97
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_stringfish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  sturgeon:
+
+    name: '&7Sturgeon'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.91
+
+    min-weight: 4.1
+
+    max-weight: 47.99
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_sturgeon
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  suckerfish:
+
+    name: '&7Suckerfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.06
+
+    min-weight: 1.12
+
+    max-weight: 11.42
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_suckerfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  sunnyfish:
+
+    name: '&7Sunnyfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.33
+
+    min-weight: 2.39
+
+    max-weight: 47.58
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_sunnyfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  surgeonfish:
+
+    name: '&9Surgeonfish'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 7.91
+
+    min-weight: 3.55
+
+    max-weight: 9.95
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_surgeonfish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  sweetfish:
+
+    name: '&aSweetfish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.16
+
+    min-weight: 2.65
+
+    max-weight: 16.96
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_sweetfish
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  testifish:
+
+    name: '&aTestifish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.59
+
+    min-weight: 0.93
+
+    max-weight: 22.03
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_testifish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  the_beastfish:
+
+    name: '&7The Beastfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.23
+
+    min-weight: 2.22
+
+    max-weight: 4.56
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_the_beastfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  the_fish_of_cthulu:
+
+    name: '&6The Fish Of Cthulu'
+    rarity: 'Legendary'
+
+    lore:
+
+    - '&7Rarity: &6Legendary'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 0.76
+
+    min-weight: 4.7
+
+    max-weight: 103.38
+
+    price-per-kg: 2000.0
+
+    material: COD
+
+    item-model: barely_default:fish_the_fish_of_cthulu
+
+    biomes: []
+
+  the_great_hogfish:
+
+    name: '&7The Great Hogfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.27
+
+    min-weight: 3.39
+
+    max-weight: 38.17
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_the_great_hogfish
+
+    biomes:
+
+    - OCEAN
+
+    - DEEP_OCEAN
+
+    - WARM_OCEAN
+
+  the_nibbler:
+
+    name: '&aThe Nibbler'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.42
+
+    min-weight: 4.82
+
+    max-weight: 44.29
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_the_nibbler
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  the_uncatchable:
+
+    name: '&d&lThe Uncatchable'
+    rarity: 'Mythical'
+    lore:
+    - '&7Rarity: &dMythical'
+    - '&7They said it couldn''t be done...'
+    chance: 0.15
+
+    min-weight: 2.18
+
+    max-weight: 22.44
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_the_uncatchable
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  tilapia:
+
+    name: '&aTilapia'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.88
+
+    min-weight: 2.22
+
+    max-weight: 7.11
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_tilapia
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  tnt_fish:
+
+    name: '&7Tnt Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.93
+
+    min-weight: 4.44
+
+    max-weight: 36.63
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_tnt_fish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  touchy_fish:
+
+    name: '&7Touchy Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.72
+
+    min-weight: 3.12
+
+    max-weight: 35.63
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_touchy_fish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  tropical_barracuda:
+
+    name: '&7Tropical Barracuda'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.53
+
+    min-weight: 3.75
+
+    max-weight: 45.54
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_tropical_barracuda
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+    - WARM_OCEAN
+
+  tropical_slimefish:
+
+    name: '&aTropical Slimefish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.29
+
+    min-weight: 3.06
+
+    max-weight: 43.55
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_tropical_slimefish
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+    - WARM_OCEAN
+
+  tuna:
+
+    name: '&7Tuna'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.7
+
+    min-weight: 3.96
+
+    max-weight: 36.28
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_tuna
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+  tundra_trout:
+
+    name: '&9Tundra Trout'
+    rarity: 'Rare'
+
+    lore:
+
+    - '&7Rarity: &9Rare'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 6.93
+
+    min-weight: 3.04
+
+    max-weight: 51.24
+
+    price-per-kg: 100.0
+
+    material: COD
+
+    item-model: barely_default:fish_tundra_trout
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+    - FROZEN_RIVER
+
+  unicorn_fish:
+
+    name: '&aUnicorn Fish'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.01
+
+    min-weight: 1.39
+
+    max-weight: 25.74
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_unicorn_fish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  variegated_lardfish:
+
+    name: '&7Variegated Lardfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.96
+
+    min-weight: 3.5
+
+    max-weight: 15.26
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_variegated_lardfish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  volcanic_bass:
+
+    name: '&7Volcanic Bass'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.34
+
+    min-weight: 3.39
+
+    max-weight: 36.57
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_volcanic_bass
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  voodoo_dollfin:
+
+    name: '&aVoodoo Dollfin'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.71
+
+    min-weight: 3.27
+
+    max-weight: 6.12
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_voodoo_dollfin
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  wither_bonefish:
+
+    name: '&7Wither Bonefish'
+    rarity: 'Common'
+    lore:
+    - '&7Rarity: &7Common'
+    - '&7A beautiful fish found in the wild.'
+    chance: 25.75
+
+    min-weight: 2.91
+
+    max-weight: 29.74
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_wither_bonefish
+
+    biomes:
+
+    - DEEP_DARK
+
+    - DRIPSTONE_CAVES
+
+    - LUSH_CAVES
+
+    - MUSHROOM_FIELDS
+
+  wolf_fish:
+
+    name: '&7Wolf Fish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 26.18
+
+    min-weight: 2.35
+
+    max-weight: 31.24
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_wolf_fish
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  wyverntail:
+
+    name: '&aWyverntail'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.23
+
+    min-weight: 2.57
+
+    max-weight: 27.24
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_wyverntail
+
+    biomes:
+
+    - JUNGLE
+
+    - BAMBOO_JUNGLE
+
+    - SPARSE_JUNGLE
+
+  yellow_perch:
+
+    name: '&aYellow Perch'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.22
+
+    min-weight: 3.95
+
+    max-weight: 49.5
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_yellow_perch
+
+    biomes:
+
+    - DEEP_DARK
+
+    - LUSH_CAVES
+
+    - DRIPSTONE_CAVES
+
+  zebra_turkeyfish:
+
+    name: '&7Zebra Turkeyfish'
+    rarity: 'Common'
+
+    lore:
+
+    - '&7Rarity: &7Common'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 25.36
+
+    min-weight: 2.51
+
+    max-weight: 31.84
+
+    price-per-kg: 10.0
+
+    material: COD
+
+    item-model: barely_default:fish_zebra_turkeyfish
+
+    biomes:
+
+    - RIVER
+
+    - SWAMP
+
+    - MANGROVE_SWAMP
+
+  zishlin:
+
+    name: '&aZishlin'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 15.14
+
+    min-weight: 2.72
+
+    max-weight: 38.89
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_zishlin
+
+    biomes:
+
+    - FROZEN_OCEAN
+
+    - SNOWY_TAIGA
+
+    - ICE_SPIKES
+
+  zurigeon:
+
+    name: '&aZurigeon'
+    rarity: 'Uncommon'
+
+    lore:
+
+    - '&7Rarity: &aUncommon'
+
+    - '&7A beautiful fish found in the wild.'
+
+    chance: 16.4
+
+    min-weight: 4.38
+
+    max-weight: 39.18
+
+    price-per-kg: 25.0
+
+    material: COD
+
+    item-model: barely_default:fish_zurigeon
+
+    biomes:
+
+    - DESERT
+
+    - BADLANDS
+
+

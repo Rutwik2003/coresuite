@@ -1,0 +1,124 @@
+options:
+	prefix: &8[&b&lFishing&8] &r
+
+# =========================================================
+#  Reward table
+#  Format: chance|rarity|display name|sound|console command
+#  Rarity: junk / common / uncommon / rare / elite / legendary
+#  (junk has no command - just flavor, keeps rare hits special)
+# =========================================================
+
+on fish catch:
+	if fish event state = caught fish:
+
+		# ---- fishing level / xp (leveled up first so the cap below can use it) ----
+		if {fishlevel::%uuid of player%} is not set:
+			set {fishlevel::%uuid of player%} to 1
+
+		# ---- streak tracking (resets if idle 45s+) ----
+		# streak cap scales with level: lvl1-4 cap 6, lvl5-9 cap 10, lvl10+ cap 15
+		if {fishlevel::%uuid of player%} >= 10:
+			set {_streakcap} to 15
+		else if {fishlevel::%uuid of player%} >= 5:
+			set {_streakcap} to 10
+		else:
+			set {_streakcap} to 6
+
+		if {fishlast::%uuid of player%} is set:
+			if difference between {fishlast::%uuid of player%} and now < 45 seconds:
+				add 1 to {fishstreak::%uuid of player%}
+			else:
+				set {fishstreak::%uuid of player%} to 1
+				set {fishsession::%uuid of player%} to 0
+		else:
+			set {fishstreak::%uuid of player%} to 1
+			set {fishsession::%uuid of player%} to 0
+		set {fishlast::%uuid of player%} to now
+
+		if {fishstreak::%uuid of player%} > {_streakcap}:
+			set {fishstreak::%uuid of player%} to {_streakcap}
+
+		# ---- session fatigue: catches since last idle-reset, no hard cap on tracking ----
+		add 1 to {fishsession::%uuid of player%}
+
+		# ---- xp ----
+		add 1 to {fishtotal::%uuid of player%}
+		add 1 to {fishxp::%uuid of player%}
+
+		set {_needed} to ({fishlevel::%uuid of player%} * 20)
+		if {fishxp::%uuid of player%} >= {_needed}:
+			set {fishxp::%uuid of player%} to 0
+			add 1 to {fishlevel::%uuid of player%}
+			send actionbar "{@prefix}&e&lLevel Up! &7You are now Angler Level &b%{fishlevel::%uuid of player%}%" to player
+			play sound "entity.player.levelup" with volume 1 with pitch 1 to player
+
+		# ---- diminishing streak bonus: sqrt curve instead of flat +3% per point ----
+		# early streak points matter more, later ones flatten out
+		set {_streakbonus} to (({fishstreak::%uuid of player%} ^ 0.6) * 0.045)
+
+		# ---- session fatigue: after 25 catches in one sitting, multiplier decays ----
+		set {_fatigue} to 1
+		if {fishsession::%uuid of player%} > 25:
+			set {_over} to ({fishsession::%uuid of player%} - 25)
+			set {_fatigue} to (1 / (1 + ({_over} * 0.03)))
+
+		set {_luck} to enchantment level of luck of the sea of tool of player
+		set {_mult} to (1 + ({_luck} * 0.15) + {_streakbonus}) * {_fatigue}
+
+		if {_fatigue} < 0.8:
+			send actionbar "&7Streak: &b%{fishstreak::%uuid of player%}%x&8/&7%{_streakcap}% &8| &7Lv.&b%{fishlevel::%uuid of player%}% &8| &c&oGetting tired..." to player
+		else:
+			send actionbar "&7Streak: &b%{fishstreak::%uuid of player%}%x&8/&7%{_streakcap}% &8| &7Angler Lv.&b%{fishlevel::%uuid of player%}%" to player
+
+		set {_rewards::1} to "12|junk|&7Old Boot|entity.item.pickup|"
+		set {_rewards::2} to "8|junk|&7Tangled String|entity.item.pickup|"
+		set {_rewards::3} to "6|junk|&7Rusty Can|entity.item.pickup|"
+
+		set {_rewards::4} to "0.2|common|&aCommon Crate Key|entity.experience_orb.pickup|excellentcrates:crate key give %player% common 1"
+		set {_rewards::5} to "0.1|uncommon|&2Uncommon Crate Key|entity.experience_orb.pickup|excellentcrates:crate key give %player% uncommon 1"
+		set {_rewards::6} to "0.05|rare|&9Rare Crate Key|entity.player.levelup|excellentcrates:crate key give %player% rare 1"
+		set {_rewards::7} to "0.02|legendary|&5Elite Crate Key|ui.toast.challenge_complete|excellentcrates:crate key give %player% elite 1"
+
+		set {_rewards::8} to "2|common|&6$1,000|entity.experience_orb.pickup|eco give %player% 1000"
+
+		set {_rewards::9} to "0.2|uncommon|&bBook of Efficiency IV|entity.experience_orb.pickup|give %player% enchanted_book 1 efficiency:4"
+		set {_rewards::10} to "0.2|uncommon|&cBook of Sharpness IV|entity.experience_orb.pickup|give %player% enchanted_book 1 sharpness:4"
+		set {_rewards::11} to "0.2|uncommon|&7Book of Unbreaking III|entity.experience_orb.pickup|give %player% enchanted_book 1 unbreaking:3"
+
+		set {_rewards::12} to "0.1|rare|&bDiamond Pickaxe|entity.player.levelup|give %player% diamond_pickaxe 1 efficiency:3 unbreaking:3"
+		set {_rewards::13} to "0.1|rare|&cDiamond Sword|entity.player.levelup|give %player% diamond_sword 1 sharpness:3 unbreaking:3"
+		set {_rewards::14} to "0.1|rare|&bDiamond Shovel|entity.player.levelup|give %player% diamond_shovel 1 efficiency:3 unbreaking:3"
+		set {_rewards::15} to "0.1|rare|&cDiamond Axe|entity.player.levelup|give %player% diamond_axe 1 efficiency:3 unbreaking:3"
+
+		set {_rewards::16} to "3|common|&fDiamond|entity.experience_orb.pickup|give %player% diamond 1"
+
+		loop {_rewards::*}:
+			set {_parts::*} to loop-value split at "|"
+			set {_chance} to {_parts::1} parsed as number
+			set {_rarity} to {_parts::2}
+			set {_name} to {_parts::3}
+			set {_sound} to {_parts::4}
+			set {_command} to {_parts::5}
+
+			chance of ({_chance} * {_mult})%:
+				if {_rarity} is "junk":
+					send actionbar "&7You caught %{_name}%&7... not exactly treasure." to player
+					stop loop
+
+				execute console command "/%{_command}%"
+				play sound "%{_sound}%" with volume 1 with pitch 1 to player
+
+				if {_rarity} is "rare" or "legendary":
+					send title "&d&l✦ Legendary Catch ✦" with subtitle "%{_name}%&7!" to player for 6 seconds
+					broadcast "{@prefix}&f%player% &7just reeled in %{_name}%&7! &8(&b%{_rarity}%&8)"
+				else:
+					send title "&a&l✦ Reward Found ✦" with subtitle "%{_name}%&7!" to player for 5 seconds
+
+				stop loop
+
+command /fishlevel:
+	trigger:
+		if {fishlevel::%uuid of player%} is not set:
+			send "{@prefix}&7You haven't started fishing yet - go catch something!"
+			stop
+		send "{@prefix}&7Level: &b%{fishlevel::%uuid of player%}% &8| &7XP: &b%{fishxp::%uuid of player%}%&7/&b%({fishlevel::%uuid of player%} * 20)% &8| &7Total catches: &b%{fishtotal::%uuid of player%}%"

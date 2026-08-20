@@ -1,0 +1,86 @@
+options:
+    prefix: <##66EF8B><b>MeerMC » &r
+    baseperm: MeerMC
+    clearformat: dropped items
+
+function getOnlinePlayerCountCL() :: number:
+    set {_count} to 0
+    loop all players:
+        add 1 to {_count}
+    return {_count}
+
+command /clearlag [<text>]:
+    prefix: MeerMC
+    aliases: /clearlagg
+    permission: {@baseperm}.clearlag
+    permission message: {@prefix} &cSorry, but you can't do that.
+    trigger:
+        send "{@prefix} &aExecuting forced clearlag..."
+        wait 1 second
+
+        if arg-1 is not set:
+            clearlag()
+        else if arg-1 is "now":
+            clearlagNOW()
+        else if arg-1 is "timer":
+            clearlag()
+        else:
+            send "{@prefix} &cUnknown argument."
+
+on tab complete of "/clearlag" and "/clearlagg":
+    set tab completions for position 1 to "now" and "timer"
+
+# Automatic cleanup every 8 minutes
+every 8 minutes:
+    if getOnlinePlayerCountCL() > 0:
+        clearlag()
+
+function clearlagNOW():
+    set {_items} to size of dropped items
+    set {_arrows} to size of arrows
+
+    kill dropped items
+    kill arrows
+
+    broadcast "{@prefix} &aCleared %{_items}% dropped items."
+    broadcast "{@prefix} &aCleared %{_arrows}% arrows."
+
+function clearlag():
+    broadcast "{@prefix} &eGround items will be cleared in &68 minutes&e."
+    wait 3 minutes
+
+    broadcast "{@prefix} &eGround items will be cleared in &65 minutes&e."
+    wait 3 minutes
+
+    broadcast "{@prefix} &eGround items will be cleared in &62 minutes&e."
+    wait 1 minute
+
+    broadcast "{@prefix} &eGround items will be cleared in &61 minute&e."
+    wait 30 seconds
+
+    broadcast "{@prefix} &6Ground items will be cleared in &c30 seconds&6."
+    wait 25 seconds
+
+    broadcast "{@prefix} &cGround items will be cleared in &65 seconds&c."
+    wait 1 second
+
+    broadcast "{@prefix} &cGround items will be cleared in &64 seconds&c."
+    wait 1 second
+
+    broadcast "{@prefix} &cGround items will be cleared in &63 seconds&c."
+    wait 1 second
+
+    broadcast "{@prefix} &cGround items will be cleared in &62 seconds&c."
+    wait 1 second
+
+    broadcast "{@prefix} &cGround items will be cleared in &61 second&c."
+    wait 1 second
+
+    set {_items} to size of dropped items
+    set {_arrows} to size of arrows
+
+    kill dropped items
+    kill arrows
+
+    broadcast "{@prefix} &aCleared %{_items}% dropped items."
+    broadcast "{@prefix} &aCleared %{_arrows}% arrows."

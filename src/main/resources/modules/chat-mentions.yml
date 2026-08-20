@@ -1,0 +1,20 @@
+# ============================================================
+# CoreSuite - Chat Mentions Module Configuration
+# ============================================================
+
+# Prefix for the command and messages
+prefix: "<##ffe474>&lMENTIONS &7→ &f"
+
+# Sound to play when mentioned
+# Find sound names here: https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/Sound.html
+mention-sound: BLOCK_NOTE_BLOCK_BIT
+sound-volume: 1.0
+sound-pitch: 1.5
+
+highlight-color: YELLOW
+show-action-bar: true
+action-bar-text: '&e{player} &7mentioned you!'
+
+messages:
+  mention-toggle-on: "&aEnabled &fchat mentions for you."
+  mention-toggle-off: "&cDisabled &fchat mentions for you."

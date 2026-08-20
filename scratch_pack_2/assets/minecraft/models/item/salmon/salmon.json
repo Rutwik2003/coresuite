@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "item/cod",
+	"textures": {
+		"layer0": "item/salmon/salmon"
+	}
+}

@@ -1,0 +1,854 @@
+########################################################
+# CHAT GAMES - Full Tiered Trivia/Question System
+# Difficulties: Easy, Normal, Intermediate, Hard, Difficult, Extreme
+# Question Types: Trivia Pool | Dynamic Math | Word Scramble | Live Server Data
+# Rewards: Economy + Items + Crate Keys (scaling with difficulty)
+# Includes: auto scheduler, min player check, leaderboard, admin commands
+#
+# CHANGELOG (this revision):
+#  - No-repeat memory for trivia questions AND scramble words so regulars
+#    stop seeing the same Q&A on loop (math is already fresh every time).
+#  - New "live server data" question type - answer depends on the exact
+#    moment the question fires, so it can never be memorized in advance.
+#  - Trivia answers can now be a comma separated list of accepted aliases,
+#    e.g. "iron pickaxe,pickaxe" so near-misses still count.
+#  - /chatgame revealanswer <on|off> admin toggle - controls whether the
+#    correct answer gets posted in chat when nobody answers in time.
+########################################################
+
+options:
+    prefix: &8[&6&lChat Games&8]&r
+
+# ============ CONFIG / LOAD ============
+function loadChatGameConfig():
+    set {cg.enabled} to true
+    set {cg.active} to false
+
+    # whether the answer gets revealed in chat if time runs out with no winner
+    if {cg.revealanswer} is not set:
+        set {cg.revealanswer} to true
+
+    # delay between games (seconds) once one ends
+    set {cg.mindelay} to 300
+    set {cg.maxdelay} to 600
+
+    # time players have to answer (seconds)
+    set {cg.answertime} to 45
+
+    # minimum players online required for a chat game to start
+    set {cg.minplayers} to 2
+
+    # how many recent trivia questions / scramble words to remember
+    # and avoid repeating
+    set {cg.norepeat.size} to 15
+
+    # ---------- QUESTION POOLS (Question|Answer[,alias2,alias3]) ----------
+    delete {cg.pool.easy::*}
+    add "What block explodes when lit?|tnt" to {cg.pool.easy::*}
+    add "What mob explodes near players?|creeper" to {cg.pool.easy::*}
+    add "What do you mine diamonds with?|iron pickaxe,pickaxe" to {cg.pool.easy::*}
+    add "What animal gives you wool?|sheep" to {cg.pool.easy::*}
+    add "What do you get from milking a cow?|milk" to {cg.pool.easy::*}
+    add "What tool do you use to chop wood?|axe" to {cg.pool.easy::*}
+    add "What mob shoots arrows?|skeleton" to {cg.pool.easy::*}
+    add "What do you need to craft a bed?|wool and wood,wood and wool" to {cg.pool.easy::*}
+    add "What food do you get from wheat?|bread" to {cg.pool.easy::*}
+    add "What block do you sleep in?|bed" to {cg.pool.easy::*}
+    add "What mob do you shear to get wool?|sheep" to {cg.pool.easy::*}
+    add "What liquid do you swim in that isn't water?|lava" to {cg.pool.easy::*}
+    add "What do zombies drop sometimes?|rotten flesh" to {cg.pool.easy::*}
+    add "What tool do you use to mine stone?|pickaxe" to {cg.pool.easy::*}
+    add "What color is a creeper?|green" to {cg.pool.easy::*}
+    add "What do you use to tame a wolf?|bone" to {cg.pool.easy::*}
+    add "What ore is orange and used for tools?|copper" to {cg.pool.easy::*}
+    add "What plugin lets you claim land here?|griefprevention" to {cg.pool.easy::*}
+    add "What do you use to breed cows?|wheat" to {cg.pool.easy::*}
+    add "What is the softest block that digs fastest by hand?|dirt" to {cg.pool.easy::*}
+    add "What do you use to put out fire quickly?|water" to {cg.pool.easy::*}
+    add "What mob do you find in villages that trades items?|villager" to {cg.pool.easy::*}
+    add "What block do you use to craft a furnace?|cobblestone" to {cg.pool.easy::*}
+    add "What do bees make inside a hive?|honey" to {cg.pool.easy::*}
+    add "What fish can you catch with a fishing rod besides cod?|salmon" to {cg.pool.easy::*}
+    add "What do you plant to grow melons?|melon seeds,melon seed" to {cg.pool.easy::*}
+    add "5 + 7 = ?|12" to {cg.pool.easy::*}
+    add "9 - 3 = ?|6" to {cg.pool.easy::*}
+    add "4 * 3 = ?|12" to {cg.pool.easy::*}
+    add "10 / 2 = ?|5" to {cg.pool.easy::*}
+    add "8 + 6 = ?|14" to {cg.pool.easy::*}
+    add "15 - 7 = ?|8" to {cg.pool.easy::*}
+    add "6 * 2 = ?|12" to {cg.pool.easy::*}
+    add "20 / 4 = ?|5" to {cg.pool.easy::*}
+
+    delete {cg.pool.normal::*}
+    add "What ore is needed to enchant items?|lapis lazuli,lapis" to {cg.pool.normal::*}
+    add "What mob drops ender pearls?|enderman" to {cg.pool.normal::*}
+    add "What blocks form a beacon pyramid base?|iron gold emerald or diamond blocks" to {cg.pool.normal::*}
+    add "What do you combine with an eye of ender to find a stronghold?|eye of ender" to {cg.pool.normal::*}
+    add "What mob do you breed with carrots on a stick?|pig" to {cg.pool.normal::*}
+    add "What block do you need to make a nether portal?|obsidian" to {cg.pool.normal::*}
+    add "What tool removes enchantments and combines items?|anvil" to {cg.pool.normal::*}
+    add "What mob only spawns in the Nether and is passive?|strider" to {cg.pool.normal::*}
+    add "What item lets you teleport short distances instantly?|ender pearl" to {cg.pool.normal::*}
+    add "What is the command to claim land with GriefPrevention?|claim,/claim" to {cg.pool.normal::*}
+    add "What do you use to repair tools without an anvil?|grindstone" to {cg.pool.normal::*}
+    add "What mob drops blaze rods?|blaze" to {cg.pool.normal::*}
+    add "What potion base is made from nether wart?|awkward potion,awkward" to {cg.pool.normal::*}
+    add "What block do villagers need to become a farmer?|composter" to {cg.pool.normal::*}
+    add "What is the flying hostile boss mob in the End called?|enderdragon,ender dragon" to {cg.pool.normal::*}
+    add "What is the command to view your homes on this server?|homes,/homes" to {cg.pool.normal::*}
+    add "What mob can you ride using a saddle in water?|pig" to {cg.pool.normal::*}
+    add "What block generates chunks of nether wart naturally?|soul sand" to {cg.pool.normal::*}
+    add "What is the command to view claim blocks left?|claimlist,/claimlist" to {cg.pool.normal::*}
+    add "What item do you use to lead animals around?|lead" to {cg.pool.normal::*}
+    add "What block do you need to make a brewing stand?|blaze rod" to {cg.pool.normal::*}
+    add "What mob drops phantom membranes?|phantom" to {cg.pool.normal::*}
+    add "What do you use to breed axolotls?|tropical fish bucket" to {cg.pool.normal::*}
+    add "What block lets you fast travel using redstone signals?|piston" to {cg.pool.normal::*}
+    add "What do you need to make a map?|compass and paper,paper and compass" to {cg.pool.normal::*}
+    add "5 * 4 + 3 = ?|23" to {cg.pool.normal::*}
+    add "12 + 8 * 2 = ?|28" to {cg.pool.normal::*}
+    add "9 * 6 - 10 = ?|44" to {cg.pool.normal::*}
+    add "100 / 5 + 7 = ?|27" to {cg.pool.normal::*}
+    add "14 * 3 - 6 = ?|36" to {cg.pool.normal::*}
+    add "7 + 7 + 7 = ?|21" to {cg.pool.normal::*}
+    add "50 - 6 * 5 = ?|20" to {cg.pool.normal::*}
+
+    delete {cg.pool.intermediate::*}
+    add "What is the max enchant level for Sharpness normally?|5" to {cg.pool.intermediate::*}
+    add "What potion effect does Netherite gear NOT give you?|fire resistance" to {cg.pool.intermediate::*}
+    add "What is the max level of the Mending enchant?|1" to {cg.pool.intermediate::*}
+    add "What is the max fortune level obtainable normally?|3" to {cg.pool.intermediate::*}
+    add "What enchant prevents mob drops but gives you the block instead?|silk touch" to {cg.pool.intermediate::*}
+    add "What is the internal name for the End dimension?|the_end" to {cg.pool.intermediate::*}
+    add "How many totems of undying can you hold in each hand at once?|1" to {cg.pool.intermediate::*}
+    add "What effect do you get from defeating a raid captain?|hero of the village" to {cg.pool.intermediate::*}
+    add "What happens if you sleep in a bed in the Nether?|explodes" to {cg.pool.intermediate::*}
+    add "What is the highest enchant level obtainable from an enchanting table without commands?|30" to {cg.pool.intermediate::*}
+    add "What material is required to craft a beacon block itself?|nether star" to {cg.pool.intermediate::*}
+    add "What job block turns a villager into a cartographer?|cartography table" to {cg.pool.intermediate::*}
+    add "What plugin on this server prevents griefing through land claiming?|griefprevention" to {cg.pool.intermediate::*}
+    add "What mob can you shear to obtain a rare drop besides sheep?|mooshroom" to {cg.pool.intermediate::*}
+    add "What is the max level of the Efficiency enchant?|5" to {cg.pool.intermediate::*}
+    add "What potion effect does a splash potion of harming give?|damage" to {cg.pool.intermediate::*}
+    add "What villager profession works at a blast furnace?|armorer" to {cg.pool.intermediate::*}
+    add "What is the max durability of a diamond pickaxe?|1561" to {cg.pool.intermediate::*}
+    add "(8 + 4) * 3 = ?|36" to {cg.pool.intermediate::*}
+    add "9 * 9 - 15 = ?|66" to {cg.pool.intermediate::*}
+    add "144 / 12 + 8 = ?|20" to {cg.pool.intermediate::*}
+    add "6 * 7 + 6 * 3 = ?|60" to {cg.pool.intermediate::*}
+    add "15 * 4 - 100 / 5 = ?|40" to {cg.pool.intermediate::*}
+    add "(20 - 5) * (3 + 1) = ?|60" to {cg.pool.intermediate::*}
+
+    delete {cg.pool.hard::*}
+    add "How many blocks tall is the Nether roof at bedrock from Y0?|128" to {cg.pool.hard::*}
+    add "What is the rarest naturally spawning ore in the game?|ancient debris" to {cg.pool.hard::*}
+    add "What Y level range is best for finding ancient debris?|8 to 22" to {cg.pool.hard::*}
+    add "What is the exact health of the Ender Dragon in health points?|200" to {cg.pool.hard::*}
+    add "What is the max stack size of an ender pearl?|16" to {cg.pool.hard::*}
+    add "What underwater structure contains guardians and treasure?|ocean monument" to {cg.pool.hard::*}
+    add "What mob is immune to fire and spawns in the nether wastes only?|magma cube" to {cg.pool.hard::*}
+    add "What is the internal Minecraft ID name for a crafting table?|crafting_table" to {cg.pool.hard::*}
+    add "What is the maximum world height in modern Minecraft versions?|320" to {cg.pool.hard::*}
+    add "What is the minimum world height in modern Minecraft?|-64" to {cg.pool.hard::*}
+    add "What nether structure has 3 floors and blaze spawners?|nether fortress" to {cg.pool.hard::*}
+    add "What is the total health of the ender dragon in half-hearts?|400" to {cg.pool.hard::*}
+    add "What is the exact number of enchantments in vanilla Minecraft as of 1.20?|42" to {cg.pool.hard::*}
+    add "What is the maximum amount of experience levels obtainable before overflow issues occur?|2147483647" to {cg.pool.hard::*}
+    add "What is the exact number of ticks in one full Minecraft day?|24000" to {cg.pool.hard::*}
+    add "13 * 13 - 7 * 6 = ?|127" to {cg.pool.hard::*}
+    add "(15 + 9) * 4 - 20 = ?|76" to {cg.pool.hard::*}
+    add "17 * 6 + 144 / 12 = ?|114" to {cg.pool.hard::*}
+    add "(9 * 9) - (8 * 8) = ?|17" to {cg.pool.hard::*}
+    add "23 * 4 - 11 * 3 = ?|59" to {cg.pool.hard::*}
+
+    delete {cg.pool.difficult::*}
+    add "What is the exact hex color code closest to Minecraft's classic dirt brown?|866043" to {cg.pool.difficult::*}
+    add "What year was Minecraft's Alpha version first publicly released?|2010" to {cg.pool.difficult::*}
+    add "What was the original working name for Minecraft before release?|cave game" to {cg.pool.difficult::*}
+    add "What company originally developed Minecraft before being bought by Microsoft?|mojang" to {cg.pool.difficult::*}
+    add "What is the exact tick rate Minecraft servers run at, in ticks per second?|20" to {cg.pool.difficult::*}
+    add "What update added the Warden and Deep Dark biome?|1.19" to {cg.pool.difficult::*}
+    add "What was the first hostile mob ever added to Minecraft?|zombie" to {cg.pool.difficult::*}
+    add "What update introduced the Nether Update overhaul with new biomes?|1.16" to {cg.pool.difficult::*}
+    add "What was the name of the game engine Minecraft originally ran on?|lwjgl" to {cg.pool.difficult::*}
+    add "What update added the Ancient City and Sculk blocks?|1.19" to {cg.pool.difficult::*}
+    add "What is the exact seed value used for the default superflat preset?|0" to {cg.pool.difficult::*}
+    add "17 * 23 - 15 * 12 = ?|211" to {cg.pool.difficult::*}
+    add "(45 + 55) * 3 - 200 = ?|100" to {cg.pool.difficult::*}
+    add "29 * 29 - 21 * 21 = ?|400" to {cg.pool.difficult::*}
+    add "(12 * 12) + (13 * 13) = ?|313" to {cg.pool.difficult::*}
+
+    delete {cg.pool.extreme::*}
+    add "What year was Minecraft's full release version 1.0 launched?|2011" to {cg.pool.extreme::*}
+    add "Who is the original creator of Minecraft?|notch" to {cg.pool.extreme::*}
+    add "What was Notch's full real name?|markus persson" to {cg.pool.extreme::*}
+    add "In what year did Microsoft acquire Mojang?|2014" to {cg.pool.extreme::*}
+    add "What was the codename update number for the Combat Update?|1.9" to {cg.pool.extreme::*}
+    add "What was the very first mob added to Minecraft during early development?|pig" to {cg.pool.extreme::*}
+    add "What was the name of Minecraft's very first public test version?|rd-132211" to {cg.pool.extreme::*}
+    add "What was the exact release date of Minecraft version 1.0 (day month year)?|18 november 2011" to {cg.pool.extreme::*}
+    add "What was the name of the game Notch made right before starting Minecraft?|wurm online" to {cg.pool.extreme::*}
+    add "What was the exact purchase price Microsoft paid to acquire Mojang in USD?|2500000000" to {cg.pool.extreme::*}
+    add "37 * 37 - 29 * 19 = ?|818" to {cg.pool.extreme::*}
+    add "(123 + 77) * 5 - 250 = ?|750" to {cg.pool.extreme::*}
+    add "48 * 12 - 96 * 3 = ?|288" to {cg.pool.extreme::*}
+    add "(99 * 3) + (77 * 5) = ?|682" to {cg.pool.extreme::*}
+
+    # ---------- WORD SCRAMBLE POOLS (single word, no spaces) ----------
+    delete {cg.words.easy::*}
+    add "creeper" to {cg.words.easy::*}
+    add "zombie" to {cg.words.easy::*}
+    add "diamond" to {cg.words.easy::*}
+    add "sword" to {cg.words.easy::*}
+    add "chest" to {cg.words.easy::*}
+    add "torch" to {cg.words.easy::*}
+    add "ladder" to {cg.words.easy::*}
+    add "bucket" to {cg.words.easy::*}
+    add "carrot" to {cg.words.easy::*}
+    add "potato" to {cg.words.easy::*}
+
+    delete {cg.words.normal::*}
+    add "obsidian" to {cg.words.normal::*}
+    add "enderman" to {cg.words.normal::*}
+    add "blaze" to {cg.words.normal::*}
+    add "cauldron" to {cg.words.normal::*}
+    add "hopper" to {cg.words.normal::*}
+    add "beacon" to {cg.words.normal::*}
+    add "anvil" to {cg.words.normal::*}
+    add "compass" to {cg.words.normal::*}
+
+    delete {cg.words.intermediate::*}
+    add "netherite" to {cg.words.intermediate::*}
+    add "trident" to {cg.words.intermediate::*}
+    add "shulker" to {cg.words.intermediate::*}
+    add "phantom" to {cg.words.intermediate::*}
+    add "villager" to {cg.words.intermediate::*}
+    add "grindstone" to {cg.words.intermediate::*}
+
+    delete {cg.words.hard::*}
+    add "stronghold" to {cg.words.hard::*}
+    add "monument" to {cg.words.hard::*}
+    add "fortress" to {cg.words.hard::*}
+    add "guardian" to {cg.words.hard::*}
+    add "elytra" to {cg.words.hard::*}
+    add "endermite" to {cg.words.hard::*}
+
+    delete {cg.words.difficult::*}
+    add "silverfish" to {cg.words.difficult::*}
+    add "vindicator" to {cg.words.difficult::*}
+    add "illusioner" to {cg.words.difficult::*}
+    add "conduit" to {cg.words.difficult::*}
+    add "allocator" to {cg.words.difficult::*}
+
+    delete {cg.words.extreme::*}
+    add "smithingtable" to {cg.words.extreme::*}
+    add "cartography" to {cg.words.extreme::*}
+    add "blastfurnace" to {cg.words.extreme::*}
+    add "obsidianplatform" to {cg.words.extreme::*}
+    add "enchantingtable" to {cg.words.extreme::*}
+
+function getOnlinePlayerCount() :: number:
+    set {_count} to 0
+    loop all players:
+        add 1 to {_count}
+    return {_count}
+
+on load:
+    loadChatGameConfig()
+
+# ============ ADMIN COMMAND ============
+command /chatgame [<text>] [<text>]:
+    permission: chatgames.admin
+    permission message: &cYou don't have permission to manage Chat Games.
+    trigger:
+        if argument 1 is not set:
+            send "{@prefix} &7Usage: &f/chatgame <start|force|stop|toggle|reload|top|revealanswer> [option]"
+            stop trigger
+
+        if argument 1 is "reload":
+            loadChatGameConfig()
+            send "{@prefix} &aConfig and question pools reloaded."
+            stop trigger
+
+        if argument 1 is "toggle":
+            if {cg.enabled} is true:
+                set {cg.enabled} to false
+                send "{@prefix} &cChat Games disabled."
+            else:
+                set {cg.enabled} to true
+                send "{@prefix} &aChat Games enabled."
+            stop trigger
+
+        if argument 1 is "revealanswer":
+            if argument 2 is "on":
+                set {cg.revealanswer} to true
+                send "{@prefix} &aAnswer reveal on timeout is now &lENABLED&r&a. The correct answer will be posted in chat if nobody answers in time."
+            else if argument 2 is "off":
+                set {cg.revealanswer} to false
+                send "{@prefix} &cAnswer reveal on timeout is now &lDISABLED&r&c. The answer will stay hidden if nobody answers in time."
+            else if argument 2 is set:
+                send "{@prefix} &cUsage: &f/chatgame revealanswer <on|off>"
+            else:
+                if {cg.revealanswer} is true:
+                    set {cg.revealanswer} to false
+                    send "{@prefix} &cAnswer reveal on timeout toggled &lOFF&r&c."
+                else:
+                    set {cg.revealanswer} to true
+                    send "{@prefix} &aAnswer reveal on timeout toggled &lON&r&a."
+            stop trigger
+
+        if argument 1 is "stop":
+            if {cg.active} is not true:
+                send "{@prefix} &cThere is no active game to stop."
+                stop trigger
+            set {cg.active} to false
+            delete {cg.answer}
+            delete {cg.difficulty}
+            delete {cg.question}
+            broadcast "{@prefix} &cThe current game was cancelled by an admin."
+            stop trigger
+
+        set {_cmd} to argument 1
+        if {_cmd} is "force" or "start":
+            if {cg.active} is true:
+                send "{@prefix} &cA game is already active!"
+                stop trigger
+            if {_cmd} is "start":
+                set {_online} to getOnlinePlayerCount()
+                if {_online} < {cg.minplayers}:
+                    send "{@prefix} &cNeed at least %{cg.minplayers}% players online to start a game. Use &f/chatgame force <difficulty> &cto override."
+                    stop trigger
+            if argument 2 is set:
+                startChatGame(argument 2)
+            else:
+                startChatGame("random")
+            stop trigger
+
+        if argument 1 is "top":
+            showChatGameLeaderboard(player)
+            stop trigger
+
+command /chatgametop:
+    trigger:
+        showChatGameLeaderboard(player)
+
+# ============ AUTO SCHEDULER ============
+every 5 minutes:
+    if {cg.enabled} is not true:
+        stop trigger
+    if {cg.active} is true:
+        stop trigger
+    if {cg.timeuntilnext} is not set:
+        set {cg.timeuntilnext} to random integer between {cg.mindelay} and {cg.maxdelay}
+        stop trigger
+    remove 300 from {cg.timeuntilnext}
+    if {cg.timeuntilnext} <= 0:
+        set {_online} to getOnlinePlayerCount()
+        if {_online} < {cg.minplayers}:
+            set {cg.timeuntilnext} to 300
+            stop trigger
+        delete {cg.timeuntilnext}
+        startChatGame("random")
+
+# ============ START A GAME ============
+function startChatGame(diff: text):
+    if {cg.enabled} is not true:
+        stop
+
+    set {_online} to getOnlinePlayerCount()
+    if {_online} < {cg.minplayers}:
+        stop
+
+    if {_diff} is "random":
+        set {_roll} to random integer between 1 and 100
+        if {_roll} <= 35:
+            set {_diff} to "easy"
+        else if {_roll} <= 60:
+            set {_diff} to "normal"
+        else if {_roll} <= 78:
+            set {_diff} to "intermediate"
+        else if {_roll} <= 90:
+            set {_diff} to "hard"
+        else if {_roll} <= 97:
+            set {_diff} to "difficult"
+        else:
+            set {_diff} to "extreme"
+
+    # ---- pick a question type ----
+    # trivia pool is capped lower and no-repeat filtered so regulars can't
+    # just memorize the whole list; math/scramble/serverdata are always
+    # freshly generated so there is nothing fixed to memorize there.
+    set {_typeroll} to random integer between 1 and 100
+    if {_typeroll} <= 35:
+        # ---- trivia pool question (no-repeat filtered) ----
+        if size of {cg.pool.%{_diff}%::*} is 0:
+            stop
+        set {_entry} to pickNonRepeatingTrivia({_diff})
+    else if {_typeroll} <= 65:
+        # ---- freshly generated math question ----
+        set {_entry} to generateMathQuestion({_diff})
+    else if {_typeroll} <= 85:
+        # ---- freshly generated word scramble (no-repeat filtered) ----
+        set {_entry} to generateScrambleQuestion({_diff})
+    else:
+        # ---- live server data question, answer changes every single game ----
+        set {_entry} to generateServerDataQuestion({_diff})
+
+    set {_q} to first element out of (split {_entry} at "|")
+    set {_a} to last element out of (split {_entry} at "|")
+
+    set {cg.active} to true
+    set {cg.difficulty} to {_diff}
+    set {cg.question} to {_q}
+    set {cg.answer} to {_a}
+    set {cg.starttime} to now
+
+    set {_color} to difficultyColor({_diff})
+    set {_label} to difficultyLabel({_diff})
+
+    play sound "block.note_block.chime" with volume 1.5 and pitch 1.1 to all players
+
+    broadcast ""
+    broadcast "&8&m--------------------------------------------------"
+    broadcast "              &6&l⭐ CHAT GAME ⭐"
+    broadcast "        %{_color}%%{_label}% &7difficulty question!"
+    broadcast ""
+    broadcast "  &f❓ %{_q}%"
+    broadcast ""
+    broadcast "  &7Type your answer in chat! &e(%{cg.answertime}%s to answer)"
+    broadcast "&8&m--------------------------------------------------"
+    broadcast ""
+
+    loop {cg.answertime} times:
+        wait 1 second
+        if {cg.active} is not true:
+            stop loop
+    if {cg.active} is true:
+        if {cg.revealanswer} is true:
+            broadcast "{@prefix} &cTime's up! Nobody answered correctly."
+            broadcast "&7The answer was: &f%{cg.firstanswer}%"
+        else:
+            broadcast "{@prefix} &cTime's up! Nobody answered correctly."
+        set {cg.active} to false
+        delete {cg.answer}
+        delete {cg.firstanswer}
+        delete {cg.difficulty}
+        delete {cg.question}
+
+function difficultyColor(diff: text) :: text:
+    if {_diff} is "easy":
+        set {_r} to "&a"
+    else if {_diff} is "normal":
+        set {_r} to "&2"
+    else if {_diff} is "intermediate":
+        set {_r} to "&e"
+    else if {_diff} is "hard":
+        set {_r} to "&6"
+    else if {_diff} is "difficult":
+        set {_r} to "&c"
+    else:
+        set {_r} to "&4&l"
+    return {_r}
+
+function difficultyLabel(diff: text) :: text:
+    if {_diff} is "easy":
+        set {_r} to "Easy"
+    else if {_diff} is "normal":
+        set {_r} to "Normal"
+    else if {_diff} is "intermediate":
+        set {_r} to "Intermediate"
+    else if {_diff} is "hard":
+        set {_r} to "Hard"
+    else if {_diff} is "difficult":
+        set {_r} to "Difficult"
+    else:
+        set {_r} to "EXTREME"
+    return {_r}
+
+# ============ NO-REPEAT TRIVIA PICKER ============
+# Picks a random trivia entry from the given difficulty pool, re-rolling
+# (up to 12 tries) if it was one of the last {cg.norepeat.size} questions
+# asked. Keeps a rolling history in {cg.recentq::*} keyed by an
+# ever-increasing counter so we can always drop the oldest entry.
+function pickNonRepeatingTrivia(diff: text) :: text:
+    set {_pool::*} to {cg.pool.%{_diff}%::*}
+    set {_entry} to a random element out of {_pool::*}
+    set {_tries} to 0
+    while {_tries} < 12:
+        set {_isrecent} to false
+        loop {cg.recentq::*}:
+            if loop-value is {_entry}:
+                set {_isrecent} to true
+        if {_isrecent} is false:
+            stop loop
+        set {_entry} to a random element out of {_pool::*}
+        add 1 to {_tries}
+
+    if {cg.recentq.counter} is not set:
+        set {cg.recentq.counter} to 0
+    add 1 to {cg.recentq.counter}
+    set {cg.recentq::%{cg.recentq.counter}%} to {_entry}
+    set {_old} to {cg.recentq.counter} - {cg.norepeat.size}
+    if {_old} >= 1:
+        delete {cg.recentq::%{_old}%}
+
+    return {_entry}
+
+# ============ DYNAMIC MATH GENERATOR ============
+# Numbers are rolled fresh every single call, the answer is computed live
+# right here in Skript (never hardcoded), scaling with difficulty tier.
+function generateMathQuestion(diff: text) :: text:
+    if {_diff} is "easy":
+        set {_a} to random integer between 1 and 20
+        set {_b} to random integer between 1 and 20
+        set {_op} to random integer between 1 and 2
+        if {_op} is 1:
+            set {_ans} to {_a} + {_b}
+            set {_q} to "%{_a}% + %{_b}% = ?"
+        else:
+            if {_a} < {_b}:
+                set {_temp} to {_a}
+                set {_a} to {_b}
+                set {_b} to {_temp}
+            set {_ans} to {_a} - {_b}
+            set {_q} to "%{_a}% - %{_b}% = ?"
+
+    else if {_diff} is "normal":
+        set {_b} to random integer between 2 and 12
+        set {_op} to random integer between 1 and 2
+        if {_op} is 1:
+            set {_a} to random integer between 2 and 12
+            set {_ans} to {_a} * {_b}
+            set {_q} to "%{_a}% * %{_b}% = ?"
+        else:
+            set {_ans} to random integer between 2 and 12
+            set {_product} to {_ans} * {_b}
+            set {_q} to "%{_product}% / %{_b}% = ?"
+
+    else if {_diff} is "intermediate":
+        set {_a} to random integer between 2 and 15
+        set {_b} to random integer between 2 and 15
+        set {_c} to random integer between 2 and 15
+        set {_op} to random integer between 1 and 2
+        if {_op} is 1:
+            set {_ans} to ({_a} * {_b}) + {_c}
+            set {_q} to "%{_a}% * %{_b}% + %{_c}% = ?"
+        else:
+            set {_ans} to {_a} + ({_b} * {_c})
+            set {_q} to "%{_a}% + %{_b}% * %{_c}% = ?"
+
+    else if {_diff} is "hard":
+        set {_a} to random integer between 5 and 25
+        set {_b} to random integer between 2 and 15
+        set {_c} to random integer between 5 and 25
+        set {_d} to random integer between 2 and 15
+        set {_ans} to ({_a} * {_b}) - ({_c} * {_d})
+        if {_ans} < 0:
+            set {_e} to {_a}
+            set {_a} to {_c}
+            set {_c} to {_e}
+            set {_e} to {_b}
+            set {_b} to {_d}
+            set {_d} to {_e}
+            set {_ans} to ({_a} * {_b}) - ({_c} * {_d})
+        set {_q} to "(%{_a}% * %{_b}%) - (%{_c}% * %{_d}%) = ?"
+
+    else if {_diff} is "difficult":
+        set {_a} to random integer between 10 and 40
+        set {_b} to random integer between 10 and 40
+        set {_c} to random integer between 2 and 20
+        set {_ans} to (({_a} + {_b}) * {_c}) - {_a}
+        set {_q} to "(%{_a}% + %{_b}%) * %{_c}% - %{_a}% = ?"
+
+    else:
+        # Extreme
+        set {_a} to random integer between 15 and 45
+        set {_b} to random integer between 15 and 45
+        if {_a} < {_b}:
+            set {_e} to {_a}
+            set {_a} to {_b}
+            set {_b} to {_e}
+        set {_ans} to ({_a} * {_a}) - ({_b} * {_b})
+        set {_q} to "(%{_a}% * %{_a}%) - (%{_b}% * %{_b}%) = ?"
+
+    return "%{_q}%|%{_ans}%"
+
+# ============ WORD SCRAMBLE GENERATOR (no-repeat filtered) ============
+function generateScrambleQuestion(diff: text) :: text:
+    if {_diff} is "easy":
+        set {_pool::*} to {cg.words.easy::*}
+    else if {_diff} is "normal":
+        set {_pool::*} to {cg.words.normal::*}
+    else if {_diff} is "intermediate":
+        set {_pool::*} to {cg.words.intermediate::*}
+    else if {_diff} is "hard":
+        set {_pool::*} to {cg.words.hard::*}
+    else if {_diff} is "difficult":
+        set {_pool::*} to {cg.words.difficult::*}
+    else:
+        set {_pool::*} to {cg.words.extreme::*}
+
+    set {_word} to a random element out of {_pool::*}
+    set {_tries} to 0
+    while {_tries} < 12:
+        set {_isrecent} to false
+        loop {cg.recentwords::*}:
+            if loop-value is {_word}:
+                set {_isrecent} to true
+        if {_isrecent} is false:
+            stop loop
+        set {_word} to a random element out of {_pool::*}
+        add 1 to {_tries}
+
+    if {cg.recentwords.counter} is not set:
+        set {cg.recentwords.counter} to 0
+    add 1 to {cg.recentwords.counter}
+    set {cg.recentwords::%{cg.recentwords.counter}%} to {_word}
+    set {_old} to {cg.recentwords.counter} - {cg.norepeat.size}
+    if {_old} >= 1:
+        delete {cg.recentwords::%{_old}%}
+
+    set {_scrambled} to shuffleWord({_word})
+    loop 5 times:
+        if {_scrambled} is not "%{_word}%":
+            stop loop
+        set {_scrambled} to shuffleWord({_word})
+
+    set {_display} to ""
+    set {_slen} to length of {_scrambled}
+    loop {_slen} times:
+        set {_ch} to charAt({_scrambled}, loop-number)
+        set {_display} to "%{_display}%%{_ch}% "
+
+    return "Unscramble this word: %{_display}%|%{_word}%"
+
+# ============ LIVE SERVER DATA GENERATOR ============
+# These answers depend on the exact moment the question is generated,
+# so there is nothing fixed for players to memorize ahead of time.
+function generateServerDataQuestion(diff: text) :: text:
+    set {_roll} to random integer between 1 and 2
+    if {_roll} is 1:
+        set {_count} to getOnlinePlayerCount()
+        return "How many players are online on the server right at this moment?|%{_count}%"
+    else:
+        set {_count} to getOnlinePlayerCount()
+        set {_next} to {_count} + 1
+        return "%{_count}% players are online right now. If one more player joined, how many would that be?|%{_next}%"
+
+# ---- gets the character at position i of a string using only vanilla Skript ----
+function charAt(w: text, i: number) :: text:
+    set {_first} to first {_i} characters of {_w}
+    set {_last} to last 1 characters of {_first}
+    return {_last}
+
+# ---- Fisher-Yates shuffle of a word's letters (fresh every call) ----
+function shuffleWord(w: text) :: text:
+    delete {_c::*}
+    set {_len} to length of {_w}
+    loop {_len} times:
+        set {_ch} to charAt({_w}, loop-number)
+        add {_ch} to {_c::*}
+
+    loop {_len} times:
+        set {_i} to loop-number
+        set {_j} to random integer between 1 and {_len}
+        set {_temp} to {_c::%{_i}%}
+        set {_c::%{_i}%} to {_c::%{_j}%}
+        set {_c::%{_j}%} to {_temp}
+
+    set {_result} to ""
+    loop {_len} times:
+        set {_result} to "%{_result}%%{_c::%loop-number%}%"
+    delete {_c::*}
+    return {_result}
+
+# ============ ANSWER DETECTION ============
+# {cg.answer} can now be a comma-separated alias list, e.g. "axe,wood axe".
+# We keep {cg.firstanswer} (the first alias) around purely so the timeout
+# reveal message shows one clean answer instead of the whole alias list.
+on chat:
+    if {cg.active} is not true:
+        stop trigger
+    if {cg.answer} is not set:
+        stop trigger
+
+    if {cg.firstanswer} is not set:
+        set {cg.firstanswer} to first element out of (split {cg.answer} at ",")
+
+    set {_msg} to message
+    set {_correct} to false
+    loop (split {cg.answer} at ","):
+        if {_msg} is loop-value:
+            set {_correct} to true
+
+    if {_correct} is true:
+        set {cg.active} to false
+        cancel event
+        set {_diff} to {cg.difficulty}
+        set {_winner} to player
+        set {_shownanswer} to {cg.firstanswer}
+
+        # leaderboard stat tracking
+        add 1 to {cg.stats.%{_winner}'s uuid%}
+        set {cg.statsname.%{_winner}'s uuid%} to "%{_winner}%"
+
+        broadcast ""
+        broadcast "&8&m--------------------------------------------------"
+        broadcast "  &a&l✔ CORRECT! &f%{_winner}% &7answered first!"
+        broadcast "  &7Answer: &f%{_shownanswer}%"
+        rewardChatGameWinner({_winner}, {_diff})
+        broadcast "&8&m--------------------------------------------------"
+        broadcast ""
+
+        delete {cg.answer}
+        delete {cg.firstanswer}
+        delete {cg.difficulty}
+        delete {cg.question}
+
+# ============ REWARD LOGIC ============
+function rewardChatGameWinner(p: player, diff: text):
+    set {_roll} to random integer between 1 and 100
+    set {_itemRoll} to random integer between 1 and 100
+
+    if {_diff} is "easy":
+        set {_eco} to random integer between 500 and 1000
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        if {_itemRoll} <= 40:
+            give 4 iron ingot to {_p}
+            broadcast " &f+ 4 Iron Ingots"
+        else if {_itemRoll} <= 70:
+            give 2 gold ingot to {_p}
+            broadcast " &e+ 2 Gold Ingots"
+
+    else if {_diff} is "normal":
+        set {_eco} to random integer between 1000 and 2000
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        if {_itemRoll} <= 40:
+            give 6 gold ingot to {_p}
+            broadcast " &e+ 6 Gold Ingots"
+        else if {_itemRoll} <= 75:
+            give 3 diamond to {_p}
+            broadcast " &b+ 3 Diamonds"
+
+    else if {_diff} is "intermediate":
+        set {_eco} to random integer between 2000 and 3500
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        if {_itemRoll} <= 50:
+            give 5 diamond to {_p}
+            broadcast " &b+ 5 Diamonds"
+        else:
+            give 1 emerald block to {_p}
+            broadcast " &a+ 1 Emerald Block"
+
+        if {_roll} <= 10:
+            execute console command "crate key give %{_p}% common 1"
+            broadcast " &b+ 1 Common Key"
+
+    else if {_diff} is "hard":
+        set {_eco} to random integer between 3500 and 6000
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        if {_itemRoll} <= 50:
+            give 8 diamond to {_p}
+            broadcast " &b+ 8 Diamonds"
+        else:
+            give 3 golden apple to {_p}        # Changed to normal Golden Apple
+            broadcast " &e+ 3 Golden Apples"
+
+        if {_roll} <= 60:
+            execute console command "crate key give %{_p}% common 1"
+            broadcast " &b+ 1 Common Key"
+        else:
+            execute console command "crate key give %{_p}% uncommon 1"
+            broadcast " &a+ 1 Uncommon Key"
+
+    else if {_diff} is "difficult":
+        set {_eco} to random integer between 6000 and 10000
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        if {_itemRoll} <= 50:
+            give 12 diamond to {_p}
+            broadcast " &b+ 12 Diamonds"
+        else:
+            give 2 emerald block to {_p}
+            broadcast " &a+ 2 Emerald Blocks"
+
+        if {_roll} <= 50:
+            execute console command "crate key give %{_p}% common 1"
+            broadcast " &b+ 1 Common Key"
+        else:
+            execute console command "crate key give %{_p}% uncommon 1"
+            broadcast " &a+ 1 Uncommon Key"
+
+    else:
+        # Extreme
+        set {_eco} to random integer between 10000 and 20000
+        execute console command "eco give %{_p}% %{_eco}%"
+        broadcast " &6+ %{_eco}% coins &7rewarded to %{_p}%"
+
+        give 16 diamond to {_p}
+        broadcast " &b+ 16 Diamonds"
+        give 6 golden apple to {_p}           # Changed to normal Golden Apple
+        broadcast " &e&l+ 6 Golden Apples"
+
+        if {_roll} <= 60:
+            execute console command "crate key give %{_p}% uncommon 1"
+            broadcast " &a+ 1 Uncommon Key"
+        else:
+            execute console command "crate key give %{_p}% common 1"
+            broadcast " &b+ 1 Common Key"
+
+# ============ LEADERBOARD ============
+function showChatGameLeaderboard(viewer: player):
+    if {cg.stats::*} is not set:
+        send "{@prefix} &7No one has won a chat game yet." to {_viewer}
+        stop
+
+    delete {_ids::*}
+    delete {_scores::*}
+    loop {cg.stats::*}:
+        add loop-index to {_ids::*}
+        add loop-value to {_scores::*}
+
+    set {_size} to size of {_scores::*}
+    set {_limit} to 10
+    if {_size} < 10:
+        set {_limit} to {_size}
+
+    send "&8&m--------------------------------------------------" to {_viewer}
+    send "        &6&l🏆 CHAT GAMES LEADERBOARD 🏆" to {_viewer}
+    send "" to {_viewer}
+
+    # partial selection: only find the top {_limit} entries instead of sorting the whole list
+    loop {_limit} times:
+        set {_rank} to loop-number-1
+        set {_bestindex} to 1
+        set {_bestscore} to {_scores::1}
+        loop {_size} times:
+            if {_scores::%loop-number-2%} > {_bestscore}:
+                set {_bestscore} to {_scores::%loop-number-2%}
+                set {_bestindex} to loop-number-2
+
+        set {_name} to {cg.statsname.%{_ids::%{_bestindex}%}%}
+
+        if {_rank} is 1:
+            send "  &6&l#1 &f%{_name}% &7- &e%{_bestscore}% wins" to {_viewer}
+        else if {_rank} is 2:
+            send "  &7&l#2 &f%{_name}% &7- &e%{_bestscore}% wins" to {_viewer}
+        else if {_rank} is 3:
+            send "  &c&l#3 &f%{_name}% &7- &e%{_bestscore}% wins" to {_viewer}
+        else:
+            send "  &f#%{_rank}% &f%{_name}% &7- &e%{_bestscore}% wins" to {_viewer}
+
+        # remove this entry from further consideration
+        set {_scores::%{_bestindex}%} to -1
+
+    send "&8&m--------------------------------------------------" to {_viewer}

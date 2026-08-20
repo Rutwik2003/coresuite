@@ -1,0 +1,254 @@
+name: CoreSuite
+version: '${version}'
+main: net.rocky.coresuite.CoreSuitePlugin
+api-version: '1.20'
+prefix: CoreSuite
+authors: [Rocky_Rutwik]
+description: A professional, modular multi-purpose plugin by Rocky_Rutwik
+website: ''
+
+softdepend:
+  - Vault
+  - Citizens
+  - SkinsRestorer
+  - PlaceholderAPI
+  - ExcellentCrates
+  - Vulcan
+  - ajLeaderboards
+  - UltraCosmetics
+  - Essentials
+  - LuckPerms
+
+commands:
+  coresuite:
+    description: CoreSuite administration
+    usage: /<command> [help|modules|reload|version]
+    permission: coresuite.admin
+    aliases: [cs]
+  csadmin:
+    description: CoreSuite Admin Commands
+    usage: /<command> <subcommand>
+    permission: coresuite.admin
+    aliases: [csa]
+  playtime:
+    description: View your playtime and rewards
+    usage: /<command> [rewards|gui|top|help|stats]
+    permission: coresuite.playtime.use
+  playtimereward:
+    description: Admin management for playtime rewards
+    usage: /<command> <subcommand>
+    permission: coresuite.playtime.admin
+  withdraw:
+    description: Withdraw money as a bank note
+    usage: /<command> <amount>
+    permission: coresuite.banknotes.withdraw
+  claimnote:
+    description: Claim all bank notes in inventory
+    usage: /<command>
+    permission: coresuite.banknotes.withdraw
+  bank:
+    description: Open the bank withdrawal GUI
+    usage: /<command>
+    permission: coresuite.banknotes.withdraw
+  withdrawlog:
+    description: View bank note transaction logs
+    usage: /<command> [page|clear]
+    permission: coresuite.banknotes.admin
+  withdrawadmin:
+    description: Admin bank note commands
+    usage: /<command> give <player> <amount>
+    permission: coresuite.banknotes.admin
+  chatgame:
+    description: Chat games administration
+    usage: /<command> <start|force|stop|toggle|reload|top|revealanswer>
+    permission: coresuite.chatgames.admin
+  chatgametop:
+    description: View chat games leaderboard
+    usage: /<command>
+  reward:
+    description: Redeem a reward code
+    usage: /<command> <code>
+    permission: coresuite.rewardcodes.use
+  rewardcodes:
+    description: Reward codes main command
+    usage: /<command>
+    permission: coresuite.rewardcodes.use
+  rewardadmin:
+    description: Manage reward codes
+    usage: /<command> <subcommand>
+    permission: coresuite.rewardcodes.admin
+  referral:
+    description: Manage your referral code
+    usage: /<command> [create|use|info|leaderboard]
+    permission: coresuite.referral.use
+  automsg:
+    description: Manage auto messages
+    usage: /<command> <reload|toggle|list|add|remove>
+    permission: coresuite.automessage.admin
+  togglementions:
+    description: Toggle chat mentions
+    usage: /<command>
+    permission: coresuite.mentions.use
+  clearlag:
+    description: Clear dropped entities
+    usage: /clearlag
+    permission: coresuite.clearlag.use
+  announce:
+    description: Announce a message on screen to all players
+    usage: /announce <message>
+    permission: coresuite.announce.use
+  hub:
+    description: Teleport to the hub
+    usage: /<command>
+    permission: coresuite.worldmanager.hub
+  joinsurvival:
+    description: Join the survival world
+    usage: /<command>
+    permission: coresuite.worldmanager.survival
+  joinpvp:
+    description: Join the PvP world
+    usage: /<command>
+    permission: coresuite.worldmanager.pvp
+  setlobbyspawn:
+    description: Set the lobby spawn point
+    usage: /<command>
+    permission: coresuite.worldmanager.admin
+  launchpad:
+    description: Manage jump pads
+    usage: /<command> <setpad|setdest|delete|list> [name]
+    permission: coresuite.jumppad.admin
+  fish:
+    description: View your fishing stats and leaderboard
+    usage: /<command> [top]
+    permission: coresuite.fishing.use
+    aliases: [fishlevel]
+  podiumupdate:
+    description: Force update kill podium NPCs
+    usage: /<command>
+    permission: coresuite.podium.admin
+  vulcanpunish:
+    description: Punish a flagged player
+    usage: /<command> <player>
+    permission: coresuite.vulcan.punish
+  vulcanwarn:
+    description: Warn a player for anticheat
+    usage: /<command> <player> <reason>
+    permission: coresuite.vulcan.punish
+  vulcancheck:
+    description: Check player anticheat record
+    usage: /<command> <player>
+    permission: coresuite.vulcan.punish
+  vulcanhistory:
+    description: View player anticheat history
+    usage: /<command> <player>
+    permission: coresuite.vulcan.punish
+  vulcanreset:
+    description: Reset player anticheat record
+    usage: /<command> <player>
+    permission: coresuite.vulcan.punish
+  vulcansetoffenses:
+    description: Set player offense tier
+    usage: /<command> <player> <tier>
+    permission: coresuite.vulcan.punish
+  vulcanbypass:
+    description: Manage anticheat bypass list
+    usage: /<command> <add|remove|list> [player]
+    permission: coresuite.vulcan.punish
+  store:
+    description: Open the store GUI
+    usage: /<command>
+    aliases: [rank, crate]
+  storeadmin:
+    description: Store admin commands
+    usage: /<command> approve <player> <packageKey>
+    permission: coresuite.store.admin
+  gamble:
+    description: Open the gambling GUI
+    usage: /<command>
+    permission: coresuite.gambling.use
+
+permissions:
+  coresuite.admin:
+    description: Access to /coresuite admin commands
+    default: op
+  coresuite.playtime.use:
+    description: View playtime and rewards
+    default: true
+  coresuite.playtime.gui:
+    description: Open playtime rewards GUI
+    default: true
+  coresuite.playtime.top:
+    description: View playtime leaderboard
+    default: true
+  coresuite.playtime.admin:
+    description: Admin playtime management
+    default: op
+  coresuite.playtime.bypass:
+    description: Bypass IP/alt limits
+    default: op
+  coresuite.banknotes.withdraw:
+    description: Withdraw and claim bank notes
+    default: true
+  coresuite.banknotes.admin:
+    description: Admin bank note commands
+    default: op
+  coresuite.chatgames.admin:
+    description: Chat games administration
+    default: op
+  coresuite.rewardcodes.use:
+    description: Redeem reward codes
+    default: true
+  coresuite.rewardcodes.admin:
+    description: Manage reward codes
+    default: op
+  coresuite.referral.use:
+    description: Use referral system
+    default: true
+  coresuite.referral.admin:
+    description: Admin referral commands
+    default: op
+  coresuite.automessage.admin:
+    description: Manage auto messages
+    default: op
+  coresuite.mentions.use:
+    description: Toggle chat mentions
+    default: true
+  coresuite.clearlag.use:
+    description: Use clearlag commands
+    default: op
+  coresuite.worldmanager.hub:
+    description: Teleport to hub
+    default: true
+  coresuite.worldmanager.survival:
+    description: Join survival world
+    default: true
+  coresuite.worldmanager.pvp:
+    description: Join PvP world
+    default: true
+  coresuite.worldmanager.admin:
+    description: Admin world management
+    default: op
+  coresuite.jumppad.admin:
+    description: Manage jump pads
+    default: op
+  coresuite.fishing.use:
+    description: View fishing level
+    default: true
+  coresuite.combat.bypass:
+    description: Bypass combat tag
+    default: op
+  coresuite.podium.admin:
+    description: Admin kill podium
+    default: op
+  coresuite.vulcan.punish:
+    description: Anticheat punishment commands
+    default: op
+  coresuite.vulcan.alerts:
+    description: Receive anticheat alerts
+    default: op
+  coresuite.store.admin:
+    description: Store administration
+    default: op
+  coresuite.gambling.use:
+    description: Access to gambling module
+    default: true

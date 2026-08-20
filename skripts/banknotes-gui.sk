@@ -1,0 +1,84 @@
+# BankNotes V2 Addon Module
+# Paste BELOW your BankNotes.sk or save as banknotes-gui.sk
+#
+# v3 CHANGE: added a "Claim Notes" button that runs /claimnote —
+# lets players recover notes straight from the GUI even if one
+# got renamed and can no longer be right-click redeemed.
+
+command /bank:
+    permission: banknotes.withdraw
+    trigger:
+        open chest inventory with 3 rows named "&6&lBank Menu" to player
+        wait 1 tick
+
+        set slot 10 of player's current inventory to sunflower named "&a&lWithdraw 1K" with lore "&7Click to withdraw 1,000"
+        set slot 11 of player's current inventory to sunflower named "&a&lWithdraw 10K" with lore "&7Click to withdraw 10,000"
+        set slot 12 of player's current inventory to sunflower named "&a&lWithdraw 100K" with lore "&7Click to withdraw 100,000"
+
+        set slot 14 of player's current inventory to gold ingot named "&6&lWithdraw 1M" with lore "&7Click to withdraw 1,000,000"
+        set slot 15 of player's current inventory to gold block named "&6&lWithdraw 10M" with lore "&7Click to withdraw 10,000,000"
+
+        set slot 16 of player's current inventory to writable book named "&e&lCustom Amount" with lore "&7Use /withdraw <amount>"
+
+        set slot 20 of player's current inventory to name tag named "&d&lClaim Notes" with lore "&7Redeem all Bank Notes", "&7in your inventory", "", "&a✔ Works even if a note", "&awas renamed"
+
+        set slot 22 of player's current inventory to paper named "&b&lMy Statistics"
+
+on inventory click:
+    if name of event-inventory is not "&6&lBank Menu":
+        stop
+
+    cancel event
+
+    set {_item} to event-item
+
+    if {_item} is not set:
+        stop
+
+    if name of {_item} is not set:
+        stop
+
+    set {_name} to name of {_item}
+
+    if {_name} is "&a&lWithdraw 1K":
+        close player's inventory
+        execute player command "withdraw 1000"
+        stop
+
+    if {_name} is "&a&lWithdraw 10K":
+        close player's inventory
+        execute player command "withdraw 10000"
+        stop
+
+    if {_name} is "&a&lWithdraw 100K":
+        close player's inventory
+        execute player command "withdraw 100000"
+        stop
+
+    if {_name} is "&6&lWithdraw 1M":
+        close player's inventory
+        execute player command "withdraw 1000000"
+        stop
+
+    if {_name} is "&6&lWithdraw 10M":
+        close player's inventory
+        execute player command "withdraw 10000000"
+        stop
+
+    if {_name} is "&e&lCustom Amount":
+        close player's inventory
+        send "&6&lBank &8» &7Use &f/withdraw <amount>"
+        stop
+
+    if {_name} is "&d&lClaim Notes":
+        close player's inventory
+        execute player command "claimnote"
+        stop
+
+    if {_name} is "&b&lMy Statistics":
+        send "&8&m-------------------------"
+        send "&6Bank Statistics"
+        send "&7Notes Created: &f%{bn::stats::created::%player's uuid%}%"
+        send "&7Value Withdrawn: &f%{bn::stats::withdrawn::%player's uuid%}%"
+        send "&8&m-------------------------"
+        stop

@@ -1,0 +1,154 @@
+# ================================================
+#   jumppad.sk
+#   Step on any block → launch to destination
+#
+#   Commands:
+#     /launchpad setpad <name>   — stand on the pad block
+#     /launchpad setdest <name>  — stand at landing spot
+#     /launchpad delete <name>
+#     /launchpad list
+#
+#   Permission: launchpad.admin (setup only)
+#   No permission needed to use pads
+# ================================================
+
+options:
+    prefix: &8[&b&lJumpPad&8]&r
+    cooldown: 2
+    trigger-radius: 1
+    launch-power: 3.8
+    hang-ticks: 8
+
+
+# ==============================
+#   SETUP COMMANDS
+# ==============================
+
+command /launchpad [<text>] [<text>]:
+    permission: launchpad.admin
+    permission message: &cYou don't have permission to manage launchpads.
+    trigger:
+
+        # --- setpad ---
+        if arg-1 is "setpad":
+            if arg-2 is not set:
+                send "{@prefix} &c/launchpad setpad <name>"
+                stop
+            set {lp::%arg-2%::pad} to location of block below player
+            if {lp::list::*} does not contain arg-2:
+                add arg-2 to {lp::list::*}
+            send "{@prefix} &aPad set for &e%arg-2%&a at your feet."
+            send "{@prefix} &7Go to the landing spot and run &f/launchpad setdest %arg-2%"
+
+        # --- setdest ---
+        else if arg-1 is "setdest":
+            if arg-2 is not set:
+                send "{@prefix} &c/launchpad setdest <name>"
+                stop
+            if {lp::%arg-2%::pad} is not set:
+                send "{@prefix} &cNo pad named &e%arg-2%&c. Create it first with &f/launchpad setpad %arg-2%"
+                stop
+            set {lp::%arg-2%::dest} to location of player
+            send "{@prefix} &aDestination set! Launchpad &e%arg-2% &ais now &2active&a."
+
+        # --- delete ---
+        else if arg-1 is "delete":
+            if arg-2 is not set:
+                send "{@prefix} &c/launchpad delete <name>"
+                stop
+            if {lp::%arg-2%::pad} is not set:
+                send "{@prefix} &cNo launchpad named &e%arg-2%&c found."
+                stop
+            delete {lp::%arg-2%::pad}
+            delete {lp::%arg-2%::dest}
+            remove arg-2 from {lp::list::*}
+            send "{@prefix} &cLaunchpad &e%arg-2% &cdeleted."
+
+        # --- list ---
+        else if arg-1 is "list":
+            if {lp::list::*} is not set:
+                send "{@prefix} &7No launchpads configured yet."
+                stop
+            send "{@prefix} &7Launchpads &8(&f%size of {lp::list::*}%&8):"
+            loop {lp::list::*}:
+                if {lp::%loop-value%::dest} is set:
+                    send "  &8> &e%loop-value% &a[Ready]"
+                else:
+                    send "  &8> &e%loop-value% &c[No destination set]"
+
+        # --- help ---
+        else:
+            send "{@prefix} &7Commands:"
+            send "  &f/launchpad setpad <name>  &8- &7Stand on the pad block first"
+            send "  &f/launchpad setdest <name> &8- &7Stand at the landing spot"
+            send "  &f/launchpad delete <name>"
+            send "  &f/launchpad list"
+
+
+# ==============================
+#   TRIGGER
+# ==============================
+
+every 1 tick:
+    if {lp::list::*} is not set:
+        stop
+
+    loop all players:
+        set {_p} to loop-player
+
+        if {lp-cd::%uuid of {_p}%} is set:
+            continue
+
+        loop {lp::list::*}:
+            set {_pad} to {lp::%loop-value-2%::pad}
+            set {_dest} to {lp::%loop-value-2%::dest}
+
+            if {_pad} is not set:
+                continue
+
+            if {_dest} is not set:
+                continue
+
+            if world of {_p} is not world of {_pad}:
+                continue
+
+            if location of block below {_p} is {_pad}:
+                launchPlayer({_p}, {_dest})
+                stop
+
+# ==============================
+#   LAUNCH FUNCTION
+# ==============================
+
+import:
+    org.bukkit.util.Vector
+
+function launchPlayer(p: player, dest: location):
+    if {lp-cd::%uuid of {_p}%} is set:
+        stop
+
+    set {lp-cd::%uuid of {_p}%} to true
+
+    send action bar "&b&lLaunching..." to {_p}
+    play sound "entity.firework_rocket.launch" to {_p}
+
+    # Calculate direction
+    set {_from} to location of {_p}
+
+    set {_x} to x-coordinate of {_dest} - x-coordinate of {_from}
+    set {_y} to y-coordinate of {_dest} - y-coordinate of {_from}
+    set {_z} to z-coordinate of {_dest} - z-coordinate of {_from}
+
+    set {_vec} to new Vector({_x}, 0, {_z})
+    {_vec}.normalize()
+    {_vec}.multiply(3.3)
+
+    # Nice arc
+    {_vec}.setY(1.55)
+
+    set velocity of {_p} to {_vec}
+
+    wait 3 seconds
+    set fall distance of {_p} to 0
+
+    delete {lp-cd::%uuid of {_p}%}

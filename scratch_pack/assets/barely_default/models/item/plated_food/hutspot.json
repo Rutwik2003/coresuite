@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "barely_default:item/plated_food/creeper_crunch",
+	"textures": {
+		"crunch": "barely_default:item/plated_food/hutspot"
+	}
+}

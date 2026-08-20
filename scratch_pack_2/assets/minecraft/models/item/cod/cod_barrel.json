@@ -1,0 +1,16 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "item/plated_food/barrel_neck",
+	"textures": {
+		"particle": "item/cod/cod_barrel"
+	},
+	"elements": [
+		{
+			"from": [1, 17, 1],
+			"to": [15, 17, 15],
+			"faces": {
+				"up": {"uv": [1, 1, 15, 15], "texture": "#particle", "cullface": "up"}
+			}
+		}
+	]
+}

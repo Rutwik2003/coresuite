@@ -1,0 +1,45 @@
+# ============================================================
+#  CoreSuite — Master Configuration
+#  by Rocky_Rutwik
+# ============================================================
+
+# Enable or disable individual modules.
+# Disabled modules are completely unloaded — zero CPU cost.
+modules:
+  admin: true
+  auto-messenger: true
+  chat-mentions: true
+  clear-lag: true
+  world-manager: true
+  jump-pad: true
+  bank-notes: true
+  reward-codes: true
+  referral: true
+  playtime-rewards: true
+  combat-tag: true
+  custom-fishing: true
+  chat-games: true
+  kill-podium: false
+  vulcan-punish: true
+  store: false
+  announce: true
+  gambling: true
+
+# Storage settings
+storage:
+  # Type can be "SQLITE" or "MYSQL"
+  type: "SQLITE"
+  
+  # SQLite settings
+  database: "data/coresuite.db"
+  
+  # MySQL settings
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "minecraft"
+    username: "root"
+    password: ""
+
+# Debug mode — verbose logging for troubleshooting
+debug: false

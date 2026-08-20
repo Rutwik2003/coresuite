@@ -1,0 +1,503 @@
+# ============================================================
+#   BankNotes.sk — Professional Bank Note Withdrawal System
+#   Requires : Skript 2.15+, Vault, SkBee 3.x
+#   Commands : /withdraw | /withdrawadmin | /withdrawlog | /claimnote
+# ============================================================
+#
+#  v4 CHANGES (dupe-hardening pass):
+#
+#   - ID STORAGE MOVED FROM LORE -> HIDDEN NBT (via SkBee's
+#     "custom nbt of item"). The note's ID now lives in the
+#     item's real NBT data ("minecraft:custom_data"), completely
+#     invisible in the tooltip. Lore is now PURELY cosmetic text
+#     for the player to read — nothing about a note's validity is
+#     ever parsed from visible text (name OR lore) again. This is
+#     immune to renaming, and far more tamper-resistant than a
+#     lore string, which any lore-editing tool could rewrite.
+#
+#   - THE REAL ANTI-DUPE LAYER was already correct and is
+#     preserved/reinforced: the server-side registry
+#     ({bn::note::<id>::redeemed}) is flipped to true and player
+#     is credited in the same synchronous block, BEFORE the note
+#     item is removed. If a note item is ever duplicated by some
+#     other means (hopper/minecart glitch, an inventory-rollback
+#     plugin restoring an old copy, etc.), only the FIRST
+#     redemption of that ID ever pays out. Every subsequent
+#     attempt is detected and the duplicate is confiscated.
+#
+#   - LIVE STAFF ALERTS: a duplicate-redemption attempt now
+#     instantly broadcasts to every online player with
+#     "banknotes.admin", not just the log file. This is the
+#     difference between catching a dupe exploit in progress vs.
+#     finding it in a log three days later.
+#
+#   - PERFORMANCE GUARD: "on inventory click" fires for literally
+#     every click in every GUI on the whole server (shops, crate
+#     GUIs, team menus, auction house, etc.). Both handlers now
+#     bail out immediately if the clicked item isn't even the
+#     note material, before touching any NBT.
+#
+#   - KNOWN LIMITATION (can't be fixed in Skript, said plainly
+#     rather than glossed over): anyone with permission to use an
+#     NBT/inventory editor (e.g. InvSeePlusPlus edit mode) can
+#     forge a tag that LOOKS like a valid note ID. That's an
+#     access-control problem, not a script problem — restrict who
+#     holds NBT-edit / invsee-edit permissions in LuckPerms. No
+#     amount of Skript logic can stop someone with legitimate
+#     elevated access to edit raw item data.
+#
+#   - /claimnote is kept as a recovery/safety-net command: scans
+#     a player's whole inventory + off hand for any registered,
+#     unredeemed note and redeems it regardless of appearance.
+# ============================================================
+
+options:
+    currency:        Coins
+    min-withdraw:    1
+    max-withdraw:    1000000000000
+    withdraw-perm:   banknotes.withdraw
+    admin-perm:      banknotes.admin
+    note-material:   paper
+    nbt-key:         bn_id
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Parse shorthand -> raw number
+#  Returns -1 on any invalid input
+# ──────────────────────────────────────────────────────────────
+function parseAmount(raw: text) :: number:
+    set {_s} to {_raw} in lowercase
+    replace all "," in {_s} with ""
+    set {_mult} to 1
+    set {_last} to last character of {_s}
+    if {_last} is "k":
+        set {_s} to first (length of {_s} - 1) characters of {_s}
+        set {_mult} to 1000
+    else if {_last} is "m":
+        set {_s} to first (length of {_s} - 1) characters of {_s}
+        set {_mult} to 1000000
+    else if {_last} is "b":
+        set {_s} to first (length of {_s} - 1) characters of {_s}
+        set {_mult} to 1000000000
+    else if {_last} is "t":
+        set {_s} to first (length of {_s} - 1) characters of {_s}
+        set {_mult} to 1000000000000
+    if {_s} does not match "^[0-9]+(\.[0-9]+)?$":
+        return -1
+    set {_val} to {_s} parsed as number
+    if {_val} is not set:
+        return -1
+    return {_val} * {_mult}
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Format number -> readable string  (1500000 -> 1.5M)
+# ──────────────────────────────────────────────────────────────
+function formatAmount(n: number) :: text:
+    if {_n} >= 1000000000000:
+        set {_v} to floor(({_n} / 1000000000000) * 100) / 100
+        return "%{_v}%T"
+    else if {_n} >= 1000000000:
+        set {_v} to floor(({_n} / 1000000000) * 100) / 100
+        return "%{_v}%B"
+    else if {_n} >= 1000000:
+        set {_v} to floor(({_n} / 1000000) * 100) / 100
+        return "%{_v}%M"
+    else if {_n} >= 1000:
+        set {_v} to floor(({_n} / 1000) * 100) / 100
+        return "%{_v}%K"
+    return "%{_n}%"
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Log a bank note transaction + alert staff live on
+#  suspected duplication attempts.
+# ──────────────────────────────────────────────────────────────
+function bnLog(action: text, who: text, amount: number, noteID: text):
+    set {_fmt} to formatAmount({_amount})
+    set {_entry} to "[%now%] %{_action}% | Player: %{_who}% | Amount: %{_amount}% (%{_fmt}% {@currency}) | ID: %{_noteID}%"
+    add 1 to {bn::logcount}
+    set {bn::log::%{bn::logcount}%} to {_entry}
+    if {bn::logcount} > 1000:
+        delete {bn::log::%({bn::logcount} - 1000)%}
+    log "[BankNotes] %{_entry}%"
+
+    if {_action} is "DUPE-ATTEMPT":
+        loop all players:
+            if loop-player has permission "{@admin-perm}":
+                send "&8[&4&lBank Alert&8] &c%{_who}% just tried to redeem an ALREADY-REDEEMED note (ID: %{_noteID}%, worth %{_fmt}% {@currency}). The duplicate was confiscated, but this means a copy of a spent note exists somewhere — worth investigating." to loop-player
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Extract the hidden note ID from an item.
+#  Reads ONLY the item's real NBT custom data (via SkBee). Never
+#  touches the display name or lore — those are cosmetic only.
+# ──────────────────────────────────────────────────────────────
+function extractNoteID(note: item) :: text:
+    set {_id} to string tag "{@nbt-key}" of custom nbt of {_note}
+    if {_id} is not set:
+        return ""
+    return {_id}
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Stamp a hidden NBT id onto a freshly built note item.
+#  Editing "custom nbt of item" updates the item directly.
+# ──────────────────────────────────────────────────────────────
+function stampNoteID(note: item, id: text):
+    set string tag "{@nbt-key}" of custom nbt of {_note} to {_id}
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Give a note to a player and stamp its NBT id AFTER
+#  it lands in a real inventory slot.
+#  IMPORTANT: "custom nbt of item" only writes reliably onto a
+#  live, already-placed ItemStack reference (like a slot, or
+#  player's tool) — NOT onto a freshly built local item variable
+#  that has never actually existed in an inventory. Stamping the
+#  local variable and then giving it silently drops the tag. So
+#  instead: give the plain (unstamped) note first, then find the
+#  exact slot it landed in and stamp that live reference.
+# ──────────────────────────────────────────────────────────────
+function giveStampedNote(target: player, note: item, id: text):
+    set {_noteName} to name of {_note}
+    give {_note} to {_target}
+    loop 36 times:
+        set {_slot} to loop-number - 1
+        set {_chk} to slot {_slot} of {_target}'s inventory
+        if {_chk} is set:
+            if {_chk} is {@note-material}:
+                if name of {_chk} is {_noteName}:
+                    if extractNoteID({_chk}) is "":
+                        # Stamp the local copy, then explicitly write it back
+                        # into the real slot — do NOT rely on in-place
+                        # mutation, since {_chk} is a copy the moment it's
+                        # assigned to a local variable.
+                        set string tag "{@nbt-key}" of custom nbt of {_chk} to {_id}
+                        set slot {_slot} of {_target}'s inventory to {_chk}
+                        stop
+
+# ──────────────────────────────────────────────────────────────
+#  FUNCTION: Redeem a note item for a player
+#  Return value:
+#    -1  -> not a valid/registered note (ignore silently)
+#    -2  -> valid note, but already redeemed (caller should confiscate)
+#   >=0  -> amount credited to the player
+#  Does NOT remove the item from wherever it is — the caller
+#  (right-click handler, /claimnote, etc.) does that, since only
+#  the caller knows which slot/hand it came from.
+# ──────────────────────────────────────────────────────────────
+function redeemNote(note: item, redeemer: player) :: number:
+    set {_id} to extractNoteID({_note})
+    if {_id} is "":
+        return -1
+    if {bn::note::%{_id}%::amount} is not set:
+        return -1
+    if {bn::note::%{_id}%::redeemed} is true:
+        bnLog("DUPE-ATTEMPT", {_redeemer}'s name, {bn::note::%{_id}%::amount}, {_id})
+        return -2
+
+    set {_val} to {bn::note::%{_id}%::amount}
+
+    # Mark redeemed BEFORE crediting — this ordering is what makes
+    # the whole system dupe-proof. Any duplicate item carrying this
+    # same ID will hit the check above and be rejected, no matter
+    # how the duplicate came to exist.
+    set {bn::note::%{_id}%::redeemed}   to true
+    set {bn::note::%{_id}%::redeemedby} to {_redeemer}'s name
+    set {bn::note::%{_id}%::redeemtime} to "%now%"
+
+    add {_val} to {_redeemer}'s balance
+    bnLog("REDEEM", {_redeemer}'s name, {_val}, {_id})
+    return {_val}
+
+# ──────────────────────────────────────────────────────────────
+#  /withdraw <amount>
+# ──────────────────────────────────────────────────────────────
+command /withdraw [<text>]:
+    description: Withdraw money as a physical bank note
+    permission: {@withdraw-perm}
+    permission message: &8[&6&lBank&8] &r&cYou don't have permission to withdraw.
+    trigger:
+        if sender is console:
+            send "&8[&6&lBank&8] &r&cOnly players can withdraw."
+            stop
+
+        if arg-1 is not set:
+            send "&8[&6&lBank&8] &r&eUsage: &f/withdraw <amount>"
+            send "&8[&6&lBank&8] &r&7Supports: &f1000 &7| &f1k &7| &f2.5M &7| &f1B &7| &f1T"
+            stop
+
+        set {_amount} to parseAmount(arg-1)
+
+        if {_amount} is -1:
+            send "&8[&6&lBank&8] &r&cInvalid: &f'%arg-1%'&c. Try &f500&c, &f1k&c, &f2.5M&c, &f1B&c."
+            stop
+
+        set {_floored} to floor({_amount})
+        if {_floored} is not {_amount}:
+            send "&8[&6&lBank&8] &r&cWhole numbers only. Did you mean &f%{_floored}%&c?"
+            stop
+        set {_amount} to {_floored}
+
+        if {_amount} < {@min-withdraw}:
+            send "&8[&6&lBank&8] &r&cMinimum withdrawal: &f{@min-withdraw} {@currency}&c."
+            stop
+
+        if {_amount} > {@max-withdraw}:
+            set {_fmtMax} to formatAmount({@max-withdraw})
+            send "&8[&6&lBank&8] &r&cMaximum per note: &f%{_fmtMax}% {@currency}&c."
+            stop
+
+        if player's balance < {_amount}:
+            set {_have} to formatAmount(floor(player's balance))
+            set {_need} to formatAmount({_amount})
+            send "&8[&6&lBank&8] &r&cNeed &f%{_need}%&c but only have &f%{_have}% {@currency}&c."
+            stop
+
+        # Generate unique note ID
+        add 1 to {bn::counter}
+        set {_id} to "BN-%{bn::counter}%-%random integer between 100000 and 999999%"
+
+        # DEDUCT FIRST — then build the item (prevents timing exploits)
+        remove {_amount} from player's balance
+
+        # Register note server-side — this registry entry is the
+        # real source of truth, not the item itself
+        set {bn::note::%{_id}%::amount}   to {_amount}
+        set {bn::note::%{_id}%::owner}    to player's name
+        set {bn::note::%{_id}%::redeemed} to false
+        set {bn::note::%{_id}%::time}     to "%now%"
+
+        # Build note item — lore is cosmetic only, ID lives in NBT
+        set {_note} to 1 of {@note-material}
+        set {_fmt}  to formatAmount({_amount})
+        set name of {_note} to "&6&lBank Note &8| &e%{_fmt}% {@currency}"
+        set lore of {_note} to "&7Issued to: &f%player's name%", "&7Amount: &a%{_amount}% {@currency}", "&7Date: &f%now%", "", "&8Right-click to redeem"
+        giveStampedNote(player, {_note}, {_id})
+
+        set {_newbal} to formatAmount(floor(player's balance))
+        send "&8[&6&lBank&8] &r&aWithdrew &f%{_fmt}% {@currency}&a as a bank note!"
+        send "&8[&6&lBank&8] &r&7Remaining balance: &f%{_newbal}% {@currency}"
+
+        bnLog("WITHDRAW", player's name, {_amount}, {_id})
+
+# ──────────────────────────────────────────────────────────────
+#  REDEEM — right-click the paper note.
+#  Gated ONLY on the hidden NBT id. Display name/lore never
+#  checked — renaming, or any cosmetic edit, changes nothing.
+# ──────────────────────────────────────────────────────────────
+on right click:
+    player is holding {@note-material}
+    set {_held} to player's tool
+    if {_held} is not set:
+        stop
+
+    set {_result} to redeemNote({_held}, player)
+
+    if {_result} is -1:
+        # Not a registered note (plain paper etc.) — ignore silently
+        stop
+
+    if {_result} is -2:
+        send "&8[&6&lBank&8] &r&cThis note was already redeemed! Confiscating."
+        set player's tool to air
+        stop
+
+    set player's tool to air
+    set {_fmt}    to formatAmount({_result})
+    set {_newbal} to formatAmount(floor(player's balance))
+    send "&8[&6&lBank&8] &r&aRedeemed &f%{_fmt}% {@currency}&a!"
+    send "&8[&6&lBank&8] &r&7New balance: &f%{_newbal}% {@currency}"
+
+# ──────────────────────────────────────────────────────────────
+#  /claimnote
+#  Recovery / safety-net command. Redeems every valid note in a
+#  player's inventory + off hand regardless of how the item looks
+#  (renamed, re-lored, whatever) — only the hidden NBT id matters.
+# ──────────────────────────────────────────────────────────────
+command /claimnote:
+    description: Redeem all Bank Notes in your inventory — works no matter what the item looks like
+    permission: {@withdraw-perm}
+    permission message: &8[&6&lBank&8] &r&cYou don't have permission to claim notes.
+    trigger:
+        if sender is console:
+            send "&8[&6&lBank&8] &r&cOnly players can claim notes."
+            stop
+
+        set {_totalCredited} to 0
+        set {_count} to 0
+
+        loop 36 times:
+            set {_slot} to loop-number - 1
+            set {_slotItem} to slot {_slot} of player's inventory
+            if {_slotItem} is set:
+                if {_slotItem} is {@note-material}:
+                    set {_result} to redeemNote({_slotItem}, player)
+                    if {_result} > 0:
+                        add {_result} to {_totalCredited}
+                        add 1 to {_count}
+                        set slot {_slot} of player's inventory to air
+
+        set {_offhand} to player's off hand slot
+        if {_offhand} is set:
+            if {_offhand} is {@note-material}:
+                set {_result} to redeemNote({_offhand}, player)
+                if {_result} > 0:
+                    add {_result} to {_totalCredited}
+                    add 1 to {_count}
+                    set player's off hand slot to air
+
+        if {_count} is 0:
+            send "&8[&6&lBank&8] &r&7No claimable bank notes found in your inventory."
+            stop
+
+        set {_fmt}    to formatAmount({_totalCredited})
+        set {_newbal} to formatAmount(floor(player's balance))
+        send "&8[&6&lBank&8] &r&aClaimed &f%{_count}%&a note(s) totalling &f%{_fmt}% {@currency}&a!"
+        send "&8[&6&lBank&8] &r&7New balance: &f%{_newbal}% {@currency}"
+
+# ──────────────────────────────────────────────────────────────
+#  ANTI-DUPE: Block shift-clicking bank notes in any inventory.
+#  Fast material check FIRST — this event fires on every click in
+#  every GUI on the server, so we bail before touching NBT for
+#  the overwhelming majority of clicks that aren't a note at all.
+# ──────────────────────────────────────────────────────────────
+on inventory click:
+    set {_item} to event-item
+    if {_item} is not set:
+        stop
+    if {_item} is not {@note-material}:
+        stop
+    set {_id} to extractNoteID({_item})
+    if {_id} is "":
+        stop
+    if {bn::note::%{_id}%::amount} is not set:
+        stop
+    if player is sneaking:
+        cancel event
+        send "&8[&6&lBank&8] &r&cYou cannot shift-click bank notes!"
+
+# ──────────────────────────────────────────────────────────────
+#  /withdrawlog [page|clear]
+# ──────────────────────────────────────────────────────────────
+command /withdrawlog [<text>]:
+    description: View bank note transaction logs
+    permission: {@admin-perm}
+    permission message: &8[&6&lBank&8] &r&cNo permission.
+    trigger:
+        if arg-1 is "clear":
+            clear {bn::log::*}
+            set {bn::logcount} to 0
+            send "&8[&6&lBank&8] &r&aTransaction log cleared."
+            stop
+
+        if {bn::logcount} is not set:
+            send "&8[&6&lBank&8] &r&7No transactions logged yet."
+            stop
+        if {bn::logcount} is 0:
+            send "&8[&6&lBank&8] &r&7No transactions logged yet."
+            stop
+
+        set {_total}   to {bn::logcount}
+        set {_perPage} to 10
+        set {_maxPage} to ceil({_total} / {_perPage})
+
+        set {_page} to 1
+        if arg-1 is set:
+            set {_page} to arg-1 parsed as integer
+            if {_page} is not set:
+                set {_page} to 1
+        if {_page} < 1:
+            set {_page} to 1
+        if {_page} > {_maxPage}:
+            set {_page} to {_maxPage}
+
+        set {_start} to ({_page} - 1) * {_perPage} + 1
+        set {_end}   to min({_page} * {_perPage}, {_total})
+
+        set {_offset} to 0
+        if {_total} > 1000:
+            set {_offset} to {_total} - 1000
+
+        send "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        send " &6&lBankNote Log &8— &7Page &f%{_page}%&7/&f%{_maxPage}%  &8(&7%{_total}% entries&8)"
+        send "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        set {_i} to {_start}
+        loop ({_end} - {_start} + 1) times:
+            set {_key}   to {_offset} + {_i}
+            set {_entry} to {bn::log::%{_key}%}
+            if {_entry} is set:
+                send "&8%{_i}%. &7%{_entry}%"
+            add 1 to {_i}
+
+        send "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        send "&7/withdrawlog &f<page>&7  &8|  &7/withdrawlog &fclear"
+
+# ──────────────────────────────────────────────────────────────
+#  /withdrawadmin give <player> <amount>
+#  Issues a note WITHOUT deducting from any balance (event rewards etc.)
+# ──────────────────────────────────────────────────────────────
+command /withdrawadmin [<text>] [<text>] [<text>]:
+    description: Admin — issue bank notes without balance deduction
+    permission: {@admin-perm}
+    permission message: &8[&6&lBank&8] &r&cNo permission.
+    trigger:
+        if arg-1 is not "give":
+            send "&8[&6&lBank&8] &r&eUsage: &f/withdrawadmin give <player> <amount>"
+            stop
+        if arg-2 is not set:
+            send "&8[&6&lBank&8] &r&eUsage: &f/withdrawadmin give <player> <amount>"
+            stop
+        if arg-3 is not set:
+            send "&8[&6&lBank&8] &r&eUsage: &f/withdrawadmin give <player> <amount>"
+            stop
+
+        set {_target} to arg-2 parsed as player
+        if {_target} is not set:
+            send "&8[&6&lBank&8] &r&cPlayer &f%arg-2%&c is not online."
+            stop
+
+        set {_amount} to parseAmount(arg-3)
+        if {_amount} is -1:
+            send "&8[&6&lBank&8] &r&cInvalid amount &f'%arg-3%'&c."
+            stop
+
+        set {_amount} to floor({_amount})
+        if {_amount} < 1:
+            send "&8[&6&lBank&8] &r&cAmount must be at least 1."
+            stop
+
+        add 1 to {bn::counter}
+        set {_id} to "BN-%{bn::counter}%-%random integer between 100000 and 999999%"
+
+        set {bn::note::%{_id}%::amount}   to {_amount}
+        set {bn::note::%{_id}%::owner}    to "ADMIN"
+        set {bn::note::%{_id}%::redeemed} to false
+        set {bn::note::%{_id}%::time}     to "%now%"
+
+        set {_note} to 1 of {@note-material}
+        set {_fmt}  to formatAmount({_amount})
+        set name of {_note} to "&6&lBank Note &8| &e%{_fmt}% {@currency}"
+        set lore of {_note} to "&7Issued by: &cAdmin", "&7Amount: &a%{_amount}% {@currency}", "&7Date: &f%now%", "", "&8Right-click to redeem"
+        giveStampedNote({_target}, {_note}, {_id})
+
+        send "&8[&6&lBank&8] &r&aGave &f%{_fmt}% {@currency}&a note to &f%{_target}%&a."
+        send "&8[&6&lBank&8] &r&aYou received a &f%{_fmt}% {@currency}&a bank note from an admin!" to {_target}
+
+        bnLog("ADMIN-GIVE", "%sender% -> %{_target}%", {_amount}, {_id})
+
+# ──────────────────────────────────────────────────────────────
+#  OPTIONAL: block renaming notes at an anvil. Purely cosmetic
+#  polish now — the ID lives in NBT so renaming can't break
+#  redemption anymore either way — but keeps notes looking
+#  trustworthy at a glance. Delete this block if your Skript/
+#  Paper version doesn't like the anvil inventory check.
+# ──────────────────────────────────────────────────────────────
+on inventory click:
+    if type of event-inventory is not anvil inventory:
+        stop
+    if event-slot is not 2:
+        stop
+    set {_input} to slot 0 of event-inventory
+    if {_input} is not set:
+        stop
+    if extractNoteID({_input}) is "":
+        stop
+    cancel event
+    send "&8[&6&lBank&8] &r&cBank notes cannot be renamed." to player

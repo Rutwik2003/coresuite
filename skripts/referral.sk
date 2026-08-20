@@ -1,0 +1,313 @@
+########################################################################
+# REFERRAL SYSTEM - by Claude for Discordnuker
+#
+# Requires: Skript 2.15+ (no addons strictly required, but tested
+#           alongside SkBee / skript-reflect / skript-yaml as listed
+#           on your server)
+#
+# COMMANDS
+#   /referral                -> help
+#   /referral create         -> generates your personal code
+#   /referral use <code>     -> redeem someone else's code
+#   /referral info [player]  -> view referral stats
+#   /referral leaderboard    -> top 10 referrers
+#   /referral flags          -> (admin) view alt-abuse flags
+#   /referral revoke <player>-> (admin) undo a fraudulent referral +
+#                                claw back the reward it earned
+#
+# PERMISSIONS
+#   referral.admin  -> access to /referral flags and /referral revoke,
+#                      also receives live alert broadcasts
+#   (no permission is required for create/use/info/leaderboard - open
+#   to all players by default)
+#
+# ASSUMPTIONS ABOUT YOUR OTHER PLUGINS (edit the two functions near the
+# bottom, referralGiveReward and referralTakeReward, if these don't
+# match your actual command syntax):
+#   eco give <player> <amount>          (EssentialsX-style economy)
+#   crate key give <player> <key> <amt> (ExcellentCrates-style)
+#   crate key take <player> <key> <amt>
+#
+# Make sure "common", "uncommon", "rare" and "insane" below match the
+# EXACT crate key names configured in ExcellentCrates. If you don't
+# have an "insane" crate key yet, create one, or change the name in
+# the options block below.
+#
+# NOTE ON RENAMES: data is stored keyed by player name (not UUID) to
+# keep the script simple and avoid extra dependencies. If a player
+# changes their Minecraft username, their historical referral record
+# will not follow them automatically. If renames are common on your
+# server, ping me and I can rewrite this keyed by UUID with a
+# name-cache instead.
+########################################################################
+
+options:
+	prefix: &8[&6Referral&8] &r
+	reward_1_eco: 2000
+	reward_2_eco: 3000
+	reward_3_eco: 3000
+	tier_common_at: 3
+	tier_uncommon_start: 4
+	tier_uncommon_end: 13
+	tier_rare_start: 14
+	tier_rare_end: 29
+	tier_insane_start: 30
+	key_common: common
+	key_uncommon: uncommon
+	key_rare: rare
+	key_insane: insane
+	redeemer_eco: 1000
+	redeemer_key: common
+	min_playtime_minutes: 120
+
+########################################################################
+# SETUP: charset used for code generation (runs once)
+########################################################################
+
+on script load:
+	if {referral::charset::*} is not set:
+		add "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "2", "3", "4", "5", "6", "7", "8", "9" to {referral::charset::*}
+	send "&a[Referral] Skript loaded successfully." to console
+
+every 1 minute:
+	loop all players:
+		add 1 to {referral::minutesplayed::%loop-player%}
+
+########################################################################
+# FUNCTIONS
+########################################################################
+
+function referralGenerateCode() :: text:
+	set {_unique} to false
+	while {_unique} is false:
+		set {_code} to ""
+		loop 6 times:
+			set {_code} to "%{_code}%%a random element out of {referral::charset::*}%"
+		if {referral::codeowner::%{_code}%} is not set:
+			set {_unique} to true
+	return {_code}
+
+function referralMessageOnline(targetname: text, msg: text):
+	loop all players:
+		if name of loop-player is {_targetname}:
+			send {_msg} to loop-player
+
+function referralAlertStaff(msg: text):
+	loop all players:
+		if loop-player has permission "referral.admin":
+			send {_msg} to loop-player
+
+function referralGiveReward(owner: text, count: number, referredname: text):
+	set {_reward} to ""
+	if {_count} = 1:
+		execute console command "eco give %{_owner}% {@reward_1_eco}"
+		set {_reward} to "eco:{@reward_1_eco}"
+	else if {_count} = 2:
+		execute console command "eco give %{_owner}% {@reward_2_eco}"
+		set {_reward} to "eco:{@reward_2_eco}"
+	else if {_count} = {@tier_common_at}:
+		execute console command "eco give %{_owner}% {@reward_3_eco}"
+		execute console command "crate key give %{_owner}% {@key_common} 1"
+		set {_reward} to "eco:{@reward_3_eco}+key:{@key_common}"
+	else if {_count} is between {@tier_uncommon_start} and {@tier_uncommon_end}:
+		execute console command "crate key give %{_owner}% {@key_uncommon} 1"
+		set {_reward} to "key:{@key_uncommon}"
+	else if {_count} is between {@tier_rare_start} and {@tier_rare_end}:
+		execute console command "crate key give %{_owner}% {@key_rare} 1"
+		set {_reward} to "key:{@key_rare}"
+	else if {_count} >= {@tier_insane_start}:
+		execute console command "crate key give %{_owner}% {@key_insane} 1"
+		set {_reward} to "key:{@key_insane}"
+	add "%{_count}%|%{_referredname}%|%{_reward}%|eco:{@redeemer_eco}+key:{@redeemer_key}" to {referral::rewardlog::%{_owner}%::*}
+	execute console command "eco give %{_referredname}% {@redeemer_eco}"
+	execute console command "crate key give %{_referredname}% {@redeemer_key} 1"
+	referralMessageOnline({_referredname}, "{@prefix}&aWelcome bonus: &e{@redeemer_eco} &aeco + &e1 {@redeemer_key} key&a!")
+	referralMessageOnline({_owner}, "{@prefix}&6New referral! (#%{_count}%) Reward has been sent to your account.")
+
+function referralTakeReward(owner: text, rewardstring: text):
+	if {_rewardstring} contains "eco:{@reward_1_eco}":
+		execute console command "eco take %{_owner}% {@reward_1_eco}"
+	else if {_rewardstring} contains "eco:{@reward_2_eco}":
+		execute console command "eco take %{_owner}% {@reward_2_eco}"
+	else if {_rewardstring} contains "eco:{@reward_3_eco}":
+		execute console command "eco take %{_owner}% {@reward_3_eco}"
+	else if {_rewardstring} contains "eco:{@redeemer_eco}":
+		execute console command "eco take %{_owner}% {@redeemer_eco}"
+	if {_rewardstring} contains "key:{@key_common}":
+		execute console command "crate key take %{_owner}% {@key_common} 1"
+	else if {_rewardstring} contains "key:{@key_uncommon}":
+		execute console command "crate key take %{_owner}% {@key_uncommon} 1"
+	else if {_rewardstring} contains "key:{@key_rare}":
+		execute console command "crate key take %{_owner}% {@key_rare} 1"
+	else if {_rewardstring} contains "key:{@key_insane}":
+		execute console command "crate key take %{_owner}% {@key_insane} 1"
+
+########################################################################
+# MAIN COMMAND
+########################################################################
+
+command /referral [<text>] [<text>]:
+	permission: referral.use
+	permission message: {@prefix}&cYou don't have permission to use referrals.
+	trigger:
+		if arg-1 is not set:
+			send "{@prefix}&7-------------------------" to player
+			send "&e/referral create &7- get your code" to player
+			send "&e/referral use <code> &7- redeem a code" to player
+			send "&e/referral info [player] &7- view stats" to player
+			send "&e/referral leaderboard &7- top referrers" to player
+			send "{@prefix}&7-------------------------" to player
+			stop trigger
+
+		if {referral::banned::%player%} is true:
+			send "{@prefix}&cYou have been banned from the referral system due to abuse." to player
+			stop trigger
+
+		if arg-1 is "create":
+			if {referral::code::%player%} is set:
+				send "{@prefix}&cYou already have a code: &e%{referral::code::%player%}%" to player
+				stop trigger
+			set {_code} to referralGenerateCode()
+			set {referral::code::%player%} to {_code}
+			set {referral::codeowner::%{_code}%} to name of player
+			set {referral::ip::%player%} to IP address of player
+			send "{@prefix}&aYour referral code is: &e%{_code}%" to player
+			send "{@prefix}&7Share it! Friends redeem it with &e/referral use %{_code}%" to player
+			stop trigger
+
+		else if arg-1 is "use":
+			if arg-2 is not set:
+				send "{@prefix}&cUsage: /referral use <code>" to player
+				stop trigger
+			set {_code} to arg-2
+			if {referral::codeowner::%{_code}%} is not set:
+				send "{@prefix}&cThat referral code doesn't exist." to player
+				stop trigger
+			set {_owner} to {referral::codeowner::%{_code}%}
+			if {_owner} is name of player:
+				send "{@prefix}&cYou can't use your own referral code!" to player
+				stop trigger
+			if {referral::usedcode::%player%} is set:
+				send "{@prefix}&cYou've already redeemed a referral code before." to player
+				stop trigger
+			set {_playtime} to {referral::minutesplayed::%player%}
+			if {_playtime} is not set:
+				set {_playtime} to 0
+			if {_playtime} < {@min_playtime_minutes}:
+				set {_remaining} to {@min_playtime_minutes} - {_playtime}
+				send "{@prefix}&cYou need to play a bit longer before redeeming a code. (&e%{_remaining}%&c minutes left)" to player
+				stop trigger
+			set {_ownerip} to {referral::ip::%{_owner}%}
+			set {_myip} to IP address of player
+			if {_ownerip} is set:
+				if {_ownerip} is {_myip}:
+					add "ALT SUSPECTED: %name of player% and %{_owner}% share IP %{_myip}%" to {referral::flagged::*}
+					send "{@prefix}&cThis referral could not be completed. Contact staff if this is a mistake." to player
+					referralAlertStaff("{@prefix}&c[Alert] Blocked referral: %name of player% -> %{_owner}% (same IP)")
+					stop trigger
+			set {referral::usedcode::%player%} to {_code}
+			set {referral::referredby::%player%} to {_owner}
+			add name of player to {referral::referrals::%{_owner}%::*}
+			add 1 to {referral::count::%{_owner}%}
+			set {_count} to {referral::count::%{_owner}%}
+			referralGiveReward({_owner}, {_count}, name of player)
+			send "{@prefix}&aCode redeemed! You were referred by &e%{_owner}%" to player
+			stop trigger
+
+		else if arg-1 is "info":
+			if arg-2 is set:
+				set {_target} to arg-2
+			else:
+				set {_target} to name of player
+			set {_count} to {referral::count::%{_target}%}
+			if {_count} is not set:
+				set {_count} to 0
+			send "{@prefix}&6Stats for %{_target}%:" to player
+			set {_playtime} to {referral::minutesplayed::%{_target}%}
+			if {_playtime} is not set:
+				set {_playtime} to 0
+			set {_hours} to {_playtime} / 60
+			set {_hours} to floor({_hours})
+			set {_mins} to {_playtime} - ({_hours} * 60)
+			if {_playtime} >= {@min_playtime_minutes}:
+				send "&7Playtime: &a%{_hours}%h %{_mins}%m &a(requirement met)" to player
+			else:
+				set {_remaining} to {@min_playtime_minutes} - {_playtime}
+				send "&7Playtime: &c%{_hours}%h %{_mins}%m &7(%{_remaining}% minutes until you can redeem a code)" to player
+			if {referral::code::%{_target}%} is set:
+				send "&7Code: &e%{referral::code::%{_target}%}%" to player
+			else:
+				send "&7Code: &8(none yet - /referral create)" to player
+			send "&7Total referrals: &a%{_count}%" to player
+			if {referral::referredby::%{_target}%} is set:
+				send "&7Referred by: &e%{referral::referredby::%{_target}%}%" to player
+			stop trigger
+
+		else if arg-1 is "leaderboard" or "top":
+			delete {_temp::*}
+			loop {referral::count::*}:
+				set {_temp::%loop-index%} to loop-value
+			send "{@prefix}&6Top Referrers:" to player
+			set {_rank} to 0
+			loop 10 times:
+				set {_topcount} to -1
+				set {_topname} to ""
+				loop {_temp::*}:
+					if loop-value-2 > {_topcount}:
+						set {_topcount} to loop-value-2
+						set {_topname} to loop-index
+				if {_topname} is "":
+					exit loop
+				add 1 to {_rank}
+				send "&e#%{_rank}% &f%{_topname}% &7- &a%{_topcount}% referrals" to player
+				delete {_temp::%{_topname}%}
+			stop trigger
+
+		else if arg-1 is "flags":
+			if player does not have permission "referral.admin":
+				send "{@prefix}&cNo permission." to player
+				stop trigger
+			if {referral::flagged::*} is not set:
+				send "{@prefix}&7No flagged attempts." to player
+				stop trigger
+			send "{@prefix}&6Flagged alt attempts:" to player
+			loop {referral::flagged::*}:
+				send "&7- %loop-value%" to player
+			stop trigger
+
+		else if arg-1 is "revoke":
+			if player does not have permission "referral.admin":
+				send "{@prefix}&cNo permission." to player
+				stop trigger
+			if arg-2 is not set:
+				send "{@prefix}&cUsage: /referral revoke <referred player name>" to player
+				stop trigger
+			set {_target} to arg-2
+			if {referral::referredby::%{_target}%} is not set:
+				send "{@prefix}&cNo referral record found for %{_target}%." to player
+				stop trigger
+			set {_owner} to {referral::referredby::%{_target}%}
+			set {_found} to false
+			loop {referral::rewardlog::%{_owner}%::*}:
+				if loop-value contains "|%{_target}%|":
+					set {_entry} to loop-value
+					set {_logindex} to loop-index
+					set {_found} to true
+			if {_found} is false:
+				send "{@prefix}&cCouldn't find a matching reward log entry - may need manual correction." to player
+			else:
+				set {_parts::*} to {_entry} split at "|"
+				referralTakeReward({_owner}, {_parts::3})
+				referralTakeReward({_target}, {_parts::4})
+				delete {referral::rewardlog::%{_owner}%::%{_logindex}%}
+			remove 1 from {referral::count::%{_owner}%}
+			remove {_target} from {referral::referrals::%{_owner}%::*}
+			delete {referral::usedcode::%{_target}%}
+			delete {referral::referredby::%{_target}%}
+			set {referral::banned::%{_target}%} to true
+			send "{@prefix}&aRevoked: %{_owner}%'s referral reward from %{_target}% has been undone. %{_target}% is now banned from the referral system." to player
+			referralAlertStaff("{@prefix}&e%name of player% revoked referral: %{_owner}% <- %{_target}%")
+			stop trigger
+
+		else:
+			send "{@prefix}&cUnknown subcommand. Try /referral for help." to player

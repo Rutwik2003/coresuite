@@ -1,0 +1,36 @@
+# ============================================================
+# CoreSuite - World Manager Module Configuration
+# ============================================================
+
+prefix: '&8[&a&lWorld&8] &r'
+
+# Name of the survival world
+survival-world: world
+
+# Name of the PvP world
+pvp-world: Duels
+
+# Delay in seconds for the /hub command
+hub-teleport-delay: 3
+
+fallback-spawn-world: world
+fallback-y: 64
+
+teleport-action-bar: '&eTeleporting in &6{time}s...'
+
+messages:
+  teleporting: '&aTeleporting to the hub in &e{time} seconds&a. Don''t move!'
+  teleport-cancelled: '&cTeleport cancelled because you moved!'
+  no-permission: '&cYou don''t have permission.'
+  already-teleporting: '&cYou are already teleporting!'
+  lobby-spawn-set: '&aLobby spawn set to your location!'
+  survival-not-found: '&cSurvival world not found.'
+  pvp-not-found: '&cPvP world not found.'
+lobby-spawn:
+  world: Spawn
+  x: 0.5
+  y: 2.0
+  z: 0.5
+  yaw: 179.95392
+  pitch: 0.11663556
+

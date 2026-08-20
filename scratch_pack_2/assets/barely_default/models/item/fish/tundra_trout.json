@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "barely_default:item/fish/rainbow_trout",
+	"textures": {
+		"layer0": "barely_default:item/fish/tundra_trout"
+	}
+}

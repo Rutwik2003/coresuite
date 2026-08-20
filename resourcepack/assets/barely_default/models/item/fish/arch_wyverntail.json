@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "barely_default:item/fish/wyverntail",
+	"textures": {
+		"layer0": "barely_default:item/fish/arch_wyverntail"
+	}
+}

@@ -1,0 +1,14 @@
+# ============================================================
+# CoreSuite - KillPodium Module Configuration
+# ============================================================
+
+prefix: "&b[PodiumUpdater]&r "
+update-interval: 300
+board: "statistic_player_kills"
+type: "alltime"
+npcs:
+  1: 17
+  2: 18
+  3: 19
+  4: 25
+  5: 26

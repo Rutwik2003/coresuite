@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "item/cod/cod_barrel",
+	"textures": {
+		"particle": "barely_default:item/fish/fish_barrel"
+	}
+}

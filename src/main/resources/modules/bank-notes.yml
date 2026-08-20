@@ -1,0 +1,41 @@
+# ============================================================
+# CoreSuite - BankNotes Module Configuration
+# ============================================================
+
+prefix: '&8[&6&lBank&8] &r'
+currency: "Coins"
+min-withdraw: 1
+max-withdraw: 1000000000000
+max-log-entries: 10000
+gui-title: '&6&lBank Menu'
+
+messages:
+  withdraw-success: "&aWithdrew &f{amount} {currency}&a as a bank note!"
+  withdraw-fail: "&cNeed &f{amount}&c but only have &f{balance}"
+  deposit-success: "&aRedeemed &f{amount} {currency}&a!"
+  claim-success: "&aClaimed &f{count}&a note(s) totalling &f{amount} {currency}&a!"
+  claim-fail: "&7No claimable bank notes found in your inventory."
+  no-notes-found: "&7No recent transactions found."
+  note-lore:
+    - "&7Issued to: &f{player}"
+    - "&7Amount: &a{amount} {currency}"
+    - ""
+    - "&8Right-click to redeem"
+
+gui:
+  denominations:
+    - amount: "1000"
+      material: "SUNFLOWER"
+      display-name: "&a&lWithdraw 1K"
+    - amount: "10000"
+      material: "SUNFLOWER"
+      display-name: "&a&lWithdraw 10K"
+    - amount: "100000"
+      material: "SUNFLOWER"
+      display-name: "&a&lWithdraw 100K"
+    - amount: "1000000"
+      material: "GOLD_INGOT"
+      display-name: "&6&lWithdraw 1M"
+    - amount: "10000000"
+      material: "GOLD_BLOCK"
+      display-name: "&6&lWithdraw 10M"

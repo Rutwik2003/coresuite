@@ -1,0 +1,71 @@
+# =============================================
+# World Manager - Complete
+# =============================================
+
+# --- SET LOBBY SPAWN: run this once while standing exactly where you want ---
+# Usage: /setlobbyspawn  (requires op)
+command /setlobbyspawn:
+    permission: op
+    trigger:
+        set {spawn.lobby} to player's location
+        send "&aLobby spawn set to %player's location%!"
+
+# --- JOIN: always send to exact lobby spawn ---
+on join:
+    wait 1 ticks
+    if {spawn.lobby} is set:
+        teleport player to {spawn.lobby}
+    else:
+        teleport player to spawn of world "Spawn"
+
+# --- SAVE: exact location when teleporting OUT of "world" ---
+on teleport:
+    if name of player's world is "world":
+        set {lastloc.world::%player's uuid%} to player's location
+
+# --- SAVE: when quitting while in "world" ---
+on quit:
+    if name of player's world is "world":
+        set {lastloc.world::%player's uuid%} to player's location
+
+# --- NPC command: go to last location in "world" ---
+command /joinsurvival:
+    trigger:
+        if {lastloc.world::%player's uuid%} is set:
+            teleport player to {lastloc.world::%player's uuid%}
+        else:
+            teleport player to location(0.5, 254, 0.5, world "world")
+
+# --- HUB COMMAND WITH 3 SECOND TELEPORT DELAY ---
+command /hub:
+    trigger:
+        if {hubtp::%player's uuid%} is set:
+            send "&cYou are already teleporting!"
+            stop
+
+        set {hubtp::%player's uuid%} to location of player
+
+        send "&aTeleporting to the hub in &e3 seconds&a. Don't move!"
+
+        loop 3 times:
+            wait 1 second
+
+            if {hubtp::%player's uuid%} is not set:
+                stop
+
+            if distance between player and {hubtp::%player's uuid%} > 0.1:
+                delete {hubtp::%player's uuid%}
+                send "&cTeleport cancelled because you moved!"
+                stop
+
+            if loop-number < 3:
+                send action bar "&eTeleporting in &6%3 - loop-number%s..."
+
+        delete {hubtp::%player's uuid%}
+
+        execute console command "mv tp %player% spawn"
+            
+command /joinpvp:
+    trigger:
+        execute console command "mv tp %player% Duels"
+        execute console command "mv spawn"

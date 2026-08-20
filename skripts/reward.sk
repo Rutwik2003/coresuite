@@ -1,0 +1,80 @@
+# ==========================================
+# Reward Script - Redeem code command
+# ==========================================
+
+command /reward <text>:
+    permission: skript.reward
+    permission message: &cYou don't have permission to use this command.
+    trigger:
+        if arg-1 is not "M7X2Q9": # <-- change this to your 6-character code
+            send "&cInvalid redeem code!" to player
+            stop trigger
+
+        if {redeemed::%player's uuid%} is set:
+            send "&cYou have already redeemed this code!" to player
+            stop trigger
+
+        set {redeemed::%player's uuid%} to true
+
+        execute console command "eco give %player's name% 50000"
+        execute console command "uc give key 1 %player's name%"
+        execute console command "crate key give %player's name% rare 1"
+        execute console command "crate key give %player's name% uncommon 2"
+        execute console command "crate key give %player's name% common 5"
+
+        send "&a&lSUCCESS! &fYou have redeemed your reward!" to player
+        send "&7- &f$25,000" to player
+        send "&7- &f1x UltraCosmetics Key" to player
+        send "&7- &f1x Rare Crate Key" to player
+        send "&7- &f2x Uncommon Crate Key" to player
+        send "&7- &f10x Common Crate Key" to player
+
+# ==========================================
+# Admin Command - Testing / Management
+# ==========================================
+
+command /rewardadmin <text> [<offline player>]:
+    permission: skript.rewardadmin
+    permission message: &cYou don't have permission to use this command.
+    trigger:
+        if arg-1 is "reset":
+            if arg-2 is not set:
+                send "&cUsage: /rewardadmin reset <player>" to player
+                stop trigger
+            delete {redeemed::%arg-2's uuid%}
+            send "&a%arg-2%'s redeem status has been reset. They can use /reward again." to player
+            stop trigger
+
+        if arg-1 is "check":
+            if arg-2 is not set:
+                send "&cUsage: /rewardadmin check <player>" to player
+                stop trigger
+            if {redeemed::%arg-2's uuid%} is set:
+                send "&e%arg-2% &fhas &calready redeemed &fthe reward." to player
+            else:
+                send "&e%arg-2% &fhas &anot yet redeemed &fthe reward." to player
+            stop trigger
+
+        if arg-1 is "give":
+            if arg-2 is not set:
+                send "&cUsage: /rewardadmin give <player>" to player
+                stop trigger
+            execute console command "eco give %arg-2's name% 25000"
+            execute console command "uc give key 1 %arg-2's name%"
+            execute console command "crate key give %arg-2's name% rare 1"
+            execute console command "crate key give %arg-2's name% uncommon 2"
+            execute console command "crate key give %arg-2's name% common 5"
+            send "&aForce-gave the reward to %arg-2% (redeem status unaffected)." to player
+            stop trigger
+
+        if arg-1 is "list":
+            send "&e--- Redeemed Players ---" to player
+            loop {redeemed::*}:
+                send "&7- &f%loop-index%" to player
+            stop trigger
+
+        send "&cUnknown subcommand. Usage:" to player
+        send "&7/rewardadmin reset <player>" to player
+        send "&7/rewardadmin check <player>" to player
+        send "&7/rewardadmin give <player>" to player
+        send "&7/rewardadmin list" to player

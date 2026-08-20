@@ -1,0 +1,7 @@
+{
+	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
+	"parent": "item/totem_of_undying/fishing_trophy_1st_place",
+	"textures": {
+		"particle": "item/totem_of_undying/fishing_trophy_3rd_place"
+	}
+}

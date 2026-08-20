@@ -1,0 +1,130 @@
+# ==========================================
+#        Advanced Combat Tag System
+#        PvP Only - Melee + Projectiles
+#        Professional Edition
+# ==========================================
+
+options:
+    combat-time: 15          # Seconds of combat duration
+    combat-low-threshold: 5  # When timer turns red/urgent
+
+# ==========================================
+#  Helper Functions
+# ==========================================
+
+# Puts a player into combat and resets their timer
+function enterCombat(p: player):
+    if {combat.active::%{_p}%} is not set:
+        send action bar "&c⚔ &lYou entered combat!" to {_p}
+    set {combat.active::%{_p}%} to {@combat-time}
+
+# Completely wipes all combat data for a player
+function clearCombat(p: player):
+    delete {combat.active::%{_p}%}
+    delete {combat.opponent::%{_p}%}
+
+# ==========================================
+#  Detect PvP Combat
+# ==========================================
+
+on damage of player:
+    set {_attacker} to attacker
+
+    # Resolve projectile shooter
+    if {_attacker} is a projectile:
+        if shooter of {_attacker} is a player:
+            set {_attacker} to shooter of {_attacker}
+
+    # Must be player-vs-player, not self-damage
+    if {_attacker} is a player:
+        if {_attacker} is not victim:
+
+            # Track last known opponents (store as string to avoid entity save warning)
+            set {combat.opponent::%victim%} to name of {_attacker}
+            set {combat.opponent::%{_attacker}%} to name of victim
+
+            enterCombat(victim)
+            enterCombat({_attacker})
+
+# ==========================================
+#  Combat Timer Loop (Every Second)
+# ==========================================
+
+every 1 second:
+    loop all players:
+        if {combat.active::%loop-player%} is set:
+
+            subtract 1 from {combat.active::%loop-player%}
+            set {_t} to {combat.active::%loop-player%}
+            set {_opp} to {combat.opponent::%loop-player%}
+
+            # Build opponent display
+            set {_opp-text} to ""
+            if {_opp} is set:
+                set {_opp-text} to " &8| &7vs &f%{_opp}%"
+
+            # Urgent (low time) vs normal display
+            if {_t} <= {@combat-low-threshold}:
+                send action bar "&c&l⚔ Combat: &4&l%{_t}%s%{_opp-text}%" to loop-player
+            else:
+                send action bar "&c⚔ &fCombat: &c%{_t}%s%{_opp-text}%" to loop-player
+
+            # Timer expired — exit combat cleanly
+            if {_t} <= 0:
+                clearCombat(loop-player)
+                send action bar "&a✔ &lYou are no longer in combat!" to loop-player
+                send "&8[&cCombat&8] &r&aYou are no longer in combat." to loop-player
+
+# ==========================================
+#  On Death — Clear Combat Immediately
+# ==========================================
+
+on death of player:
+    if {combat.active::%victim%} is set:
+        clearCombat(victim)
+        # Small delay so the death screen doesn't flash a stale bar
+        wait 1 tick
+        send action bar "&7You died and left combat." to victim
+
+# ==========================================
+#  On Respawn — Guarantee Clean State
+# ==========================================
+
+on respawn:
+    # Safety net: wipe anything that slipped through death handler
+    clearCombat(player)
+
+# ==========================================
+#  Block Commands While in Combat
+# ==========================================
+
+on command:
+    if {combat.active::%player%} is set:
+        set {_t} to {combat.active::%player%}
+        cancel event
+        send "&8[&cCombat&8] &r&cYou cannot use commands while in combat! &7(%{_t}%s remaining)" to player
+
+# ==========================================
+#  Combat Log Punishment (Disconnect)
+# ==========================================
+
+on quit:
+    if {combat.active::%player%} is set:
+        set {_opp} to {combat.opponent::%player%}
+
+        # Broadcast with opponent context if known
+        if {_opp} is set:
+            broadcast "&8[&cCombat&8] &r&e%player% &7combat-logged while fighting &e%{_opp}%!"
+        else:
+            broadcast "&8[&cCombat&8] &r&e%player% &7disconnected while in combat!"
+
+        kill player
+        clearCombat(player)
+
+# ==========================================
+#  Cleanup on Join (Edge Case Safety)
+# ==========================================
+
+on join:
+    # If a player rejoins after a server restart with stale data, wipe it
+    clearCombat(player)

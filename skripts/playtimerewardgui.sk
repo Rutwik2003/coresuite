@@ -1,0 +1,222 @@
+# =====================================================================================
+#  PlaytimeReward - GUI System
+#  File: playtimerewardgui.sk
+# =====================================================================================
+#
+#  NOTE: this uses vanilla Skript inventory creation/click handling instead of
+#  skript-gui, since it's the most reliably documented approach and doesn't depend
+#  on guessing skript-gui's exact API surface for your installed build.
+# =====================================================================================
+
+options:
+	ptr: ptr
+	ptrPrefix: &8[&6&lPlaytime&e&lRewards&8] &r
+
+
+# =====================================================================================
+#  OPEN THE MAIN REWARDS GUI (paginated)
+# =====================================================================================
+
+function _ptr_openRewardsGui(p: player, page: number):
+	set {_uuid} to uuid of {_p}
+	set {ptr::guipage::%{_uuid}%} to {_page}
+
+	set {_gui} to a chest inventory with 6 rows named "%{ptr::config::gui-title}% &8- Page %{_page}%"
+
+	# ---- Header info item ----
+	set {_played} to {ptr::playtime::%{_uuid}%}
+	set {_unlocked} to 0
+	set {_claimed} to 0
+	set {_claimable} to 0
+	loop {ptr::reward-ids::*}:
+		set {_rid} to loop-value
+		if {ptr::rewards::%{_rid}%::enabled} is true:
+			if {_played} >= {ptr::rewards::%{_rid}%::required-seconds}:
+				add 1 to {_unlocked}
+				if _ptr_hasClaimed({_p}, {_rid}) is true:
+					add 1 to {_claimed}
+				else:
+					add 1 to {_claimable}
+
+	set slot 4 of {_gui} to a player head named "&e&lYour Stats" with lore "&7Playtime: &f%_ptr_formatTime({_played})%" and "&7Unlocked: &a%{_unlocked}%" and "&7Claimed: &b%{_claimed}%" and "&7Claimable now: &6%{_claimable}%" and "&7Page: &f%{_page}%"
+
+	# ---- Reward slots (paginated) ----
+	set {_perpage} to {ptr::config::rewards-per-page}
+	if {_perpage} is not set:
+		set {_perpage} to 21
+	if {_perpage} < 1:
+		set {_perpage} to 21
+	set {_start} to ({_page} - 1) * {_perpage}
+	set {_index} to 0
+	set {_placed} to 0
+	set {_slotcursor} to 9
+
+	loop {ptr::reward-ids::*}:
+		set {_rid} to loop-value
+		if {ptr::rewards::%{_rid}%::enabled} is true:
+			if {_index} >= {_start}:
+				if {_placed} < {_perpage}:
+					_ptr_placeRewardItem({_gui}, {_p}, {_rid}, {_slotcursor})
+					add 1 to {_slotcursor}
+					add 1 to {_placed}
+			add 1 to {_index}
+
+	# ---- Navigation / utility buttons (bottom row) ----
+	if {_page} > 1:
+		set slot 45 of {_gui} to an arrow named "&e« Previous Page"
+	set slot 49 of {_gui} to a barrier named "&c&lClose"
+	set slot 48 of {_gui} to a book named "&b&lHelp / Info" with lore "&7Earn rewards by staying active" and "&7(non-AFK) on the server." and "&7Rewards unlock automatically" and "&7as your playtime increases."
+	set slot 50 of {_gui} to a compass named "&a&lRefresh"
+	set slot 51 of {_gui} to an emerald block named "&6&lClaim All Available" with lore "&7Claims every unlocked reward" and "&7you haven't claimed yet."
+
+	set {_total} to size of {ptr::reward-ids::*}
+	set {_shown} to {_start} + {_perpage}
+	if {_total} > {_shown}:
+		set slot 53 of {_gui} to an arrow named "&eNext Page »"
+
+	set {ptr::guiref::%{_uuid}%} to {_gui}
+	set {ptr::guiopen::%{_uuid}%} to true
+	set {ptr::reopening::%{_uuid}%} to true
+	open {_gui} to {_p}
+	set {ptr::reopening::%{_uuid}%} to false
+
+
+# =====================================================================================
+#  BUILD A SINGLE REWARD DISPLAY ITEM BASED ON STATE (locked/claimable/claimed)
+# =====================================================================================
+
+function _ptr_placeRewardItem(gui: inventory, p: player, id: string, slot: number):
+	set {_uuid} to uuid of {_p}
+	set {_played} to {ptr::playtime::%{_uuid}%}
+	set {_required} to {ptr::rewards::%{_id}%::required-seconds}
+	set {_name} to "%{ptr::rewards::%{_id}%::name}%"
+	set {_grants} to "%{ptr::rewards::%{_id}%::grants}%"
+
+	if {_played} >= {_required}:
+		if _ptr_hasClaimed({_p}, {_id}) is true:
+			# ---- ALREADY CLAIMED ----
+			set slot {_slot} of {_gui} to a nether star named "&7&m%{_name}%&r &8[Claimed]" with lore "&7Grants: %{_grants}%" and "&7Status: &8Already Claimed" and "&8This reward has already been redeemed."
+		else:
+			# ---- UNLOCKED AND CLAIMABLE ----
+			set {_lore1} to "%{ptr::rewards::%{_id}%::lore}%"
+			set slot {_slot} of {_gui} to an emerald named "&a&l%{_name}% &e[Click to Claim]" with lore "&7%{_lore1}%" and "&7Grants: %{_grants}%" and "&7Required: &f%_ptr_formatTime({_required})%" and "&a&l>> CLICK TO CLAIM <<"
+	else:
+		# ---- LOCKED ----
+		set {_remaining} to {_required} - {_played}
+		set {_percent} to round(({_played} / {_required}) * 100)
+		set {_bar} to _ptr_buildProgressBar({_percent})
+		set slot {_slot} of {_gui} to a gray dye named "&7&l%{_name}% &8[Locked]" with lore "&7Grants: %{_grants}%" and "&7Required: &f%_ptr_formatTime({_required})%" and "&7Your time: &f%_ptr_formatTime({_played})%" and "&7Remaining: &c%_ptr_formatTime({_remaining})%" and "&7Progress: &e%{_percent}%%%" and "%{_bar}%"
+
+	set {ptr::guislotmap::%{_uuid}%::%{_slot}%} to {_id}
+
+
+function _ptr_buildProgressBar(percent: number) :: string:
+	set {_filled} to floor({_percent} / 5)
+	set {_bar} to "&a"
+	set {_i} to 0
+	loop 20 times:
+		add 1 to {_i}
+		if {_i} <= {_filled}:
+			set {_bar} to "%{_bar}%|"
+		else:
+			if {_i} is ({_filled} + 1):
+				set {_bar} to "%{_bar}%&7|"
+			else:
+				set {_bar} to "%{_bar}%|"
+	return {_bar}
+
+
+# =====================================================================================
+#  GUI CLICK HANDLING (vanilla inventory click, filtered by hard boolean flag)
+# =====================================================================================
+
+on inventory click:
+	set {_uuid} to uuid of player
+	if {ptr::guiopen::%{_uuid}%} is true:
+		cancel event
+
+		set {_slot} to index of event-slot
+		if {_slot} >= 54:
+			stop # click was in the player's own inventory (bottom half) - just block it, nothing else to do
+
+		set {_page} to {ptr::guipage::%{_uuid}%}
+
+		if {_slot} is 49:
+			close player's inventory
+			stop
+
+		if {_slot} is 50:
+			_ptr_openRewardsGui(player, {_page})
+			stop
+
+		if {_slot} is 48:
+			send "{@ptrPrefix}&7Stay active (not AFK) to earn playtime." to player
+			send "&7Rewards unlock automatically and can be claimed here." to player
+			stop
+
+		if {_slot} is 51:
+			_ptr_claimAllAvailable(player)
+			_ptr_openRewardsGui(player, {_page})
+			stop
+
+		if {_slot} is 45:
+			if {_page} > 1:
+				_ptr_openRewardsGui(player, {_page} - 1)
+			stop
+
+		if {_slot} is 53:
+			_ptr_openRewardsGui(player, {_page} + 1)
+			stop
+
+		if {ptr::guislotmap::%{_uuid}%::%{_slot}%} is set:
+			set {_rid} to {ptr::guislotmap::%{_uuid}%::%{_slot}%}
+			set {_result} to _ptr_claimReward(player, {_rid})
+			if {_result} is true:
+				play sound "ENTITY_PLAYER_LEVELUP" with volume 1 and pitch 1.2 to player
+			else:
+				if _ptr_hasClaimed(player, {_rid}) is true:
+					send "{@ptrPrefix}&cYou already claimed this reward." to player
+				else:
+					if {ptr::playtime::%{_uuid}%} < {ptr::rewards::%{_rid}%::required-seconds}:
+						send "{@ptrPrefix}&cThis reward is still locked." to player
+					else:
+						send "{@ptrPrefix}&cYou can't claim this right now (cooldown or permission)." to player
+			_ptr_openRewardsGui(player, {_page})
+
+
+on inventory drag:
+	set {_uuid} to uuid of player
+	if {ptr::guiopen::%{_uuid}%} is true:
+		cancel event
+
+
+on inventory close:
+	set {_uuid} to uuid of player
+	if {ptr::reopening::%{_uuid}%} is true:
+		stop
+	if {ptr::guiopen::%{_uuid}%} is true:
+		set {ptr::guiopen::%{_uuid}%} to false
+		delete {ptr::guiref::%{_uuid}%}
+		delete {ptr::guislotmap::%{_uuid}%::*}
+		delete {ptr::guipage::%{_uuid}%}
+
+
+# =====================================================================================
+#  CLAIM ALL AVAILABLE
+# =====================================================================================
+
+function _ptr_claimAllAvailable(p: player):
+	set {_uuid} to uuid of {_p}
+	set {_count} to 0
+	loop {ptr::reward-ids::*}:
+		set {_rid} to loop-value
+		if {ptr::rewards::%{_rid}%::enabled} is true:
+			if {ptr::playtime::%{_uuid}%} >= {ptr::rewards::%{_rid}%::required-seconds}:
+				if _ptr_hasClaimed({_p}, {_rid}) is false:
+					set {_result} to _ptr_claimReward({_p}, {_rid})
+					if {_result} is true:
+						add 1 to {_count}
+	if {_count} > 0:
+		send "{@ptrPrefix}&aClaimed %{_count}% reward(s)!" to {_p}
+	else:
+		send "{@ptrPrefix}&7No rewards available to claim right now." to {_p}

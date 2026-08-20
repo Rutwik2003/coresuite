@@ -1,0 +1,591 @@
+# ==========================================
+#   Vulcan Punishment Handler
+#   7-Tier: Kick → Kick → Kick → 1d → 3d → 7d → Permban
+#
+#   Stack: Skript + SkBee + Essentials (for /tempban)
+#   Temp bans use Essentials' /tempban command.
+#   Permanent bans use Skript native ban.
+#   Discord webhook: stubbed out — fill in URL to enable.
+#
+#   Place in: /plugins/Skript/scripts/
+#   Link to Vulcan in config.yml under punishment-commands:
+#     - 'vulcanpunish %player%'
+#
+#   Commands:
+#     /vulcanpunish       — auto-called by Vulcan
+#     /vulcanwarn         — staff manual warn
+#     /vulcancheck        — view a player's record
+#     /vulcanhistory      — view full punishment log
+#     /vulcanreset        — wipe a player's record
+#     /vulcansetoffenses  — manually set tier
+#
+# ==========================================
+
+options:
+
+    # How long before offense record resets (seconds)
+    # 1209600 = 14 days | 2592000 = 30 days
+    vulcan-expiry-seconds: 1209600
+
+    # Shown at the bottom of all kick/ban screens
+    vulcan-appeal-link: discord.gg/yourserver
+
+    # Discord webhook URL — paste yours here to enable (Tier 4+ bans only)
+    # Leave as-is to keep webhook disabled
+    vulcan-webhook: ""
+
+    # Webhook embed color (decimal)
+    vulcan-webhook-color: 16711680
+
+    # UUIDs
+    owner-uuids: ae4eddcf-6788-3231-81df-a1c39bd7630f
+
+# ==========================================
+#   VULCAN API — Suppress alerts/console for
+#   bypassed players (requires skript-reflect)
+#
+#   Cancelling VulcanFlagEvent stops:
+#     • Staff in-game alerts
+#     • Console alert messages
+#     • Violation counter incrementing
+# ==========================================
+
+import:
+    me.frep.vulcan.api.event.VulcanFlagEvent
+
+on VulcanFlagEvent:
+    set {_name} to "%event.getPlayer()%"
+    if {vulcan.bypass::%{_name}%} is true:
+        cancel event
+
+# ==========================================
+#   UTILITY FUNCTIONS
+# ==========================================
+
+function currentTime() :: number:
+    return unix timestamp of now
+
+# Returns true if sender is an owner (UUID match) or has the LuckPerms node.
+# Console always passes. Call this at the top of every command trigger.
+function canUseVulcan(p: player) :: boolean:
+    set {_uuid} to "%uuid of {_p}%"
+    if {@owner-uuids} contains {_uuid}:
+        return true
+    if {_p} has permission "vulcan.punish":
+        return true
+    return false
+
+# True if the player's offense record has expired
+function offensesExpired(name: text) :: boolean:
+    if {vulcan.lastpunish::%{_name}%} is not set:
+        return true
+    set {_diff} to currentTime() - {vulcan.lastpunish::%{_name}%}
+    if {_diff} >= {@vulcan-expiry-seconds}:
+        return true
+    return false
+
+# Appends a timestamped entry to punishment history, capped at 50.
+# Uses § as delimiter — safe because it never appears in reasons or actions.
+function logPunishment(name: text, tier: integer, action: text):
+    add "%currentTime()%§%{_tier}%§%{_action}%" to {vulcan.history::%{_name}%::*}
+    set {_size} to size of {vulcan.history::%{_name}%::*}
+    loop {_size} - 50 times:
+        remove first element of {vulcan.history::%{_name}%::*} from {vulcan.history::%{_name}%::*}
+
+# Sends a message to all staff with vulcan.alerts permission
+function alertStaff(msg: text):
+    loop all players:
+        if loop-player has permission "vulcan.alerts":
+            send {_msg} to loop-player
+
+# Discord webhook — fill in {@vulcan-webhook} option to enable
+# Currently stubbed: does nothing until a real URL is set
+function sendWebhook(name: text, tier: integer, action: text):
+    stop
+
+# Handles expiry check, increments offense counter, records timestamp.
+# Has a 10-second cooldown per player to prevent burst detections from
+# Vulcan firing /vulcanpunish multiple times rapidly and over-incrementing.
+# Returns the new offense count.
+function prepareOffense(name: text) :: integer:
+    # Cooldown check — if punished within last 10 seconds, skip increment
+    if {vulcan.cooldown::%{_name}%} is set:
+        set {_cdiff} to currentTime() - {vulcan.cooldown::%{_name}%}
+        if {_cdiff} < 10:
+            return {vulcan.offenses::%{_name}%} ? 1
+    set {vulcan.cooldown::%{_name}%} to currentTime()
+    # Expiry check — wipe old record if it's past the reset window
+    if offensesExpired({_name}) is true:
+        if {vulcan.offenses::%{_name}%} is set:
+            delete {vulcan.offenses::%{_name}%}
+    if {vulcan.offenses::%{_name}%} is not set:
+        set {vulcan.offenses::%{_name}%} to 0
+    add 1 to {vulcan.offenses::%{_name}%}
+    set {vulcan.lastpunish::%{_name}%} to currentTime()
+    return {vulcan.offenses::%{_name}%}
+
+# ==========================================
+#   /vulcanpunish <player>
+#   Auto-called by Vulcan when max-violations
+#   is reached. Do NOT call manually.
+#
+#   Tier 1 — Offense 1  → Kick (staff alert only)
+#   Tier 2 — Offense 2  → Kick (staff alert only)
+#   Tier 3 — Offense 3  → Kick (server broadcast)
+#   Tier 4 — Offense 4  → 1-day ban
+#   Tier 5 — Offense 5  → 3-day ban
+#   Tier 6 — Offense 6  → 7-day ban
+#   Tier 7+ — Offense 7 → Permanent ban
+#
+#   Note: When called by Vulcan it runs as console,
+#   so the permission check is bypassed automatically.
+#   Owner UUID also bypasses for manual use.
+# ==========================================
+command /vulcanpunish <offline player>:
+    trigger:
+        # Permission gate — console always passes, owners always pass
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+
+        # Bypass check — silently skip punishment entirely
+        if {vulcan.bypass::%{_name}%} is true:
+            stop
+
+        set {_tier} to prepareOffense({_name})
+
+        # ── TIER 7+: Permanent ban ─────────────────────────────
+        if {_tier} >= 7:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lPermanently Banned&r%nl%%nl%&7You have been permanently banned for cheating.%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            ban arg 1 due to "[Vulcan] Permanently banned — Cheating (Offense #%{_tier}%)"
+            logPunishment({_name}, {_tier}, "PERMBAN")
+            sendWebhook({_name}, {_tier}, "PERMANENT BAN")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&4&l[Vulcan] &f%{_name}% &7has been &4&lpermanently banned&7."
+            broadcast "          &8Offense #%{_tier}%  &8|  &7No further chances."
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+
+        # ── TIER 6: 7-day ban ──────────────────────────────────
+        else if {_tier} >= 6:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 7 Days&r%nl%%nl%&7Reason: Cheating (Offense #%{_tier}%)%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 7d [Vulcan] Cheating - Offense #%{_tier}%"
+            logPunishment({_name}, {_tier}, "TEMPBAN-7D")
+            sendWebhook({_name}, {_tier}, "7-DAY BAN")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&4[Vulcan] &f%{_name}% &7has been &cbanned &7for &c7 days&7."
+            broadcast "          &8Offense #%{_tier}%  &8|  &7Next offense = &4permanent ban&7."
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+
+        # ── TIER 5: 3-day ban ──────────────────────────────────
+        else if {_tier} >= 5:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 3 Days&r%nl%%nl%&7Reason: Cheating (Offense #%{_tier}%)%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 3d [Vulcan] Cheating - Offense #%{_tier}%"
+            logPunishment({_name}, {_tier}, "TEMPBAN-3D")
+            sendWebhook({_name}, {_tier}, "3-DAY BAN")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&6[Vulcan] &f%{_name}% &7has been &6banned &7for &63 days&7."
+            broadcast "          &8Offense #%{_tier}%  &8|  &7Next offense = 7-day ban."
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+
+        # ── TIER 4: 1-day ban ──────────────────────────────────
+        else if {_tier} >= 4:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 1 Day&r%nl%%nl%&7Reason: Cheating (Offense #%{_tier}%)%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 1d [Vulcan] Cheating - Offense #%{_tier}%"
+            logPunishment({_name}, {_tier}, "TEMPBAN-1D")
+            sendWebhook({_name}, {_tier}, "1-DAY BAN")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&6[Vulcan] &f%{_name}% &7has been &6banned &7for &61 day&7."
+            broadcast "          &8Offense #%{_tier}%  &8|  &7Next offense = 3-day ban."
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+
+        # ── TIER 3: 3rd kick — server broadcast ────────────────
+        else if {_tier} >= 3:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lCheating Detected&r%nl%%nl%&7You have been removed from the server.%nl%%nl%&eOffense &c#3 &e— next offense = &c1-day ban&e.%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            logPunishment({_name}, {_tier}, "KICK-3")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&c[Vulcan] &f%{_name}% &7was &ckicked &8(Offense #3 — next: 1-day ban)"
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+
+        # ── TIER 2: 2nd kick — staff alert only ────────────────
+        else if {_tier} >= 2:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lCheating Detected&r%nl%%nl%&7You have been removed from the server.%nl%%nl%&eOffense &6#2 &e— one more kick before bans begin.%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            logPunishment({_name}, {_tier}, "KICK-2")
+            alertStaff("&e[Vulcan] &f%{_name}% &7was &ekicked&7. &8(Offense #2 — next: 3rd kick, then 1d ban)")
+
+        # ── TIER 1: 1st kick — staff alert only ────────────────
+        else:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lCheating Detected&r%nl%%nl%&7You have been removed from the server.%nl%%nl%&eOffense &c#1 &e— further offenses escalate to bans.%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            logPunishment({_name}, {_tier}, "KICK-1")
+            alertStaff("&e[Vulcan] &f%{_name}% &7was &ekicked&7. &8(Offense #1 — 1st warning)")
+
+# ==========================================
+#   /vulcanwarn <player> <reason>
+#   Staff manual warning. Shares the same
+#   offense counter as anticheat punishments.
+# ==========================================
+command /vulcanwarn <offline player> <text>:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+        set {_reason} to arg 2
+
+        # Bypass check — warn the staff member instead of silently failing
+        if {vulcan.bypass::%{_name}%} is true:
+            send "&e[Vulcan] &f%{_name}% &7is on the bypass list. Remove them first: &c/vulcanbypass remove %{_name}%&7." to sender
+            stop
+
+        set {_tier} to prepareOffense({_name})
+        set {_tier} to prepareOffense({_name})
+
+        if {_tier} >= 7:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lPermanently Banned&r%nl%%nl%&7Reason: &f%{_reason}%&r%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            ban arg 1 due to "[Staff: %player%] %{_reason}%"
+            logPunishment({_name}, {_tier}, "STAFF-PERMBAN")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&4[Staff] &f%{_name}% &7permanently banned by &f%player%&7."
+            broadcast "          &8Reason: %{_reason}%  |  Offense #%{_tier}%"
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+            send "&a[Vulcan] Permanently banned %{_name}%." to sender
+
+        else if {_tier} >= 6:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 7 Days&r%nl%%nl%&7Reason: &f%{_reason}%&r%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 7d [Staff: %player%] %{_reason}%"
+            logPunishment({_name}, {_tier}, "STAFF-TEMPBAN-7D")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&4[Staff] &f%{_name}% &7banned &c7 days &7by &f%player%&7."
+            broadcast "          &8Reason: %{_reason}%  |  Offense #%{_tier}%"
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+            send "&a[Vulcan] Tempbanned %{_name}% 7 days." to sender
+
+        else if {_tier} >= 5:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 3 Days&r%nl%%nl%&7Reason: &f%{_reason}%&r%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 3d [Staff: %player%] %{_reason}%"
+            logPunishment({_name}, {_tier}, "STAFF-TEMPBAN-3D")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&6[Staff] &f%{_name}% &7banned &63 days &7by &f%player%&7."
+            broadcast "          &8Reason: %{_reason}%  |  Offense #%{_tier}%"
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+            send "&a[Vulcan] Tempbanned %{_name}% 3 days." to sender
+
+        else if {_tier} >= 4:
+            if arg 1 is online:
+                kick arg 1 due to "&4&lBanned: 1 Day&r%nl%%nl%&7Reason: &f%{_reason}%&r%nl%%nl%&7Appeal: &b{@vulcan-appeal-link}"
+            execute console command "tempban %{_name}% 1d [Staff: %player%] %{_reason}%"
+            logPunishment({_name}, {_tier}, "STAFF-TEMPBAN-1D")
+            broadcast ""
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast "&6[Staff] &f%{_name}% &7banned &61 day &7by &f%player%&7."
+            broadcast "          &8Reason: %{_reason}%  |  Offense #%{_tier}%"
+            broadcast "&7&m---»--*-------------------------------------*--«---"
+            broadcast ""
+            send "&a[Vulcan] Tempbanned %{_name}% 1 day." to sender
+
+        else if {_tier} >= 3:
+            if arg 1 is online:
+                send title "&c&lWARNING #3" with subtitle "&7Next offense = 1-day ban" to arg 1
+                send "&c[Staff] Warned by &f%player%&c. Reason: &f%{_reason}%" to arg 1
+            logPunishment({_name}, {_tier}, "STAFF-WARN-3")
+            alertStaff("&c[Staff] &f%{_name}% &7warned by &f%player%&7. &8Reason: %{_reason}%  |  Offense #3")
+            send "&a[Vulcan] Warned %{_name}% (offense #3 — next: 1d ban)." to sender
+
+        else if {_tier} >= 2:
+            if arg 1 is online:
+                send title "&6&lWARNING #2" with subtitle "&7One more kick, then bans" to arg 1
+                send "&6[Staff] Warned by &f%player%&6. Reason: &f%{_reason}%" to arg 1
+            logPunishment({_name}, {_tier}, "STAFF-WARN-2")
+            alertStaff("&e[Staff] &f%{_name}% &7warned by &f%player%&7. &8Reason: %{_reason}%  |  Offense #2")
+            send "&a[Vulcan] Warned %{_name}% (offense #2)." to sender
+
+        else:
+            if arg 1 is online:
+                send title "&e&lWARNING" with subtitle "&7Warned by staff" to arg 1
+                send "&e[Staff] Warned by &f%player%&e. Reason: &f%{_reason}%" to arg 1
+            logPunishment({_name}, {_tier}, "STAFF-WARN-1")
+            alertStaff("&e[Staff] &f%{_name}% &7warned by &f%player%&7. &8Reason: %{_reason}%  |  Offense #1")
+            send "&a[Vulcan] Warned %{_name}% (offense #1)." to sender
+
+# ==========================================
+#   /vulcancheck <player>
+#   Shows current offense count, last
+#   punishment time, and expiry countdown.
+# ==========================================
+command /vulcancheck <offline player>:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+        set {_offenses} to {vulcan.offenses::%{_name}%} ? 0
+        set {_lastpunish} to {vulcan.lastpunish::%{_name}%}
+
+        send "&7&m---»--*-------------------------------------*--«---" to sender
+        send "&cVulcan Record &8| &f%{_name}%" to sender
+        send "" to sender
+        send "&7Offenses: &c%{_offenses}%" to sender
+        send "&7Offenses: &c%{_offenses}%" to sender
+        if {vulcan.bypass::%{_name}%} is true:
+            send "&7Bypass:   &a✔ Active &8— will not be punished" to sender
+
+        if {_lastpunish} is set:
+            set {_diff} to currentTime() - {_lastpunish}
+
+            set {_days} to floor({_diff} / 86400)
+            set {_htemp} to {_diff} - ({_days} * 86400)
+            set {_hours} to floor({_htemp} / 3600)
+            set {_mtemp} to {_htemp} - ({_hours} * 3600)
+            set {_mins} to floor({_mtemp} / 60)
+
+            if {_days} >= 1:
+                send "&7Last punishment: &e%{_days}%d %{_hours}%h ago" to sender
+            else if {_hours} >= 1:
+                send "&7Last punishment: &e%{_hours}%h %{_mins}%m ago" to sender
+            else:
+                send "&7Last punishment: &e%{_mins}%m ago" to sender
+
+            set {_remaining} to ({@vulcan-expiry-seconds}) - {_diff}
+            if {_remaining} > 0:
+                set {_rd} to floor({_remaining} / 86400)
+                set {_rhtemp} to {_remaining} - ({_rd} * 86400)
+                set {_rh} to floor({_rhtemp} / 3600)
+                if {_rd} >= 1:
+                    send "&7Record expires in: &a%{_rd}%d %{_rh}%h" to sender
+                else:
+                    send "&7Record expires in: &a%{_rh}%h" to sender
+            else:
+                send "&7Record: &aExpired (resets on next offense)" to sender
+        else:
+            send "&7Last punishment: &aNone on record" to sender
+
+        send "" to sender
+        if {_offenses} >= 7:
+            send "&7Status: &4&lPERMANENT BAN TIER" to sender
+        else if {_offenses} >= 6:
+            send "&7Status: &4Tier 6 &87d ban &8| &7Next: &4permanent ban" to sender
+        else if {_offenses} >= 5:
+            send "&7Status: &cTier 5 &83d ban &8| &7Next: 7d ban" to sender
+        else if {_offenses} >= 4:
+            send "&7Status: &6Tier 4 &81d ban &8| &7Next: 3d ban" to sender
+        else if {_offenses} >= 3:
+            send "&7Status: &eTier 3 &8kick &8| &7Next: 1d ban" to sender
+        else if {_offenses} >= 2:
+            send "&7Status: &eTier 2 &8kick &8| &7Next: 3rd kick then 1d ban" to sender
+        else if {_offenses} >= 1:
+            send "&7Status: &eTier 1 &8kick &8| &7Next: 2nd kick" to sender
+        else:
+            send "&7Status: &aClean" to sender
+
+        send "&7&m---»--*-------------------------------------*--«---" to sender
+
+# ==========================================
+#   /vulcanhistory <player>
+#   Shows the full timestamped punishment log.
+#   Displays last 15 entries.
+# ==========================================
+command /vulcanhistory <offline player>:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+        set {_size} to size of {vulcan.history::%{_name}%::*}
+
+        send "&7&m---»--*-------------------------------------*--«---" to sender
+        send "&cVulcan History &8| &f%{_name}% &8(&c%{_size}% entries&8)" to sender
+        send "" to sender
+
+        if {_size} = 0:
+            send "&7No history on record." to sender
+        else:
+            set {_show} to min({_size}, 15)
+            set {_start} to {_size} - {_show} + 1
+            set {_i} to 0
+            loop {vulcan.history::%{_name}%::*}:
+                add 1 to {_i}
+                if {_i} >= {_start}:
+                    # Split on § — safe delimiter, never appears in reasons
+                    set {_parts::*} to loop-value split at "§"
+                    set {_ts} to {_parts::1} parsed as number
+                    set {_t} to {_parts::2}
+                    set {_act} to {_parts::3}
+                    set {_age} to currentTime() - {_ts}
+                    set {_ad} to floor({_age} / 86400)
+                    set {_ahtemp} to {_age} - ({_ad} * 86400)
+                    set {_ah} to floor({_ahtemp} / 3600)
+                    if {_ad} >= 1:
+                        send " &8» &c%{_act}% &8| &7Tier %{_t}% &8| &7%{_ad}%d %{_ah}%h ago" to sender
+                    else:
+                        send " &8» &c%{_act}% &8| &7Tier %{_t}% &8| &7%{_ah}%h ago" to sender
+
+        send "" to sender
+        send "&7&m---»--*-------------------------------------*--«---" to sender
+
+# ==========================================
+#   /vulcanreset <player>
+#   Fully wipes offense count, timestamp,
+#   and punishment history for a player.
+# ==========================================
+command /vulcanreset <offline player>:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+        set {_old} to {vulcan.offenses::%{_name}%} ? 0
+        delete {vulcan.offenses::%{_name}%}
+        delete {vulcan.lastpunish::%{_name}%}
+        delete {vulcan.cooldown::%{_name}%}
+        delete {vulcan.history::%{_name}%::*}
+        send "&a[Vulcan] Reset &f%{_name}%&a. Was offense #%{_old}%. Now fully clean." to sender
+
+# ==========================================
+#   /vulcansetoffenses <player> <number>
+#   Manually override a player's offense tier.
+# ==========================================
+command /vulcansetoffenses <offline player> <integer>:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_name} to "%arg 1%"
+        set {_num} to arg 2
+
+        if {_num} < 0:
+            send "&c[Vulcan] Cannot set a negative offense count." to sender
+            stop
+
+        if {_num} = 0:
+            delete {vulcan.offenses::%{_name}%}
+            delete {vulcan.lastpunish::%{_name}%}
+            delete {vulcan.cooldown::%{_name}%}
+            send "&a[Vulcan] Cleared record for &f%{_name}%&a — now clean." to sender
+            stop
+
+        set {vulcan.offenses::%{_name}%} to {_num}
+        set {vulcan.lastpunish::%{_name}%} to currentTime()
+        logPunishment({_name}, {_num}, "STAFF-SETOFFENSES")
+        send "&a[Vulcan] Set &f%{_name}% &ato offense #&c%{_num}%&a." to sender
+
+        if {_num} = 1:
+            send "&8 → Next offense: 2nd kick" to sender
+        else if {_num} = 2:
+            send "&8 → Next offense: 3rd kick" to sender
+        else if {_num} = 3:
+            send "&8 → Next offense: 1-day ban" to sender
+        else if {_num} = 4:
+            send "&8 → Next offense: 3-day ban" to sender
+        else if {_num} = 5:
+            send "&8 → Next offense: 7-day ban" to sender
+        else if {_num} = 6:
+            send "&8 → Next offense: permanent ban" to sender
+        else:
+            send "&8 → Already at permanent ban tier" to sender
+
+
+# ==========================================
+#   /vulcanbypass add|remove|list [player]
+#   Exempt players from /vulcanpunish.
+#   Bypassed players still appear in staff
+#   alerts but offenses never increment.
+#
+#   Tip: to suppress Vulcan alerts entirely
+#   for a player (e.g. trusted staff), also
+#   run: lp user <name> permission set vulcan.bypass true
+# ==========================================
+command /vulcanbypass <text> [<offline player>]:
+    trigger:
+        if sender is a player:
+            if canUseVulcan(player) is false:
+                send "&cNo permission." to player
+                stop
+
+        set {_action} to arg 1
+
+        # ── LIST ───────────────────────────────────────────────
+        if {_action} is "list":
+            set {_size} to size of {vulcan.bypasslist::*}
+            send "&7&m---»--*-------------------------------------*--«---" to sender
+            send "&cVulcan Bypass List &8(&c%{_size}% player(s)&8)" to sender
+            send "" to sender
+            if {_size} = 0:
+                send "&7No players are currently bypassed." to sender
+            else:
+                loop {vulcan.bypasslist::*}:
+                    send " &8» &f%loop-value%" to sender
+            send "" to sender
+            send "&7&m---»--*-------------------------------------*--«---" to sender
+            stop
+
+        # ── Require player arg for add/remove ──────────────────
+        if arg 2 is not set:
+            send "&c[Vulcan] Usage: /vulcanbypass add|remove <player>" to sender
+            send "&c                /vulcanbypass list" to sender
+            stop
+
+        set {_name} to "%arg 2%"
+
+        # ── ADD ────────────────────────────────────────────────
+        if {_action} is "add":
+            if {vulcan.bypass::%{_name}%} is true:
+                send "&e[Vulcan] &f%{_name}% &7is already bypassed." to sender
+                stop
+            set {vulcan.bypass::%{_name}%} to true
+            add {_name} to {vulcan.bypasslist::*}
+            send "&a[Vulcan] &f%{_name}% &aadded to bypass list." to sender
+            alertStaff("&e[Vulcan] &7Bypass &aadded &7for &f%{_name}% &7by &f%sender%&7.")
+
+        # ── REMOVE ─────────────────────────────────────────────
+        else if {_action} is "remove":
+            if {vulcan.bypass::%{_name}%} is not set:
+                send "&e[Vulcan] &f%{_name}% &7is not on the bypass list." to sender
+                stop
+            delete {vulcan.bypass::%{_name}%}
+            remove {_name} from {vulcan.bypasslist::*}
+            send "&a[Vulcan] &f%{_name}% &aremoved from bypass list." to sender
+            alertStaff("&e[Vulcan] &7Bypass &cremoved &7for &f%{_name}% &7by &f%sender%&7.")
+
+        # ── INVALID SUBCOMMAND ─────────────────────────────────
+        else:
+            send "&c[Vulcan] Unknown action '&f%{_action}%&c'." to sender
+            send "&c         Usage: /vulcanbypass add|remove <player>" to sender
+            send "&c                /vulcanbypass list" to sender

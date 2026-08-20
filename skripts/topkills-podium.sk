@@ -1,0 +1,152 @@
+# PodiumUpdater.sk
+# Updates the skins of your top-3-kills podium NPCs to match whatever skin
+# each player has set in SkinsRestorer (falls back to their real Mojang skin
+# if they're premium and never set a custom one).
+#
+# Requires: Skript, skript-reflect, Citizens, SkinsRestorer, PlaceholderAPI, ajLeaderboards
+#
+# LuckPerms setup (run once):
+#   /lp group admin permission set podiumupdater.admin true
+# (swap "admin" for whatever group/user should be able to force an update)
+
+options:
+    interval: 5 minutes
+    board: statistic_player_kills
+    type: alltime
+    npc1: 17
+    npc2: 18
+    npc3: 19
+    npc4: 25
+    npc5: 26
+    permission: podiumupdater.admin
+    prefix: &b[PodiumUpdater]&r
+
+import:
+    net.skinsrestorer.api.SkinsRestorerProvider
+    net.citizensnpcs.api.CitizensAPI
+    net.citizensnpcs.trait.SkinTrait
+    me.clip.placeholderapi.PlaceholderAPI
+
+# ---------------------------------------------------------------------------
+# Reads a raw PAPI placeholder string (e.g. "%%some_placeholder%%") and
+# returns it resolved to plain text, using {_ctx} as the parse context.
+# ---------------------------------------------------------------------------
+function resolvePlaceholder(raw: text, ctx: offlineplayer) :: text:
+    return PlaceholderAPI.setPlaceholders({_ctx}, {_raw})
+
+# ---------------------------------------------------------------------------
+# Core function: applies playerName's skin to Citizens NPC #npcID
+# ---------------------------------------------------------------------------
+function syncPodiumSkin(npcID: number, playerName: text):
+    if {_playerName} is "" or "N/A" or "none":
+        stop
+
+    if {_playerName} is set:
+        if {_playerName} contains "%%":
+            send "{@prefix} &cPlaceholder for NPC %{_npcID}% didn't resolve (check the board/type name) - got: %{_playerName}%" to console
+            stop
+
+    set {_offline} to {_playerName} parsed as offlineplayer
+    if {_offline} is not set:
+        send "{@prefix} &c%{_playerName}% has never joined, can't resolve UUID, skipping NPC %{_npcID}%" to console
+        stop
+
+    set {_sr} to SkinsRestorerProvider.get()
+    set {_storage} to {_sr}.getPlayerStorage()
+    set {_uuid} to uuid of {_offline}
+    set {_optionalSkin} to {_storage}.getSkinForPlayer({_uuid}, {_playerName})
+
+    if {_optionalSkin}.isPresent() is false:
+        # No custom skin stored - likely a premium player showing their real
+        # Mojang skin already. Fall back to fetching it straight from Mojang.
+        set {_mojang} to {_sr}.getMojangAPI()
+        set {_optionalSkin} to {_mojang}.getSkin({_playerName})
+
+    if {_optionalSkin}.isPresent() is false:
+        send "{@prefix} &c%{_playerName}% has no skin available (not premium and no SkinsRestorer skin set), skipping NPC %{_npcID}%" to console
+        stop
+
+    set {_skinProp} to {_optionalSkin}.get()
+    set {_value} to {_skinProp}.getValue()
+    set {_signature} to {_skinProp}.getSignature()
+
+    if {_value} is not set:
+        send "{@prefix} &cGot an empty skin value for %{_playerName}%, aborting NPC %{_npcID}% update" to console
+        stop
+
+    if {_value} is "":
+        send "{@prefix} &cGot an empty skin value for %{_playerName}%, aborting NPC %{_npcID}% update" to console
+        stop
+
+    set {_npc} to CitizensAPI.getNPCRegistry().getById({_npcID})
+    if {_npc} is not set:
+        send "{@prefix} &cNPC id %{_npcID}% doesn't exist" to console
+        stop
+
+    set {_trait} to {_npc}.getOrAddTrait(SkinTrait)
+    {_trait}.setSkinPersistent({_playerName}, {_signature}, {_value})
+    {_trait}.setShouldUpdateSkins(false)
+    {_trait}.setFetchDefaultSkin(false)
+    send "{@prefix} &aUpdated NPC %{_npcID}% skin to match %{_playerName}% (texture length: %length of {_value}%)" to console
+
+# ---------------------------------------------------------------------------
+# Returns how many players are currently online.
+# ---------------------------------------------------------------------------
+function getPodiumOnlinePlayerCount() :: number:
+    set {_count} to 0
+    loop all players:
+        add 1 to {_count}
+    return {_count}
+
+# ---------------------------------------------------------------------------
+# Runs one full podium update pass. Shared by the timer and the admin command.
+# Skips entirely (no NPC calls, no PAPI resolves) if the server is empty.
+# ---------------------------------------------------------------------------
+function runPodiumUpdate():
+    set {_online} to getPodiumOnlinePlayerCount()
+    if {_online} is 0:
+        send "{@prefix} &7Skipping update - no players online." to console
+        stop
+
+    set {_ctx} to a random element out of all players
+    if {_ctx} is not set:
+        send "{@prefix} &cNo online players available to use as placeholder context, skipping this update." to console
+        stop
+
+    set {_rank1} to resolvePlaceholder("%%ajlb_lb_{@board}_1_{@type}_name%%", {_ctx})
+    set {_rank2} to resolvePlaceholder("%%ajlb_lb_{@board}_2_{@type}_name%%", {_ctx})
+    set {_rank3} to resolvePlaceholder("%%ajlb_lb_{@board}_3_{@type}_name%%", {_ctx})
+    set {_rank4} to resolvePlaceholder("%%ajlb_lb_{@board}_4_{@type}_name%%", {_ctx})
+    set {_rank5} to resolvePlaceholder("%%ajlb_lb_{@board}_5_{@type}_name%%", {_ctx})
+
+    syncPodiumSkin({@npc1}, {_rank1})
+    syncPodiumSkin({@npc2}, {_rank2})
+    syncPodiumSkin({@npc3}, {_rank3})
+    syncPodiumSkin({@npc4}, {_rank4})
+    syncPodiumSkin({@npc5}, {_rank5})
+
+# ---------------------------------------------------------------------------
+# Startup log - tells you exactly how this is configured without opening the file
+# ---------------------------------------------------------------------------
+on script load:
+    send "{@prefix} &7Loaded. Auto-updating podium skins every &f{@interval}&7." to console
+    send "{@prefix} &7Board: &f{@board} &7| Type: &f{@type} &7| NPCs: &f{@npc1}, {@npc2}, {@npc3}, {@npc4}, {@npc5}" to console
+    send "{@prefix} &7Force update permission: &f{@permission} &7(use /podiumupdate)" to console
+
+# ---------------------------------------------------------------------------
+# Automatic update loop
+# ---------------------------------------------------------------------------
+every {@interval}:
+    runPodiumUpdate()
+
+# ---------------------------------------------------------------------------
+# Manual force-update command
+# ---------------------------------------------------------------------------
+command /podiumupdate:
+    description: Force an immediate podium NPC skin update
+    permission: {@permission}
+    permission message: {@prefix} &cYou don't have permission to do that.
+    trigger:
+        send "{@prefix} &7Forcing podium skin update..." to sender
+        runPodiumUpdate()
+        send "{@prefix} &aDone. Check console for details on any NPCs that were skipped." to sender

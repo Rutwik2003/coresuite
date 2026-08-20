@@ -1,0 +1,4 @@
+# Gambling Module Configuration
+
+# List of UUIDs that have accepted the Terms of Service
+tos-accepted: []
