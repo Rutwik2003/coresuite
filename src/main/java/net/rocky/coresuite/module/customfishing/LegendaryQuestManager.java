@@ -265,7 +265,20 @@ public class LegendaryQuestManager implements Listener {
                     
                     player.playSound(finalSpawnLoc, Sound.ENTITY_GENERIC_SPLASH, 1f, 0.5f);
                     player.playSound(finalSpawnLoc, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1f, 0.8f);
+                    player.getWorld().playSound(finalSpawnLoc, Sound.ENTITY_WITHER_SPAWN, 0.5f, 1f);
                     
+                    org.bukkit.block.Block feetBlock = finalSpawnLoc.getBlock();
+                    if (feetBlock.getType().isAir()) {
+                        org.bukkit.block.Block below = feetBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+                        if (below.getType() == Material.WATER || below.getType() == Material.SEAGRASS || below.getType() == Material.KELP_PLANT || below.getType() == Material.KELP) {
+                            feetBlock.setType(Material.LILY_PAD);
+                            module.getLegendaryNPCManager().registerLilyPad(u, feetBlock.getLocation());
+                        }
+                    } else if (feetBlock.getType() == Material.WATER || feetBlock.getType() == Material.SEAGRASS || feetBlock.getType() == Material.KELP_PLANT || feetBlock.getType() == Material.KELP) {
+                        feetBlock.setType(Material.LILY_PAD);
+                        module.getLegendaryNPCManager().registerLilyPad(u, feetBlock.getLocation());
+                        finalSpawnLoc.add(0, 0.5, 0);
+                    }
                     module.getLegendaryNPCManager().spawnLegendaryNPC(u, finalSpawnLoc);
                 } else if (tick == 80) { // 2 seconds after spawn
                     if (isFirstTime) {
@@ -683,7 +696,8 @@ public class LegendaryQuestManager implements Listener {
     private void punishAndRepeat(Player player, String state, String failMessage) {
         player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 20 * 5, 1));
         plugin.getEconomyManager().withdraw(player, 10000.0);
-        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+        player.playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1f);
+        player.getWorld().strikeLightningEffect(player.getLocation());
         TextUtil.sendMessage(player, "&c[System] You lied to the Angler. $10,000 deducted.");
         TextUtil.sendMessage(player, "&e[Ancient Angler]&f " + failMessage);
         
@@ -755,7 +769,8 @@ public class LegendaryQuestManager implements Listener {
                 if (plugin.getEconomyManager().has(player, 25000.0)) {
                     plugin.getEconomyManager().withdraw(player, 25000.0);
                     TextUtil.sendMessage(player, "&c[System] Lacked fish tribute! The Angler seized $25,000 instead for the hint.");
-                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    player.playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1f, 1f);
+        player.getWorld().strikeLightningEffect(player.getLocation());
                     return true;
                 } else {
                     TextUtil.sendMessage(player, "&c[System] You lack a Rare fish and cannot afford the $25,000 penalty fee!");
