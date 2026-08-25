@@ -1,0 +1,45 @@
+# ========================================== #
+#            WEBSITE INTEGRATION             #
+# ========================================== #
+
+# The port the internal HTTP server will run on
+port: 25580
+
+# The IP to bind the web server to (0.0.0.0 for public internet, 127.0.0.1 for local only)
+bind-ip: "0.0.0.0"
+
+# The secret API key used to authenticate requests from the website
+# Make sure this matches the API key in the website's .env.local file!
+api-key: "your_secret_api_key_here"
+
+# ========================================== #
+#            WEBSITE DATA CONFIG             #
+# ========================================== #
+# Update these values to automatically update the Next.js website (requires website restart)
+site:
+  url: "https://meermc.com"
+  
+server:
+  java-ip: "play.meermc.com"
+  java-port: "25565"
+  bedrock-ip: "bedrock.meermc.com"
+  bedrock-port: "19132"
+  version: "1.21+"
+
+social:
+  discord: "https://discord.gg/meermc"
+  instagram: "https://instagram.com/meermc"
+
+payment:
+  upi-id: "your_upi_id@upi"
+
+store:
+  ranks:
+    vip: 50
+    cutie: 69
+    elite: 100
+    investor: 120
+  keys:
+    rare: 49
+    elite: 80
+    insane: 120

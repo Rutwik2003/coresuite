@@ -582,14 +582,8 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
 
         gui.open(player);
     }
-
     private boolean claimReward(Player player, String id, ConfigurationSection sec) {
-        long lastClaim = getLastClaimTime(player, id);
-        if (lastClaim != 0) {
-            int cooldownHours = sec.getInt("cooldown-hours", 0);
-            if (cooldownHours == 0) return false;
-            if (System.currentTimeMillis() - lastClaim < cooldownHours * 3600000L) return false;
-        }
+        // Validation is already done via statusMap before calling this method.
 
         // Perform DB write asynchronously to avoid main thread blocking
         plugin.getDatabaseManager().executeAsync(() -> markClaimed(player, id));

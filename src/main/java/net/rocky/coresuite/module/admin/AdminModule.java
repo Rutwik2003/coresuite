@@ -225,20 +225,21 @@ public class AdminModule extends Module implements CommandExecutor, TabCompleter
     }
 
     private void handleInfo(CommandSender sender, String playerName) {
+        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
+        Player onlinePlayer = offlinePlayer.getPlayer();
+        String status = (onlinePlayer != null) ? "&aOnline" : "&cOffline";
+        String ip = (onlinePlayer != null && onlinePlayer.getAddress() != null) ? onlinePlayer.getAddress().getAddress().getHostAddress() : null;
+
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
             String header = getConfig().getString("header-line", "&8&m--------------------------------------------------");
             
             TextUtil.sendMessage(sender, header);
             TextUtil.sendMessage(sender, "&6&lPlayer Info: &e" + offlinePlayer.getName());
             TextUtil.sendMessage(sender, "&7UUID: &f" + offlinePlayer.getUniqueId());
+            TextUtil.sendMessage(sender, "&7Status: " + status);
             
-            Player onlinePlayer = offlinePlayer.getPlayer();
-            if (onlinePlayer != null) {
-                TextUtil.sendMessage(sender, "&7Status: &aOnline");
-                TextUtil.sendMessage(sender, "&7IP: &f" + onlinePlayer.getAddress().getAddress().getHostAddress());
-            } else {
-                TextUtil.sendMessage(sender, "&7Status: &cOffline");
+            if (ip != null) {
+                TextUtil.sendMessage(sender, "&7IP: &f" + ip);
             }
 
             if (luckPermsAvailable) {

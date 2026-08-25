@@ -139,7 +139,6 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
         ModuleManager mm = plugin.getModuleManager();
 
         if (args.length > 1) {
-            // Reload a specific module
             String configKey = args[1].toLowerCase();
             Module module = mm.getModule(configKey);
 
@@ -153,19 +152,35 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
                 return;
             }
 
-            mm.reloadModule(configKey);
-            TextUtil.sendMessage(sender,
-                PREFIX + "&aSuccessfully reloaded module '&f" + module.getName() + "&a'.");
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    mm.reloadModule(configKey);
+                    TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded module '&f" + module.getName() + "&a'.");
+                });
+            });
         } else {
-            // Reload master config + all enabled modules
-            plugin.reloadConfig();
-            for (Module module : mm.getAllModules()) {
-                if (module.isEnabled()) {
-                    mm.reloadModule(module.getConfigKey());
-                }
-            }
-            TextUtil.sendMessage(sender,
-                PREFIX + "&aSuccessfully reloaded master configuration and all enabled modules.");
+            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                plugin.reloadConfig();
+                plugin.getConfig().options().copyDefaults(true);
+                plugin.saveConfig();
+                
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    org.bukkit.configuration.ConfigurationSection section = plugin.getConfig().getConfigurationSection("modules");
+                    if (section != null) {
+                        for (Module module : mm.getAllModules()) {
+                            boolean shouldBeEnabled = section.getBoolean(module.getConfigKey(), false);
+                            if (shouldBeEnabled && !module.isEnabled()) {
+                                mm.enableModule(module.getConfigKey());
+                            } else if (!shouldBeEnabled && module.isEnabled()) {
+                                mm.disableModule(module.getConfigKey());
+                            } else if (shouldBeEnabled && module.isEnabled()) {
+                                mm.reloadModule(module.getConfigKey());
+                            }
+                        }
+                    }
+                    TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded master configuration and all enabled modules.");
+                });
+            });
         }
     }
 
@@ -211,6 +226,8 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
             }
             boolean success = mm.enableModule(configKey);
             if (success) {
+                plugin.getConfig().set("modules." + configKey, true);
+                plugin.saveConfig();
                 TextUtil.sendMessage(sender,
                     PREFIX + "&aSuccessfully enabled module '&f" + module.getName() + "&a'.");
             } else {
@@ -225,6 +242,8 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
             }
             boolean success = mm.disableModule(configKey);
             if (success) {
+                plugin.getConfig().set("modules." + configKey, false);
+                plugin.saveConfig();
                 TextUtil.sendMessage(sender,
                     PREFIX + "&aSuccessfully disabled module '&f" + module.getName() + "&a'.");
             } else {

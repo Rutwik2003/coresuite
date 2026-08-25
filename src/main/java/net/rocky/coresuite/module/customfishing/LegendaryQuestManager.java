@@ -2,10 +2,10 @@ package net.rocky.coresuite.module.customfishing;
 
 import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant;
-import net.rocky.coresuite.common.gui.Gui;
-import net.rocky.coresuite.common.gui.GuiButton;
+import net.rocky.coresuite.module.customfishing.FishingEnchantManager.RodTier;
 import net.rocky.coresuite.common.text.TextUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -13,22 +13,23 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -39,9 +40,13 @@ public class LegendaryQuestManager implements Listener {
     private final NamespacedKey compassKey;
     private final NamespacedKey trackerKey;
     
-    // UUID of player to current quest stage (0 = not started, 5 = finished)
     private final Map<UUID, Integer> questStages = new ConcurrentHashMap<>();
-    private final java.util.Set<UUID> activeRituals = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    
+    // For Chat State
+    private final Map<UUID, String> chatState = new ConcurrentHashMap<>();
+    private final Map<UUID, List<Integer>> introOptions = new ConcurrentHashMap<>();
+    
+    private final Set<UUID> inDialogueSequence = ConcurrentHashMap.newKeySet();
 
     public LegendaryQuestManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;
@@ -51,24 +56,29 @@ public class LegendaryQuestManager implements Listener {
         
         initDatabase();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-
+        
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 ItemStack item = p.getInventory().getItemInMainHand();
-                if (item != null && item.getType() == Material.COMPASS && item.hasItemMeta()) {
-                    if (item.getItemMeta().getPersistentDataContainer().has(compassKey, PersistentDataType.STRING)) {
-                        CompassMeta meta = (CompassMeta) item.getItemMeta();
-                        Location lode = meta.getLodestone();
-                        if (lode != null) {
-                            if (p.getWorld().equals(lode.getWorld())) {
+                if (item != null && (item.getType() == Material.RECOVERY_COMPASS || item.getType() == Material.COMPASS) && item.hasItemMeta()) {
+                    org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+                    if (meta.getPersistentDataContainer().has(compassKey, PersistentDataType.STRING) || 
+                        meta.getPersistentDataContainer().has(trackerKey, PersistentDataType.STRING)) {
+                        
+                        String wName = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_w"), org.bukkit.persistence.PersistentDataType.STRING);
+                        if (wName != null) {
+                            org.bukkit.World w = org.bukkit.Bukkit.getWorld(wName);
+                            if (w != null && p.getWorld().equals(w)) {
+                                double tx = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_x"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                                double ty = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_y"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                                double tz = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_z"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                                Location lode = new Location(w, tx, ty, tz);
                                 double dist = p.getLocation().distance(lode);
                                 if (dist < 15.0) {
                                     p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize("&e&lYou have reached the spot! Press 'Q' (Drop) to summon him!"));
                                 } else {
                                     p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize("&bDistance to Ancient Angler: &e" + (int)dist + "m"));
                                 }
-                            } else {
-                                p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize("&cThe compass needle spins randomly... (Wrong World)"));
                             }
                         }
                     }
@@ -90,6 +100,8 @@ public class LegendaryQuestManager implements Listener {
         });
     }
 
+    public boolean isInChatState(java.util.UUID uuid) { return chatState.containsKey(uuid); }
+
     public void loadPlayer(UUID uuid) {
         plugin.getDatabaseManager().executeAsync(() -> {
             try (Connection c = plugin.getDatabaseManager().getConnection();
@@ -109,11 +121,12 @@ public class LegendaryQuestManager implements Listener {
 
     public void unloadPlayer(UUID uuid) {
         questStages.remove(uuid);
+        chatState.remove(uuid);
+        introOptions.remove(uuid);
+        inDialogueSequence.remove(uuid);
     }
     
-    public int getStage(UUID uuid) {
-        return questStages.getOrDefault(uuid, 0);
-    }
+    public int getStage(UUID uuid) { return questStages.getOrDefault(uuid, 0); }
     
     public void setStage(UUID uuid, int stage) {
         questStages.put(uuid, stage);
@@ -121,8 +134,8 @@ public class LegendaryQuestManager implements Listener {
     }
 
     public void giveMap(Player player) {
-        ItemStack compass = new ItemStack(Material.COMPASS);
-        CompassMeta meta = (CompassMeta) compass.getItemMeta();
+        ItemStack compass = new ItemStack(Material.RECOVERY_COMPASS);
+        org.bukkit.inventory.meta.ItemMeta meta = compass.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(TextUtil.legacyColorize("&6&lLegendary Fisherman's Compass"));
             List<String> lore = new ArrayList<>();
@@ -133,48 +146,56 @@ public class LegendaryQuestManager implements Listener {
             lore.add(TextUtil.legacyColorize("&edistance, or to summon him if nearby!"));
             meta.setLore(lore);
             
-            int targetX = player.getLocation().getBlockX() + ThreadLocalRandom.current().nextInt(-5000, 5000);
-            int targetZ = player.getLocation().getBlockZ() + ThreadLocalRandom.current().nextInt(-5000, 5000);
+            int targetX = player.getLocation().getBlockX() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-5000, 5000);
+            int targetZ = player.getLocation().getBlockZ() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-5000, 5000);
             Location targetLoc = new Location(player.getWorld(), targetX, 62, targetZ);
             
-            meta.setLodestone(targetLoc);
-            meta.setLodestoneTracked(false);
+            meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_w"), org.bukkit.persistence.PersistentDataType.STRING, targetLoc.getWorld().getName());
+            meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_x"), org.bukkit.persistence.PersistentDataType.DOUBLE, targetLoc.getX());
+            meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_y"), org.bukkit.persistence.PersistentDataType.DOUBLE, targetLoc.getY());
+            meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_z"), org.bukkit.persistence.PersistentDataType.DOUBLE, targetLoc.getZ());
             meta.getPersistentDataContainer().set(compassKey, PersistentDataType.STRING, player.getUniqueId().toString());
             compass.setItemMeta(meta);
             
             player.getInventory().addItem(compass);
-            TextUtil.sendMessage(player, "&b? &lYou found the Legendary Fisherman's Compass! &7Follow it to uncover its secrets.");
+            TextUtil.sendMessage(player, "&bðŸŸ &lYou found the Legendary Fisherman's Compass! &7Follow it to uncover its secrets.");
         }
     }
-    
+
     @EventHandler
-    public void onCompassDrop(org.bukkit.event.player.PlayerDropItemEvent event) {
-        if (event.getItemDrop().getItemStack().getType() != Material.COMPASS) return;
-        
+    public void onDropItem(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
         ItemStack item = event.getItemDrop().getItemStack();
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
         
-        if (meta.getPersistentDataContainer().has(compassKey, PersistentDataType.STRING)) {
-            event.setCancelled(true);
+        if (meta.getPersistentDataContainer().has(compassKey, PersistentDataType.STRING) || 
+            meta.getPersistentDataContainer().has(trackerKey, PersistentDataType.STRING)) {
             
-            String ownerUUIDStr = meta.getPersistentDataContainer().get(compassKey, PersistentDataType.STRING);
+            event.setCancelled(true);
+            NamespacedKey key = meta.getPersistentDataContainer().has(compassKey, PersistentDataType.STRING) ? compassKey : trackerKey;
+            String ownerUUIDStr = meta.getPersistentDataContainer().get(key, PersistentDataType.STRING);
+            
             if (!player.getUniqueId().toString().equals(ownerUUIDStr)) {
-                TextUtil.sendMessage(player, "&cThis ancient compass does not react to you.");
+                TextUtil.sendMessage(player, "&cThis ancient device does not react to you.");
                 return;
             }
             
-            if (meta instanceof CompassMeta) {
-                Location lodestone = ((CompassMeta) meta).getLodestone();
-                if (lodestone != null) {
-                    if (lodestone.getWorld() != null && !lodestone.getWorld().equals(player.getWorld())) {
+            if (item.getType() == Material.RECOVERY_COMPASS || item.getType() == Material.COMPASS) {
+                String wName = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_w"), org.bukkit.persistence.PersistentDataType.STRING);
+                if (wName != null) {
+                    org.bukkit.World w = org.bukkit.Bukkit.getWorld(wName);
+                    if (w == null || !w.equals(player.getWorld())) {
                         TextUtil.sendMessage(player, "&cThe compass needle spins randomly... (Wrong World)");
                         return;
                     }
+                    double tx = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_x"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                    double ty = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_y"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                    double tz = meta.getPersistentDataContainer().get(new org.bukkit.NamespacedKey(plugin, "lode_z"), org.bukkit.persistence.PersistentDataType.DOUBLE);
+                    Location lodestone = new Location(w, tx, ty, tz);
                     double dist = player.getLocation().distance(lodestone);
                     if (dist < 15.0) {
-                        performRitual(player, item);
+                        performRitual(player, item, key.equals(compassKey));
                     } else {
                         TextUtil.sendMessage(player, "&bThe compass hums softly... you are &e" + (int)dist + " &bblocks away.");
                     }
@@ -183,81 +204,100 @@ public class LegendaryQuestManager implements Listener {
         }
     }
 
-    @EventHandler
-    public void onCompassInteract(PlayerInteractEvent event) {
-        if (event.getItem() == null || event.getItem().getType() != Material.COMPASS) return;
-        if (event.getItem().getItemMeta() != null && event.getItem().getItemMeta().getPersistentDataContainer().has(compassKey, PersistentDataType.STRING)) {
-            event.setCancelled(true);
-            if (event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_AIR || event.getAction() == org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
-                TextUtil.sendMessage(event.getPlayer(), "&e&lTip: &7Press &f'Q' &7(Drop) while holding the compass to use it! (This avoids WorldEdit bugs)");
-            }
+    private void performRitual(Player player, ItemStack item, boolean isFirstTime) {
+        UUID u = player.getUniqueId();
+        if (inDialogueSequence.contains(u)) return;
+        
+        inDialogueSequence.add(u);
+        
+        if (isFirstTime) {
+            org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(TextUtil.legacyColorize("&b&lAngler's Tracker"));
+            List<String> lore = new ArrayList<>();
+            lore.add(TextUtil.legacyColorize("&7Permanently tracks the location of"));
+            lore.add(TextUtil.legacyColorize("&7the Legendary Ancient Angler."));
+            lore.add(TextUtil.legacyColorize(""));
+            lore.add(TextUtil.legacyColorize("&eFollow the needle, and drop this"));
+            lore.add(TextUtil.legacyColorize("&eitem to summon him when close!"));
+            meta.setLore(lore);
+            meta.getPersistentDataContainer().remove(compassKey);
+            meta.getPersistentDataContainer().set(trackerKey, PersistentDataType.STRING, player.getUniqueId().toString());
+            item.setItemMeta(meta);
+            
+            TextUtil.sendMessage(player, "&bThe compass shatters in your hands, revealing its true form!");
+            player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.0f, 1.0f);
+        } else {
+            TextUtil.sendMessage(player, "&bThe tracker compass vibrates violently in your hands...");
+            player.playSound(player.getLocation(), Sound.BLOCK_BEACON_AMBIENT, 1.0f, 2.0f);
         }
-    }
-    
-    private void performRitual(Player player, ItemStack item) {
-        if (activeRituals.contains(player.getUniqueId())) return;
-        activeRituals.add(player.getUniqueId());
-
-        TextUtil.sendMessage(player, "&bThe compass shatters in your hands, revealing its true form!");
-        player.playSound(player.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.0f, 1.0f);
         
-        CompassMeta meta = (CompassMeta) item.getItemMeta();
-        meta.setDisplayName(TextUtil.legacyColorize("&b&lAngler's Tracker"));
-        List<String> lore = new ArrayList<>();
-        lore.add(TextUtil.legacyColorize("&7Permanently tracks the location of"));
-        lore.add(TextUtil.legacyColorize("&7the Legendary Ancient Angler."));
-        meta.setLore(lore);
-        meta.getPersistentDataContainer().remove(compassKey);
-        meta.getPersistentDataContainer().set(trackerKey, PersistentDataType.STRING, player.getUniqueId().toString());
+        Location spawnLoc = player.getLocation().add(player.getLocation().getDirection().setY(0).normalize().multiply(2));
+        spawnLoc.setY(player.getLocation().getY());
+        if (spawnLoc.getBlock().getType().isSolid()) {
+            spawnLoc = player.getLocation();
+        }
         
-        Location spawnLoc = player.getLocation().add(player.getLocation().getDirection().multiply(2));
-        spawnLoc.setY(player.getWorld().getHighestBlockYAt(spawnLoc) + 1);
+        final Location finalSpawnLoc = spawnLoc;
         
-        meta.setLodestone(spawnLoc);
-        meta.setLodestoneTracked(false);
-        item.setItemMeta(meta);
-
         new BukkitRunnable() {
-            int ticks = 0;
+            int tick = 0;
             @Override
             public void run() {
                 if (!player.isOnline()) {
-                    activeRituals.remove(player.getUniqueId());
-                    this.cancel();
+                    inDialogueSequence.remove(u);
+                    cancel();
                     return;
                 }
                 
-                if (ticks == 0) {
-                    player.getWorld().strikeLightningEffect(spawnLoc);
-                    player.getWorld().playSound(spawnLoc, Sound.AMBIENT_UNDERWATER_ENTER, 2.0f, 0.5f);
-                    TextUtil.sendMessage(player, "&3&oThe waters begin to churn violently...");
-                } else if (ticks < 60) {
-                    double radius = 3.0 - (ticks / 25.0);
-                    for (int i = 0; i < 5; i++) {
-                        double angle = Math.random() * Math.PI * 2;
-                        double x = Math.cos(angle) * radius;
-                        double z = Math.sin(angle) * radius;
-                        player.getWorld().spawnParticle(org.bukkit.Particle.SPLASH, spawnLoc.clone().add(x, 0, z), 10, 0.1, 0.1, 0.1, 0.1);
-                        player.getWorld().spawnParticle(org.bukkit.Particle.BUBBLE_POP, spawnLoc.clone().add(x, -1, z), 5, 0.1, 0.5, 0.1, 0.1);
+                if (tick < 40) {
+                    if (tick % 5 == 0) {
+                        player.getWorld().spawnParticle(org.bukkit.Particle.NAUTILUS, finalSpawnLoc.clone().add(0, 1, 0), 10, 0.5, 0.5, 0.5, 0.05);
+                        player.getWorld().spawnParticle(org.bukkit.Particle.SPLASH, finalSpawnLoc.clone().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0.5);
+                        player.playSound(finalSpawnLoc, Sound.BLOCK_WATER_AMBIENT, 1f, 0.5f);
                     }
-                    if (ticks % 10 == 0) {
-                        player.getWorld().playSound(spawnLoc, Sound.ENTITY_DROWNED_SHOOT, 1.0f, 0.8f);
+                    if (tick == 20) {
+                        player.playSound(finalSpawnLoc, Sound.ENTITY_WARDEN_HEARTBEAT, 1.5f, 1f);
                     }
-                } else if (ticks == 60) {
+                } else if (tick == 40) {
+                    player.getWorld().spawnParticle(org.bukkit.Particle.CLOUD, finalSpawnLoc.clone().add(0, 1, 0), 20);
+                    player.getWorld().spawnParticle(org.bukkit.Particle.SPLASH, finalSpawnLoc.clone().add(0, 1, 0), 200, 1.0, 2.0, 1.0, 0.5);
+                    player.getWorld().spawnParticle(org.bukkit.Particle.SOUL, finalSpawnLoc.clone().add(0, 1, 0), 50, 0.5, 1.0, 0.5, 0.1);
                     
-                    player.getWorld().spawnParticle(org.bukkit.Particle.CLOUD, spawnLoc, 500, 1.0, 1.0, 1.0, 0.1);
-                    player.getWorld().playSound(spawnLoc, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.0f);
-                    player.getWorld().playSound(spawnLoc, Sound.ENTITY_GENERIC_SPLASH, 2.0f, 1.0f);
+                    player.playSound(finalSpawnLoc, Sound.ENTITY_GENERIC_SPLASH, 1f, 0.5f);
+                    player.playSound(finalSpawnLoc, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1f, 0.8f);
                     
-                    module.getLegendaryNPCManager().spawnLegendaryNPC(player.getUniqueId(), spawnLoc);
-                    Bukkit.broadcastMessage(TextUtil.legacyColorize("&b&l[Server] &eThe Legendary Ancient Angler has emerged from the depths! Summoned by " + player.getName() + "!"));
-                    
-                    activeRituals.remove(player.getUniqueId());
-                    this.cancel();
+                    module.getLegendaryNPCManager().spawnLegendaryNPC(u, finalSpawnLoc);
+                } else if (tick == 80) { // 2 seconds after spawn
+                    if (isFirstTime) {
+                        setStage(u, 10);
+                        new BukkitRunnable() {
+                            int dTick = 0;
+                            @Override
+                            public void run() {
+                                if (!player.isOnline()) {
+                                    inDialogueSequence.remove(u);
+                                    cancel();
+                                    return;
+                                }
+                                if (dTick == 0) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Who awakens the Ancient Angler from the depths...?");
+                                else if (dTick == 1) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Ah... another mortal seeking the legends of the deep.");
+                                else if (dTick == 2) {
+                                    inDialogueSequence.remove(u);
+                                    startIntroDialogue(player);
+                                    cancel();
+                                }
+                                dTick++;
+                            }
+                        }.runTaskTimer(plugin, 0L, 80L);
+                    } else {
+                        inDialogueSequence.remove(u);
+                        handleNPCInteract(player);
+                    }
+                    cancel();
                 }
-                ticks += 2;
+                tick++;
             }
-        }.runTaskTimer(plugin, 0L, 2L);
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     @EventHandler
@@ -265,246 +305,700 @@ public class LegendaryQuestManager implements Listener {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (!(event.getRightClicked() instanceof org.bukkit.entity.Entity)) return;
         
-        org.bukkit.entity.Entity villager = (org.bukkit.entity.Entity) event.getRightClicked();
+        org.bukkit.entity.Entity villager = event.getRightClicked();
         if (villager.getPersistentDataContainer().has(module.getLegendaryNPCManager().getLegendaryKey(), PersistentDataType.STRING)) {
             event.setCancelled(true);
             String ownerId = villager.getPersistentDataContainer().get(module.getLegendaryNPCManager().getLegendaryKey(), PersistentDataType.STRING);
             
             if (ownerId != null && !ownerId.equals(event.getPlayer().getUniqueId().toString())) {
-                TextUtil.sendMessage(event.getPlayer(), "&3&oThe Ancient Angler stares deeply into the waters, awaiting his true summoner...");
+                TextUtil.sendMessage(event.getPlayer(), "&cThe Ancient Angler glares at you. He is waiting for someone else.");
                 return;
             }
+            handleNPCInteract(event.getPlayer());
+        }
+    }
+
+    private void handleNPCInteract(Player player) {
+        if (inDialogueSequence.contains(player.getUniqueId())) return;
+        
+        int stage = getStage(player.getUniqueId());
+        
+        if (stage == 0) {
+            TextUtil.sendMessage(player, "&cYou have not found the compass yet.");
+        } else if (stage == 10) {
+            startIntroDialogue(player);
+        } else if (stage == 101) {
+            interactiveTurnIn(player, "turnin_101", "To brave the great currents, ye must first build a shell. The shallows provide the paint, vibrant and fragile. Bring me the painted school, and I'll show ye the path they took.");
+        } else if (stage == 102) {
+            interactiveTurnIn(player, "turnin_102", "Aye... but the painted ones never survive the drop. Down there, the sun dies and the water bites like iron. Show me ye know what it takes to survive the freeze.");
+        } else if (stage == 103) {
+            interactiveTurnIn(player, "turnin_103", "Ice in the veins. Good. But surviving ain't enough; ye must conquer the pull. Bring me the red swimmer of the streams, the one that fights the inevitable.");
+        } else if (stage == 104) {
+            interactiveTurnIn(player, "turnin_104", "A true scrapper. But true endurance is forged at the very bottom, where the ocean boils against the earth's crust. Reach into the inferno. Hand me the ember.");
+        } else if (stage == 201) {
+            interactiveTurnIn(player, "turnin_201", "Gold... it be the heaviest anchor a man can tie to his own neck. The ocean has her own currency, spilled from a thousand wrecks. Spill two hands full of her varied coins before me.");
+        } else if (stage == 202) {
+            interactiveTurnIn(player, "turnin_202", "A beggar's purse. If ye want the true hoard, ye must understand a king's folly. Fetch me the catch that shines so bright it blinds greedy fools to the kraken behind it.");
+        } else if (stage == 203) {
+            interactiveTurnIn(player, "turnin_203", "Pure, untarnished vanity. But gold ain't born in the water; it's born in the crushing heat of the deep earth. Bring me the forge's beating heart.");
+        } else if (stage == 301) {
+            interactiveTurnIn(player, "turnin_301", "The Hunt! Har! There's no music sweeter than the snap of a line in the black water. To track the monsters, ye must first feed on the frenzied biters. Bring me a handful of razors.");
+        } else if (stage == 302) {
+            interactiveTurnIn(player, "turnin_302", "Vicious little demons... but they're just bait for the serpents. To learn the ambush, ye must study the beasts that hide in the rocks. Haul me three of 'em.");
+        } else if (stage == 303) {
+            interactiveTurnIn(player, "turnin_303", "Jaws like rusty bear traps, aye. Now, ye are ready for the apex of the dark. The one that weaves the traps. Bring me the Queen.");
+        } else if (stage == 401) {
+            interactiveTurnIn(player, "turnin_401", "The sea is vast, kid, and full of pointless noise. To hear the deep's true secrets, ye must first drown out the chatter. Bring me a bounty of the common rabble. A fisherman's dozen, plus two.");
+        } else if (stage == 402) {
+            interactiveTurnIn(player, "turnin_402", "Ah... feel how the water quiets down? Now, true silence means focusing on a single, insignificant detail among thousands. Find me a silver speck of a massive school.");
+        } else if (stage == 403) {
+            interactiveTurnIn(player, "turnin_403", "Just a speck... And finally, the ultimate stillness. A creature that doesn't fight, doesn't swim. It merely clings to the bottom, and watches the tides roll by.");
+        }
+    }
+
+    private void interactiveTurnIn(Player player, String state, String riddlePrompt) {
+        chatState.put(player.getUniqueId(), state);
+        TextUtil.sendMessage(player, "&e[Ancient Angler]&f " + riddlePrompt);
+        TextUtil.sendMessage(player, "&b[1]&f [Offer the catch to the old man]");
+        TextUtil.sendMessage(player, "&b[2]&f I cannot decipher the tides.");
+        TextUtil.sendMessage(player, "&b[3]&f [Sacrifice a prized catch for the answer] &7(Hidden Payment)");
+    }
+
+    @EventHandler
+    public void onChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        UUID u = player.getUniqueId();
+        
+        if (chatState.containsKey(u)) {
+            event.setCancelled(true);
+            String msg = event.getMessage().trim();
             
-            openQuestGUI(event.getPlayer(), villager);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                processChatSync(player, u, msg);
+            });
         }
     }
     
-                private void openQuestGUI(Player player, org.bukkit.entity.Entity npc) {
-        int stage = getStage(player.getUniqueId());
-        Gui gui = new Gui("&9Ancient Angler", 3);
-        gui.fillBorder(Material.BLUE_STAINED_GLASS_PANE);
-
-        if (stage == 0) {
-            ItemStack info = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&bThe Awakening"));
-            m.setLore(wrapDialogue("&e&lAncient Angler: &7\"Who awakens me from the slumber of the deep? ...Hm? Let me look at you. My eyes aren't what they used to be... *sniff sniff* ...Ah, yes. I know that smell anywhere. The undeniable stench of sea salt, fish guts, and the open ocean. You're an angler, aren't you? Heh. You remind me of myself, back before my joints turned to coral. In my day, we didn't use fancy lures. We wrestled Leviathans with our bare hands! But I digress... an old man's memory is like the tide, always drifting out. You summoned me for a reason. Tell me, little guppy... what is it you truly seek? Do you seek unimaginable wealth, or to master the endless ocean?\""));
-            info.setItemMeta(m);
-            gui.setItem(4, new GuiButton(info, e -> {}));
-
-            ItemStack greed = new ItemStack(Material.GOLD_BLOCK);
-            ItemMeta mGreed = greed.getItemMeta();
-            mGreed.setDisplayName(TextUtil.legacyColorize("&e&lPath of Greed"));
-            List<String> lGreed = new ArrayList<>();
-            lGreed.add(TextUtil.legacyColorize("&7\"I seek unimaginable wealth.\""));
-            lGreed.add(TextUtil.legacyColorize(""));
-            lGreed.add(TextUtil.legacyColorize("&cLocks you into the Path of Wealth."));
-            mGreed.setLore(lGreed);
-            greed.setItemMeta(mGreed);
-            gui.setItem(11, new GuiButton(greed, e -> {
-                setStage(player.getUniqueId(), 101);
-                TextUtil.sendMessage(player, "&e&lAncient Angler: &7\"Oho! Unimaginable wealth, you say? Your eyes gleam like a freshly gutted cod!\"");
-                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_YES, 1f, 1f);
-                openQuestGUI(player, npc);
-            }));
-
-            ItemStack mastery = new ItemStack(Material.ENCHANTED_BOOK);
-            ItemMeta mMastery = mastery.getItemMeta();
-            mMastery.setDisplayName(TextUtil.legacyColorize("&b&lPath of Mastery"));
-            List<String> lMastery = new ArrayList<>();
-            lMastery.add(TextUtil.legacyColorize("&7\"I seek to master the endless ocean.\""));
-            lMastery.add(TextUtil.legacyColorize(""));
-            lMastery.add(TextUtil.legacyColorize("&cLocks you into the Path of Mastery."));
-            mMastery.setLore(lMastery);
-            mastery.setItemMeta(mMastery);
-            gui.setItem(15, new GuiButton(mastery, e -> {
-                setStage(player.getUniqueId(), 201);
-                TextUtil.sendMessage(player, "&e&lAncient Angler: &7\"Mastery? Ha! A lofty goal for a guppy.\"");
-                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_YES, 1f, 1f);
-                openQuestGUI(player, npc);
-            }));
-            gui.open(player);
+    public void processChatSync(Player player, UUID u, String msg) {
+        if (!chatState.containsKey(u)) return;
+        
+        if (inDialogueSequence.contains(u)) {
+            TextUtil.sendMessage(player, "&cWait until the Angler finishes speaking...");
             return;
         }
-
-        if (stage == 999) {
-            ItemStack info = new ItemStack(Material.BARRIER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&cThe Final Departure"));
-            m.setLore(wrapDialogue("&e&lAncient Angler: &7\"Your fate is sealed. I have nothing left to teach you.\""));
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> player.closeInventory()));
-            gui.open(player);
+        
+        String state = chatState.get(u);
+        
+        if (msg.equalsIgnoreCase("cancel") || msg.equalsIgnoreCase("leave")) {
+            TextUtil.sendMessage(player, "&7You walked away from the Angler.");
+            chatState.remove(u);
             return;
         }
+        
+        if (state.equals("awaiting_intro")) {
+            List<Integer> options = introOptions.get(u);
+            if (options == null || options.isEmpty()) {
+                chatState.remove(u);
+                return;
+            }
+            
+            int chosenPath = -1;
+            if (msg.equals("1")) chosenPath = options.get(0);
+            else if (msg.equals("2")) chosenPath = options.get(1);
+            else if (msg.equals("3")) chosenPath = options.get(2);
+            else {
+                TextUtil.sendMessage(player, "&e[Ancient Angler]&f I do not understand those words. Type 1, 2, or 3.");
+                return;
+            }
+            
+            chatState.remove(u);
+            
+            if (chosenPath == 1) {
+                setStage(u, 101);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f You choose to fight the tide. Let us see if you break.",
+                    "&e[Ancient Angler]&f To brave the great currents, ye must first build a shell. The shallows provide the paint, vibrant and fragile. Bring me the painted school, and I'll show ye the path they took."
+                );
+            } else if (chosenPath == 2) {
+                setStage(u, 201);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f Heavy pockets... yes. Men drop their coins, but the ocean has its own currency.",
+                    "&e[Ancient Angler]&f Gold... it be the heaviest anchor a man can tie to his own neck. The ocean has her own currency, spilled from a thousand wrecks. Spill two hands full of her varied coins before me."
+                );
+            } else if (chosenPath == 3) {
+                setStage(u, 301);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f The thrill of the hunt...",
+                    "&e[Ancient Angler]&f The Hunt! Har! There's no music sweeter than the snap of a line in the black water. To track the monsters, ye must first feed on the frenzied biters. Bring me a handful of razors."
+                );
+            } else if (chosenPath == 4) {
+                setStage(u, 401);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f The ocean is vast and full of noise.",
+                    "&e[Ancient Angler]&f The sea is vast, kid, and full of pointless noise. To hear the deep's true secrets, ye must first drown out the chatter. Bring me a bounty of the common rabble. A fisherman's dozen, plus two."
+                );
+            } else if (chosenPath == 5) {
+                sendLinesAndPunish(player, 
+                    "&e[Ancient Angler]&f Oh, is that how it is? Ye think the cruel sea grants favors to guppies like you?",
+                    "&e[Ancient Angler]&f Look at yer hands, kid. The ocean takes what she wants, and so do I!"
+                );
+            }
+            return;
+        }
+        
+        // Turn-in logic: 1 (Attempt), 2 (RP Fail), 3 (Hint)
+        if (msg.equals("2")) {
+            TextUtil.sendMessage(player, "&e[Ancient Angler]&f The deep speaks in riddles, kid. Only those who listen survive.");
+            return;
+        }
+        
+        if (msg.equals("3")) {
+            if (payHintCost(player)) {
+                if (state.equals("turnin_101")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Fools always need a map. Bring me 10 Neon Tetras and 10 Angelfish.");
+                else if (state.equals("turnin_102")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f A Char. Bring me a Char.");
+                else if (state.equals("turnin_103")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f A Cherry Salmon. Go.");
+                else if (state.equals("turnin_104")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Bring me a Lava Particle.");
+                
+                else if (state.equals("turnin_201")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Common greed requires common effort. Bring me 20 Custom Fish.");
+                else if (state.equals("turnin_202")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f A Golden Carp. Bring it here.");
+                else if (state.equals("turnin_203")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f A Lava Particle.");
+                
+                else if (state.equals("turnin_301")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f 5 Piranhas. Do not lose your fingers.");
+                else if (state.equals("turnin_302")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f 3 Moray Eels.");
+                else if (state.equals("turnin_303")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f The Spiderfish Queen.");
+                
+                else if (state.equals("turnin_401")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f 15 Custom Fish. Just sit and cast.");
+                else if (state.equals("turnin_402")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f An Anchovy. Nothing more.");
+                else if (state.equals("turnin_403")) TextUtil.sendMessage(player, "&e[Ancient Angler]&f A Suckerfish.");
+            }
+            return;
+        }
+        
+        if (msg.equals("1")) {
+            chatState.remove(u);
+            
+            // Path 1
+            if (state.equals("turnin_101")) {
+                checkTask(player, state, "Neon Tetra", 10, "Angelfish", 10, 102, 
+                    "Do not lie to the deep. Your hands are empty. Bring me a painted school.",
+                    "Aye... but the painted ones never survive the drop. Down there, the sun dies and the water bites like iron. Show me ye know what it takes to survive the freeze.");
+            } else if (state.equals("turnin_102")) {
+                checkTask(player, state, "Char", 1, null, 0, 103, 
+                    "Do not lie to the deep. Your hands are empty. Bring me a survivor of the freezing depths.",
+                    "Ice in the veins. Good. But surviving ain't enough; ye must conquer the pull. Bring me the red swimmer of the streams, the one that fights the inevitable.");
+            } else if (state.equals("turnin_103")) {
+                checkTask(player, state, "Cherry Salmon", 1, null, 0, 104, 
+                    "Do not lie to the deep. Your hands are empty. Bring me the red swimmer of the streams.",
+                    "A true scrapper. But true endurance is forged at the very bottom, where the ocean boils against the earth's crust. Reach into the inferno. Hand me the ember.");
+            } else if (state.equals("turnin_104")) {
+                if (!takeFish(player, "Lava Particle", 1)) {
+                    punishAndRepeat(player, state, "Do not lie to the deep. Your hands are empty. Pull a piece of the inferno itself.");
+                    return;
+                }
+                ItemStack rod = player.getInventory().getItemInMainHand();
+                RodTier tier = module.getEnchantManager().getRodTier(rod);
+                int currentLevel = module.getEnchantManager().getEnchantLevel(rod, CustomEnchant.TIRELESS_CASTER);
+                
+                RodTier requiredTier = (currentLevel == 0) ? RodTier.BRONZE : RodTier.SILVER;
+                String tierName = (currentLevel == 0) ? "Bronze" : "Silver";
+                
+                if (tier.ordinal() < requiredTier.ordinal()) {
+                    sendLines(player, false, "&e[Ancient Angler]&f Your rod is too weak to handle this mastery! Hold at least a " + tierName + " Tier rod and talk to me again.");
+                    ItemStack fishItem = module.createFishItem(module.getConfig().getString("species.lava_particle.name", "Lava Particle"), "MAGMA_CREAM", 1.0, 50.0, "");
+                    java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(fishItem);
+                    for (ItemStack left : leftover.values()) player.getWorld().dropItem(player.getLocation(), left);
+                    return;
+                }
+                if (currentLevel >= 3) {
+                    sendLines(player, false, "&e[Ancient Angler]&f You have already mastered this enchantment. You need nothing more from me.");
+                    ItemStack fishItem = module.createFishItem(module.getConfig().getString("species.lava_particle.name", "Lava Particle"), "MAGMA_CREAM", 1.0, 50.0, "");
+                    java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(fishItem);
+                    for (ItemStack left : leftover.values()) player.getWorld().dropItem(player.getLocation(), left);
+                    return;
+                }
+                module.getEnchantManager().setEnchantLevel(rod, CustomEnchant.TIRELESS_CASTER, currentLevel + 1);
+                sendLines(player, true,
+                    "&e[Ancient Angler]&f You pulled the heat from the earth itself. I grant you the mastery of the Tireless Caster."
+                );
+            }
+            
+            // Path 2
+            else if (state.equals("turnin_201")) {
+                if (countAnyCustomFish(player) < 20) {
+                    punishAndRepeat(player, state, "Do not mock me. Your pockets are light. Bring me two hands full of the ocean's varied coins.");
+                    return;
+                }
+                takeAnyCustomFish(player, 20);
+                setStage(u, 202);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f A beggar's purse. If ye want the true hoard, ye must understand a king's folly. Fetch me the catch that shines so bright it blinds greedy fools to the kraken behind it."
+                );
+            } else if (state.equals("turnin_202")) {
+                checkTask(player, state, "Golden Carp", 1, null, 0, 203,
+                    "Do not mock me. Your pockets are light. Bring me the king's folly.",
+                    "Pure, untarnished vanity. But gold ain't born in the water; it's born in the crushing heat of the deep earth. Bring me the forge's beating heart.");
+            } else if (state.equals("turnin_203")) {
+                if (!takeFish(player, "Lava Particle", 1)) {
+                    punishAndRepeat(player, state, "Do not mock me. Your pockets are light. Bring me the forge's ember.");
+                    return;
+                }
+                plugin.getEconomyManager().deposit(player, 500000.0);
+                sendLines(player, true,
+                    "&e[Ancient Angler]&f Take this Leviathan's bounty. Spend it fast, before the salt claims it back."
+                );
+            }
+            
+            // Path 3
+            else if (state.equals("turnin_301")) {
+                checkTask(player, state, "Piranha", 5, null, 0, 302,
+                    "You smell of fear, not blood. Bring me the frenzied biters.",
+                    "Vicious little demons... but they're just bait for the serpents. To learn the ambush, ye must study the beasts that hide in the rocks. Haul me three of 'em.");
+            } else if (state.equals("turnin_302")) {
+                checkTask(player, state, "Moray Eel", 3, null, 0, 303,
+                    "You smell of fear, not blood. Bring me the serpents.",
+                    "Jaws like rusty bear traps, aye. Now, ye are ready for the apex of the dark. The one that weaves the traps. Bring me the Queen.");
+            } else if (state.equals("turnin_303")) {
+                if (!takeFish(player, "Spiderfish Queen", 1)) {
+                    punishAndRepeat(player, state, "You smell of fear, not blood. Bring me the web-spinner of the deep.");
+                    return;
+                }
+                String[] availableBaits = {"worm", "golden_lure", "tide_essence", "mythic_chum"};
+                String chosenBait = availableBaits[ThreadLocalRandom.current().nextInt(availableBaits.length)];
+                ItemStack baitReward = module.getBaitManager().createBaitItem(chosenBait);
+                if (baitReward != null) {
+                    baitReward.setAmount(3);
+                    java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(baitReward);
+                    for (ItemStack left : leftover.values()) player.getWorld().dropItem(player.getLocation(), left);
+                }
+                sendLines(player, true,
+                    "&e[Ancient Angler]&f Ye are a true hunter of the deep. Take this... don't waste it on minnows. Go hunt the legends."
+                );
+            }
+            
+            // Path 4
+            else if (state.equals("turnin_401")) {
+                if (countAnyCustomFish(player) < 15) {
+                    punishAndRepeat(player, state, "You are too loud. You rushed. Bring me the bounty of the common chatter.");
+                    return;
+                }
+                takeAnyCustomFish(player, 15);
+                setStage(u, 402);
+                sendLinesAndRelocate(player, 
+                    "&e[Ancient Angler]&f Ah... feel how the water quiets down? Now, true silence means focusing on a single, insignificant detail among thousands. Find me a silver speck of a massive school."
+                );
+            } else if (state.equals("turnin_402")) {
+                checkTask(player, state, "Anchovy", 1, null, 0, 403,
+                    "You are too loud. You rushed. Bring me the silver speck.",
+                    "Just a speck... And finally, the ultimate stillness. A creature that doesn't fight, doesn't swim. It merely clings to the bottom, and watches the tides roll by.");
+            } else if (state.equals("turnin_403")) {
+                if (!takeFish(player, "Suckerfish", 1)) {
+                    punishAndRepeat(player, state, "You are too loud. You rushed. Bring me the observer of the depths.");
+                    return;
+                }
+                player.giveExpLevels(10); 
+                ItemStack anchor = new ItemStack(Material.NAUTILUS_SHELL);
+                ItemMeta anchorMeta = anchor.getItemMeta();
+                if (anchorMeta != null) {
+                    anchorMeta.setDisplayName(TextUtil.legacyColorize("&6&lFossilized Anchor"));
+                    anchorMeta.addEnchant(org.bukkit.enchantments.Enchantment.LURE, 1, true);
+                    anchorMeta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
+                    anchorMeta.setLore(Arrays.asList(
+                        TextUtil.legacyColorize("&7An ancient, heavy relic..."), 
+                        TextUtil.legacyColorize("&7Proof of your ultimate patience.")
+                    ));
+                    anchor.setItemMeta(anchorMeta);
+                    java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(anchor);
+                    for (ItemStack left : leftover.values()) player.getWorld().dropItem(player.getLocation(), left);
+                }
+                sendLines(player, true,
+                    "&e[Ancient Angler]&f Ye truly understand the quiet of the waters. Keep this ancient relic; let it anchor yer patience."
+                );
+            }
+        } else {
+            TextUtil.sendMessage(player, "&e[Ancient Angler]&f I do not understand those words. Type 1, 2, or 3.");
+        }
+    }
+    
+    private String getIntroText(boolean scenarioA, int pathId) {
+        if (scenarioA) {
+            switch (pathId) {
+                case 1: return "The freezing tide numbs all panic eventually.";
+                case 2: return "A man burdened by gold sinks without a fight.";
+                case 3: return "The leviathans below dragged him down too fast.";
+                case 4: return "He simply accepted the peace of the deep.";
+                case 5: return "Stop the riddles, old man. I need a favor.";
+            }
+        } else {
+            switch (pathId) {
+                case 1: return "The endless need to fight against the current.";
+                case 2: return "The shimmer of sunken empires buried in the muck.";
+                case 3: return "The pure adrenaline when the line snaps taut.";
+                case 4: return "The absolute silence when the surface breaks.";
+                case 5: return "You are. Now give me what I'm owed.";
+            }
+        }
+        return "Unknown";
+    }
 
-        // ---------- PATH OF GREED (100s) ----------
-        if (stage == 101) {
-            ItemStack info = new ItemStack(Material.PAPER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&eTrial 1: The Shimmering Shoal"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"Greed is a heavy anchor, little one... let us see if you can carry it. Go fetch me the vibrant colors of the coral reef. Chop chop!\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 10 Neon Tetras & 10 Angelfish"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> {
-                if (countFish(player, "Neon Tetra") >= 10 && countFish(player, "Angelfish") >= 10) {
-                    takeFishAmount(player, "Neon Tetra", 10);
-                    takeFishAmount(player, "Angelfish", 10);
-                    setStage(player.getUniqueId(), 102);
-                    TextUtil.sendMessage(player, "&aYou completed the trial!");
-                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                    openQuestGUI(player, npc);
+    private void startIntroDialogue(Player player) {
+        UUID u = player.getUniqueId();
+        inDialogueSequence.add(u);
+        chatState.put(u, "awaiting_intro");
+        
+        boolean scenarioA = ThreadLocalRandom.current().nextBoolean();
+        
+        List<Integer> availablePaths = new ArrayList<>(Arrays.asList(1, 2, 3, 4, 5));
+        Collections.shuffle(availablePaths);
+        List<Integer> chosenPaths = availablePaths.subList(0, 3);
+        introOptions.put(u, chosenPaths);
+        
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                if (scenarioA) {
+                    if (tick == 0) TextUtil.sendMessage(player, "&e[Ancient Angler]&f *Cough*... I watched a man surrender to the water 'ere yesterday. Didn't thrash. Didn't scream. Just sank like a stone. Why d'ye think he stayed so quiet?");
+                    else if (tick == 1) {
+                        TextUtil.sendMessage(player, "&b[1]&f " + getIntroText(scenarioA, chosenPaths.get(0)));
+                        TextUtil.sendMessage(player, "&b[2]&f " + getIntroText(scenarioA, chosenPaths.get(1)));
+                        TextUtil.sendMessage(player, "&b[3]&f " + getIntroText(scenarioA, chosenPaths.get(2)));
+                        inDialogueSequence.remove(u);
+                        cancel();
+                    }
                 } else {
-                    TextUtil.sendMessage(player, "&cYou do not have the required fish! (Need 10 Neon Tetras, 10 Angelfish)");
-                    player.closeInventory();
-                }
-            }));
-        } else if (stage == 102) {
-            ItemStack info = new ItemStack(Material.PAPER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&eTrial 2: The Sunken Gold"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"Hah! Pretty colors, but lacking true value. Reminds me of a mermaid I once knew... but that's a tale for another time. Dive into the dark waters and retrieve a creature of pure, untarnished gold.\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 1 Golden Carp"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> processFishTurnIn(player, "Golden Carp", 103, "&aYou completed the trial!", npc)));
-        } else if (stage == 103) {
-            ItemStack info = new ItemStack(Material.GOLD_BLOCK);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&eFinal Trial: The Exchange"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"You have proven your avarice. Now, for the final sacrifice. The abyss holds a creature of magma and gold. Bring it to me, and I shall make you rich beyond your wildest dreams!\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 1 Legendary Lava Particle"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> {
-                if (takeFish(player, "Lava Particle")) {
-                    setStage(player.getUniqueId(), 999);
-                    ItemStack mythical = module.createFishItem("&6&lMythical Abyssal Leviathan", "TROPICAL_FISH", 500.0, 1000.0, ""); 
-                    ItemMeta meta = mythical.getItemMeta();
-                    if (meta != null) {
-                        meta.getPersistentDataContainer().set(module.getSpeciesKey(), PersistentDataType.STRING, "mythical_leviathan");
-                        mythical.setItemMeta(meta);
+                    if (tick == 0) TextUtil.sendMessage(player, "&e[Ancient Angler]&f Look at 'em... Every fish bites the iron thinkin' it's a blessin'. Tell me, youngster, what's the iron hook that caught your soul?");
+                    else if (tick == 1) {
+                        TextUtil.sendMessage(player, "&b[1]&f " + getIntroText(scenarioA, chosenPaths.get(0)));
+                        TextUtil.sendMessage(player, "&b[2]&f " + getIntroText(scenarioA, chosenPaths.get(1)));
+                        TextUtil.sendMessage(player, "&b[3]&f " + getIntroText(scenarioA, chosenPaths.get(2)));
+                        inDialogueSequence.remove(u);
+                        cancel();
                     }
-                    player.getInventory().addItem(mythical);
-                    TextUtil.sendMessage(player, "&e&oThe Angler crafts the essence into a shimmering golden leviathan. \"May your pockets be full!\" he shouts.");
-                    completeRitual(player, npc);
                 }
-            }));
+                tick++;
+            }
+        }.runTaskTimer(plugin, 10L, 80L);
+    }
+    
+    private void punishAndRepeat(Player player, String state, String failMessage) {
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 20 * 5, 1));
+        plugin.getEconomyManager().withdraw(player, 10000.0);
+        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+        TextUtil.sendMessage(player, "&c[System] You lied to the Angler. $10,000 deducted.");
+        TextUtil.sendMessage(player, "&e[Ancient Angler]&f " + failMessage);
+        
+        chatState.put(player.getUniqueId(), state);
+    }
+    
+    private boolean payHintCost(Player player) {
+        if (!plugin.getEconomyManager().has(player, 5000.0)) {
+            TextUtil.sendMessage(player, "&c[System] You need $5,000 for a hint.");
+            return false;
         }
-
-        // ---------- PATH OF MASTERY (200s) ----------
-        else if (stage == 201) {
-            ItemStack info = new ItemStack(Material.PAPER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&bTrial 1: The Dedication"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"Mastery requires patience... something few young ones possess these days. Prove your dedication to the rod, just as I did centuries ago!\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 20 Custom Fish of any kind"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> {
-                int count = 0;
-                for (ItemStack i : player.getInventory().getContents()) {
-                    if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
-                        count += i.getAmount();
+        
+        boolean found = false;
+        String deductedFishName = "Unknown";
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
+                String speciesName = item.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
+                if (isRareOrEpic(speciesName)) {
+                    deductedFishName = speciesName;
+                    item.setAmount(item.getAmount() - 1);
+                    if (item.getAmount() <= 0) player.getInventory().setItem(i, null);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!found) {
+            ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
+            if (bag != null) {
+                for (int i = 0; i < bag.length; i++) {
+                    ItemStack item = bag[i];
+                    if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
+                        String speciesName = item.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
+                        if (isRareOrEpic(speciesName)) {
+                            deductedFishName = speciesName;
+                            item.setAmount(item.getAmount() - 1);
+                            if (item.getAmount() <= 0) bag[i] = null;
+                            module.getFishBagManager().updateBag(player.getUniqueId(), bag);
+                            module.getFishBagManager().saveBag(player.getUniqueId());
+                            found = true;
+                            break;
+                        }
                     }
                 }
-                if (count >= 20) {
-                    int removed = 0;
-                    for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
-                        ItemStack i = player.getInventory().getItem(slot);
-                        if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
-                            while (removed < 20 && i.getAmount() > 0) {
-                                i.setAmount(i.getAmount() - 1);
-                                removed++;
+            }
+        }
+        
+        if (found) {
+            plugin.getEconomyManager().withdraw(player, 5000.0);
+            TextUtil.sendMessage(player, "&a[System] Paid $5,000 and 1x " + deductedFishName + " for a hint.");
+            return true;
+        } else {
+            int roll = ThreadLocalRandom.current().nextInt(3);
+            if (roll == 0) {
+                plugin.getEconomyManager().withdraw(player, 5000.0);
+                player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 20 * 180, 1));
+                TextUtil.sendMessage(player, "&c[System] Lacked fish tribute! Paid $5,000 and cursed with Slowness (3m) for the hint.");
+                player.playSound(player.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1f, 1f);
+                return true;
+            } else if (roll == 1) {
+                plugin.getEconomyManager().withdraw(player, 5000.0);
+                player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 20 * 180, 1));
+                TextUtil.sendMessage(player, "&c[System] Lacked fish tribute! Paid $5,000 and cursed with Fatigue (3m) for the hint.");
+                player.playSound(player.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1f, 1f);
+                return true;
+            } else {
+                if (plugin.getEconomyManager().has(player, 25000.0)) {
+                    plugin.getEconomyManager().withdraw(player, 25000.0);
+                    TextUtil.sendMessage(player, "&c[System] Lacked fish tribute! The Angler seized $25,000 instead for the hint.");
+                    player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                    return true;
+                } else {
+                    TextUtil.sendMessage(player, "&c[System] You lack a Rare fish and cannot afford the $25,000 penalty fee!");
+                    return false;
+                }
+            }
+        }
+    }
+    
+    private boolean isRareOrEpic(String speciesName) {
+        ConfigurationSection speciesSection = module.getConfig().getConfigurationSection("species");
+        if (speciesSection != null) {
+            for (String key : speciesSection.getKeys(false)) {
+                String name = speciesSection.getString(key + ".name", "");
+                name = ChatColor.stripColor(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(name).content());
+                if (speciesName.equalsIgnoreCase(name)) {
+                    String rarity = speciesSection.getString(key + ".rarity", "Common").toLowerCase();
+                    return rarity.equals("rare") || rarity.equals("epic") || rarity.equals("legendary");
+                }
+            }
+        }
+        return false;
+    }
+    
+    private void relocateNPC(Player player) {
+        module.getLegendaryNPCManager().removeNPC(player.getUniqueId());
+        player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
+        player.getWorld().spawnParticle(org.bukkit.Particle.PORTAL, player.getLocation(), 200, 1.0, 1.0, 1.0, 0.5);
+        
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(trackerKey, PersistentDataType.STRING)) {
+                org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+                int newX = player.getLocation().getBlockX() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-2000, 2000);
+                int newZ = player.getLocation().getBlockZ() + java.util.concurrent.ThreadLocalRandom.current().nextInt(-2000, 2000);
+                Location newLoc = new Location(player.getWorld(), newX, 62, newZ);
+                meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_w"), org.bukkit.persistence.PersistentDataType.STRING, newLoc.getWorld().getName());
+                meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_x"), org.bukkit.persistence.PersistentDataType.DOUBLE, newLoc.getX());
+                meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_y"), org.bukkit.persistence.PersistentDataType.DOUBLE, newLoc.getY());
+                meta.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(plugin, "lode_z"), org.bukkit.persistence.PersistentDataType.DOUBLE, newLoc.getZ());
+                item.setItemMeta(meta);
+                TextUtil.sendMessage(player, "&bThe Angler vanished! Your tracker compass spins wildly and locks onto a new location...");
+                break;
+            }
+        }
+    }
+    
+    private void sendLinesAndRelocate(Player player, String... lines) {
+        UUID u = player.getUniqueId();
+        inDialogueSequence.add(u);
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                if (tick < lines.length) {
+                    TextUtil.sendMessage(player, lines[tick]);
+                    tick++;
+                } else {
+                    inDialogueSequence.remove(u);
+                    relocateNPC(player);
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 10L, 80L);
+    }
+
+    private void checkTask(Player player, String state, String fish1, int amount1, String fish2, int amount2, int nextStage, String failMessage, String... dialogues) {
+        if (fish2 == null) {
+            if (!takeFish(player, fish1, amount1)) {
+                punishAndRepeat(player, state, failMessage);
+                return;
+            }
+        } else {
+            if (countFish(player, fish1) < amount1 || countFish(player, fish2) < amount2) {
+                punishAndRepeat(player, state, failMessage);
+                return;
+            }
+            takeFishAmount(player, fish1, amount1);
+            takeFishAmount(player, fish2, amount2);
+        }
+        
+        setStage(player.getUniqueId(), nextStage);
+        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+        
+        List<String> lines = new ArrayList<>();
+        for (String d : dialogues) lines.add("&e[Ancient Angler]&f " + d);
+        sendLinesAndRelocate(player, lines.toArray(new String[0]));
+    }
+
+    private void sendLinesAndPunish(Player player, String... lines) {
+        UUID u = player.getUniqueId();
+        inDialogueSequence.add(u);
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                if (tick < lines.length) {
+                    TextUtil.sendMessage(player, lines[tick]);
+                    tick++;
+                } else {
+                    inDialogueSequence.remove(u);
+                    
+                    player.getWorld().strikeLightningEffect(player.getLocation());
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 20 * 120, 4));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 20 * 30, 2));
+                    
+                    int stolen = 0;
+                    ItemStack[] bag = module.getFishBagManager().getBag(u);
+                    if (bag != null) {
+                        for (int i = 0; i < bag.length; i++) {
+                            if (bag[i] != null && stolen < 5) {
+                                bag[i].setAmount(bag[i].getAmount() - 1);
+                                if (bag[i].getAmount() <= 0) bag[i] = null;
+                                stolen++;
+                            }
+                        }
+                        if (stolen > 0) {
+                            module.getFishBagManager().updateBag(u, bag);
+                            module.getFishBagManager().saveBag(u);
+                        }
+                    }
+                    
+                    if (stolen < 5) {
+                        for (int i = 0; i < player.getInventory().getSize(); i++) {
+                            ItemStack item = player.getInventory().getItem(i);
+                            if (item != null && item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
+                                item.setAmount(item.getAmount() - 1);
+                                if (item.getAmount() <= 0) player.getInventory().setItem(i, null);
+                                stolen++;
+                                if (stolen >= 5) break;
                             }
                         }
                     }
-                    setStage(player.getUniqueId(), 202);
-                    TextUtil.sendMessage(player, "&aYou completed the trial!");
-                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                    openQuestGUI(player, npc);
-                } else {
-                    TextUtil.sendMessage(player, "&cYou do not have enough custom fish. (" + count + "/20)");
-                    player.closeInventory();
+                    
+                    if (stolen == 0) {
+                        plugin.getEconomyManager().withdraw(player, 25000.0);
+                        TextUtil.sendMessage(player, "&cThe Angler stole $25,000 from you!");
+                    } else {
+                        TextUtil.sendMessage(player, "&cThe Angler violently stole " + stolen + " fish from you!");
+                    }
+                    
+                    finishQuest(player);
+                    cancel();
                 }
-            }));
-        } else if (stage == 202) {
-            ItemStack info = new ItemStack(Material.PAPER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&bTrial 2: The Frozen Heart"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"Not bad... you have patience. Now, show me endurance! When I was your age, I traveled to the frozen seas, where the water bites like a blade. Go on, fetch me a catch from the ice!\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 1 Legendary Char"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> processFishTurnIn(player, "Char", 203, "&aYou completed the trial!", npc)));
-        } else if (stage == 203) {
-            ItemStack info = new ItemStack(Material.PAPER);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&bTrial 3: The Jungle Predator"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"The cold didn't break you? Color me impressed! But the humid rivers hide fierce predators. Catch the king of the jungle rapids. Try not to lose a finger!\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 1 Legendary Cherry Salmon"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> processFishTurnIn(player, "Cherry Salmon", 204, "&aYou completed the trial!", npc)));
-        } else if (stage == 204) {
-            ItemStack info = new ItemStack(Material.ENCHANTED_BOOK);
-            ItemMeta m = info.getItemMeta();
-            m.setDisplayName(TextUtil.legacyColorize("&bFinal Trial: The Ascension"));
-            List<String> l = wrapDialogue("&e&lAncient Angler: &7\"Ice and earth, conquered by a mere mortal! Well, only the fire of the deep remains. Bring me the essence of the abyss, and I shall pass on my greatest secret.\"");
-            l.add("");
-            l.add(TextUtil.legacyColorize("&cTask: &fBring 1 Legendary Lava Particle"));
-            m.setLore(l);
-            info.setItemMeta(m);
-            gui.setItem(13, new GuiButton(info, e -> {
-                ItemStack hand = player.getInventory().getItemInMainHand();
-                if (hand.getType() != Material.FISHING_ROD) {
-                    TextUtil.sendMessage(player, "&cYou must be holding the Fishing Rod you want to enchant in your main hand!");
-                    player.closeInventory();
-                    return;
-                }
-                if (takeFish(player, "Lava Particle")) {
-                    setStage(player.getUniqueId(), 999);
-                    module.getEnchantManager().setEnchantLevel(hand, CustomEnchant.TIRELESS_CASTER, 3);
-                    TextUtil.sendMessage(player, "&b&oThe Angler weaves the essence into your rod, granting you Tireless Caster III!");
-                    completeRitual(player, npc);
-                }
-            }));
-        }
-        gui.open(player);
+            }
+        }.runTaskTimer(plugin, 10L, 80L);
     }
 
-    private List<String> wrapDialogue(String text) {
-        List<String> wrapped = new ArrayList<>();
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        for (String word : words) {
-            if (line.length() + word.length() > 40) {
-                wrapped.add(TextUtil.legacyColorize(line.toString().trim()));
-                line = new StringBuilder("&7");
+    private void sendLines(Player player, boolean endQuest, String... lines) {
+        UUID u = player.getUniqueId();
+        inDialogueSequence.add(u);
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override
+            public void run() {
+                if (tick < lines.length) {
+                    TextUtil.sendMessage(player, lines[tick]);
+                    tick++;
+                } else {
+                    inDialogueSequence.remove(u);
+                    if (endQuest) finishQuest(player);
+                    cancel();
+                }
             }
-            line.append(word).append(" ");
+        }.runTaskTimer(plugin, 10L, 80L);
+    }
+
+    private void finishQuest(Player player) {
+        setStage(player.getUniqueId(), 0);
+        module.getLegendaryNPCManager().removeNPC(player.getUniqueId());
+        
+        for (int i = 0; i < player.getInventory().getSize(); i++) {
+            ItemStack item = player.getInventory().getItem(i);
+            if (item != null && item.hasItemMeta() && 
+                (item.getItemMeta().getPersistentDataContainer().has(trackerKey, PersistentDataType.STRING) || 
+                 item.getItemMeta().getPersistentDataContainer().has(compassKey, PersistentDataType.STRING))) {
+                player.getInventory().setItem(i, null);
+            }
         }
-        if (line.length() > 0) wrapped.add(TextUtil.legacyColorize(line.toString().trim()));
-        return wrapped;
+        player.updateInventory();
+        
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+        player.getWorld().spawnParticle(org.bukkit.Particle.CLOUD, player.getLocation(), 100, 1.0, 1.0, 1.0, 0.1);
+    }
+
+    // --- Fish Counting and Taking Methods (from Bag and Inventory) ---
+    private int countAnyCustomFish(Player player) {
+        int c = 0;
+        for (ItemStack i : player.getInventory().getContents()) {
+            if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) c += i.getAmount();
+        }
+        ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
+        if (bag != null) {
+            for (ItemStack i : bag) {
+                if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) c += i.getAmount();
+            }
+        }
+        return c;
+    }
+
+    private void takeAnyCustomFish(Player player, int amount) {
+        int removed = 0;
+        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+            ItemStack i = player.getInventory().getItem(slot);
+            if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
+                while (removed < amount && i.getAmount() > 0) {
+                    i.setAmount(i.getAmount() - 1);
+                    removed++;
+                }
+                if (i.getAmount() <= 0) player.getInventory().setItem(slot, null);
+            }
+        }
+        if (removed < amount) {
+            ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
+            if (bag != null) {
+                boolean bagChanged = false;
+                for (int slot = 0; slot < bag.length; slot++) {
+                    ItemStack i = bag[slot];
+                    if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
+                        while (removed < amount && i.getAmount() > 0) {
+                            i.setAmount(i.getAmount() - 1);
+                            removed++;
+                            bagChanged = true;
+                        }
+                        if (i.getAmount() <= 0) bag[slot] = null;
+                    }
+                }
+                if (bagChanged) {
+                    module.getFishBagManager().updateBag(player.getUniqueId(), bag);
+                    module.getFishBagManager().saveBag(player.getUniqueId());
+                }
+            }
+        }
     }
 
     private int countFish(Player player, String species) {
         int c = 0;
-        // Count in inventory
         for (ItemStack i : player.getInventory().getContents()) {
             if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
                 String sp = i.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
                 if (species.equalsIgnoreCase(sp)) c += i.getAmount();
             }
         }
-        // Count in bag
         ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
         if (bag != null) {
             for (ItemStack i : bag) {
@@ -519,7 +1013,6 @@ public class LegendaryQuestManager implements Listener {
 
     private void takeFishAmount(Player player, String species, int amount) {
         int removed = 0;
-        // Remove from inventory
         for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
             ItemStack i = player.getInventory().getItem(slot);
             if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
@@ -533,7 +1026,6 @@ public class LegendaryQuestManager implements Listener {
                 }
             }
         }
-        // Remove from bag
         if (removed < amount) {
             ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
             if (bag != null) {
@@ -560,64 +1052,11 @@ public class LegendaryQuestManager implements Listener {
         }
     }
 
-    private boolean takeFish(Player player, String requiredSpecies) {
-        boolean removed = false;
-        // Try inventory
-        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
-            ItemStack i = player.getInventory().getItem(slot);
-            if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
-                String sp = i.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
-                if (requiredSpecies.equalsIgnoreCase(sp)) {
-                    i.setAmount(i.getAmount() - 1);
-                    if (i.getAmount() <= 0) player.getInventory().setItem(slot, null);
-                    removed = true;
-                    break;
-                }
-            }
+    private boolean takeFish(Player player, String requiredSpecies, int amount) {
+        if (countFish(player, requiredSpecies) >= amount) {
+            takeFishAmount(player, requiredSpecies, amount);
+            return true;
         }
-        // Try bag
-        if (!removed) {
-            ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
-            if (bag != null) {
-                for (int slot = 0; slot < bag.length; slot++) {
-                    ItemStack i = bag[slot];
-                    if (i != null && i.hasItemMeta() && i.getItemMeta().getPersistentDataContainer().has(module.getSpeciesKey(), PersistentDataType.STRING)) {
-                        String sp = i.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
-                        if (requiredSpecies.equalsIgnoreCase(sp)) {
-                            i.setAmount(i.getAmount() - 1);
-                            if (i.getAmount() <= 0) bag[slot] = null;
-                            removed = true;
-                            module.getFishBagManager().updateBag(player.getUniqueId(), bag);
-                            module.getFishBagManager().saveBag(player.getUniqueId());
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if (!removed) {
-            TextUtil.sendMessage(player, "&cYou do not have the required fish (" + requiredSpecies + ")!");
-            player.closeInventory();
-            return false;
-        }
-        return true;
-    }
-
-    private void completeRitual(Player player, org.bukkit.entity.Entity npc) {
-        player.closeInventory();
-        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-        npc.remove();
-        player.getWorld().spawnParticle(org.bukkit.Particle.CLOUD, npc.getLocation(), 100, 1.0, 1.0, 1.0, 0.1);
-        player.playSound(npc.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
-    }
-
-    private void processFishTurnIn(Player player, String requiredSpecies, int nextStage, String successMsg, org.bukkit.entity.Entity npc) {
-        if (takeFish(player, requiredSpecies)) {
-            setStage(player.getUniqueId(), nextStage);
-            TextUtil.sendMessage(player, successMsg);
-            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-            openQuestGUI(player, npc);
-        }
+        return false;
     }
 }
-

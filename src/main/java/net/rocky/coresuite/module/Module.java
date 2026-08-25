@@ -123,7 +123,11 @@ public abstract class Module {
             }
         }
 
-        config = YamlConfiguration.loadConfiguration(configFile);
+        try {
+            config = YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(new java.io.FileInputStream(configFile), java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.FileNotFoundException e) {
+            config = new YamlConfiguration();
+        }
 
         // Load defaults if present in JAR
         try (InputStream defaultStream = plugin.getResource("modules/" + configKey + ".yml")) {

@@ -53,8 +53,10 @@ public class FishBagManager {
     public void saveBag(UUID uuid) {
         ItemStack[] items = cache.get(uuid);
         if (items != null) {
-            String data = toBase64(items);
+            // Clone the array to prevent concurrent modification if the player is still modifying their bag
+            ItemStack[] cloned = items.clone();
             plugin.getDatabaseManager().executeAsync(() -> {
+                String data = toBase64(cloned);
                 try (Connection conn = plugin.getDatabaseManager().getConnection();
                      PreparedStatement stmt = conn.prepareStatement(
                              "REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)"
@@ -86,8 +88,22 @@ public class FishBagManager {
     }
 
     public void unloadBag(UUID uuid) {
-        saveBagSync(uuid);
-        cache.remove(uuid);
+        ItemStack[] items = cache.remove(uuid);
+        if (items != null) {
+            plugin.getDatabaseManager().executeAsync(() -> {
+                String data = toBase64(items);
+                try (Connection conn = plugin.getDatabaseManager().getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(
+                             "REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)"
+                     )) {
+                    stmt.setString(1, uuid.toString());
+                    stmt.setString(2, data);
+                    stmt.executeUpdate();
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag for " + uuid, e);
+                }
+            });
+        }
     }
 
     public ItemStack[] getBag(UUID uuid) {
@@ -126,7 +142,7 @@ public class FishBagManager {
         org.bukkit.NamespacedKey speciesKey = new org.bukkit.NamespacedKey(plugin, "fish_species");
         org.bukkit.NamespacedKey weightKey = new org.bukkit.NamespacedKey(plugin, "fish_weight");
         
-        java.util.List<String> knownRarities = java.util.Arrays.asList("Mythic", "Legendary", "Epic", "Rare", "Uncommon", "Common");
+        java.util.List<String> knownRarities = java.util.Arrays.asList("mythical", "legendary", "epic", "rare", "uncommon", "common");
 
         fishList.sort((a, b) -> {
             org.bukkit.inventory.meta.ItemMeta metaA = a.getItemMeta();
@@ -142,8 +158,10 @@ public class FishBagManager {
                 String speciesA = metaA.getPersistentDataContainer().get(speciesKey, org.bukkit.persistence.PersistentDataType.STRING);
                 String speciesB = metaB.getPersistentDataContainer().get(speciesKey, org.bukkit.persistence.PersistentDataType.STRING);
                 
-                String rarityA = speciesA != null ? module.getConfig().getString("species." + speciesA + ".rarity", "Common") : "Common";
-                String rarityB = speciesB != null ? module.getConfig().getString("species." + speciesB + ".rarity", "Common") : "Common";
+                String keyA = speciesA != null ? speciesA.toLowerCase().replace(" ", "_") : "";
+                String keyB = speciesB != null ? speciesB.toLowerCase().replace(" ", "_") : "";
+                String rarityA = module.getConfig().getString("species." + keyA + ".rarity", "Common").toLowerCase();
+                String rarityB = module.getConfig().getString("species." + keyB + ".rarity", "Common").toLowerCase();
                 
                 int rankA = knownRarities.indexOf(rarityA);
                 if (rankA == -1) rankA = 99; // unknown rarity at the end
@@ -151,7 +169,7 @@ public class FishBagManager {
                 if (rankB == -1) rankB = 99;
                 
                 if (rankA != rankB) {
-                    return Integer.compare(rankA, rankB); // ascending rank index, so Mythic (0) comes first
+                    return Integer.compare(rankA, rankB); // ascending rank index, so Mythical (0) comes first
                 }
                 if (speciesA != null && speciesB != null && !speciesA.equals(speciesB)) {
                     return speciesA.compareTo(speciesB);
@@ -237,6 +255,36 @@ public class FishBagManager {
         sortRarityMeta.lore(java.util.Arrays.asList(net.rocky.coresuite.common.text.TextUtil.colorize("&7Click to sort all fish by rarity.")));
         sortRarityBtn.setItemMeta(sortRarityMeta);
         bagInv.setItem(47, sortRarityBtn);
+
+        int bagPages = 1;
+        CustomFishingModule module = (CustomFishingModule) net.rocky.coresuite.CoreSuitePlugin.getInstance().getModuleManager().getModule("custom-fishing");
+        if (module != null) {
+            CustomFishingModule.FishData pData = module.getPlayerData(player.getUniqueId());
+            if (pData != null) bagPages = pData.bagPages;
+        }
+
+        if (bagPages < 10) {
+            ItemStack upgradeBtn = new ItemStack(org.bukkit.Material.GOLD_INGOT);
+            org.bukkit.inventory.meta.ItemMeta upgradeMeta = upgradeBtn.getItemMeta();
+            upgradeMeta.displayName(net.rocky.coresuite.common.text.TextUtil.colorize("&6&lUpgrade Bag"));
+            
+            double cost = module != null ? module.getConfig().getDouble("bag-pages." + (bagPages + 1) + ".price", 10000.0 + ((bagPages + 1) * 15000.0)) : 0;
+            int reqLvl = module != null ? module.getConfig().getInt("bag-pages." + (bagPages + 1) + ".level-required", (bagPages + 1) * 5) : 0;
+            
+            upgradeMeta.lore(java.util.Arrays.asList(
+                net.rocky.coresuite.common.text.TextUtil.colorize("&7Click to buy another page for your bag."),
+                net.rocky.coresuite.common.text.TextUtil.colorize(""),
+                net.rocky.coresuite.common.text.TextUtil.colorize("&7Cost: &a$" + cost + " &8| &7Req Level: &b" + reqLvl)
+            ));
+            upgradeBtn.setItemMeta(upgradeMeta);
+            bagInv.setItem(48, upgradeBtn);
+        } else {
+            ItemStack upgradeBtn = new ItemStack(org.bukkit.Material.MINECART);
+            org.bukkit.inventory.meta.ItemMeta upgradeMeta = upgradeBtn.getItemMeta();
+            upgradeMeta.displayName(net.rocky.coresuite.common.text.TextUtil.colorize("&c&lMax Pages Reached!"));
+            upgradeBtn.setItemMeta(upgradeMeta);
+            bagInv.setItem(48, upgradeBtn);
+        }
 
         ItemStack backBtn = new ItemStack(org.bukkit.Material.BARRIER);
         org.bukkit.inventory.meta.ItemMeta backMeta = backBtn.getItemMeta();

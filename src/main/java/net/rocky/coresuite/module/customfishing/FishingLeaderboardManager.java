@@ -245,10 +245,10 @@ public class FishingLeaderboardManager {
             }
             
             if (page > 0) {
-                gui.setItem(45, GuiButton.of(Material.ARROW, "&aPrevious Page", java.util.Arrays.asList("&7Go to page " + page), e -> openHallOfFameGUI(player, page - 1)));
+                gui.setItem(45, GuiButton.of(Material.ARROW, "&aPrevious Page", java.util.Arrays.asList("&7Go to page " + page), e -> buildHallOfFameGUI(player, page - 1, caughtSpecies)));
             }
             if (page < totalPages - 1) {
-                gui.setItem(53, GuiButton.of(Material.ARROW, "&aNext Page", java.util.Arrays.asList("&7Go to page " + (page + 2)), e -> openHallOfFameGUI(player, page + 1)));
+                gui.setItem(53, GuiButton.of(Material.ARROW, "&aNext Page", java.util.Arrays.asList("&7Go to page " + (page + 2)), e -> buildHallOfFameGUI(player, page + 1, caughtSpecies)));
             }
         }
         gui.setItem(49, GuiButton.of(Material.BARRIER, "&c&lBack", java.util.Arrays.asList("&7Return to main menu."), e -> player.performCommand("fish")));
@@ -347,10 +347,10 @@ public class FishingLeaderboardManager {
             }
             
             if (page > 0) {
-                gui.setItem(45, GuiButton.of(Material.ARROW, "&aPrevious Page", java.util.Arrays.asList("&7Go to page " + page), e -> openTopGUI(player, page - 1)));
+                gui.setItem(45, GuiButton.of(Material.ARROW, "&aPrevious Page", java.util.Arrays.asList("&7Go to page " + page), e -> buildTopGUI(player, page - 1, caughtSpecies)));
             }
             if (page < totalPages - 1) {
-                gui.setItem(53, GuiButton.of(Material.ARROW, "&aNext Page", java.util.Arrays.asList("&7Go to page " + (page + 2)), e -> openTopGUI(player, page + 1)));
+                gui.setItem(53, GuiButton.of(Material.ARROW, "&aNext Page", java.util.Arrays.asList("&7Go to page " + (page + 2)), e -> buildTopGUI(player, page + 1, caughtSpecies)));
             }
         }
         gui.setItem(49, GuiButton.of(Material.BARRIER, "&c&lBack", java.util.Arrays.asList("&7Return to main menu."), e -> player.performCommand("fish")));

@@ -38,6 +38,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     private final Map<UUID, FishData> playerData = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastFishTime = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> fishStreak = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> actionbarOverride = new ConcurrentHashMap<>();
     private final Map<UUID, Map<Long, java.util.concurrent.atomic.AtomicInteger>> chunkCatches = new ConcurrentHashMap<>();
     
     private final Random random = new Random();
@@ -49,6 +50,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     private WanderingAnglerManager wanderingAnglerManager;
     private FishingTournamentManager tournamentManager;
     private BaitManager baitManager;
+    public BaitManager getBaitManager() { return baitManager; }
     private LegendaryNPCManager legendaryNPCManager;
     private LegendaryQuestManager legendaryQuestManager;
 
@@ -76,6 +78,17 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 saveConfig();
             }
         }
+        
+        boolean saved = false;
+        if (!config.contains("fatigue.recovery-time-minutes")) {
+            config.set("fatigue.recovery-time-minutes", 60);
+            saved = true;
+        }
+        if (!config.contains("pond-event.fatigue-heal-amount")) {
+            config.set("pond-event.fatigue-heal-amount", 5.0);
+            saved = true;
+        }
+        if (saved) saveConfig();
         
         speciesKey = new NamespacedKey(plugin, "fish_species");
         weightKey = new NamespacedKey(plugin, "fish_weight");
@@ -107,6 +120,18 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 }
             }
         }, 1200L, 1200L);
+        
+        // Action bar continuous update for players holding a fishing rod
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                ItemStack mainHand = player.getInventory().getItemInMainHand();
+                ItemStack offHand = player.getInventory().getItemInOffHand();
+                if ((mainHand != null && mainHand.getType() == org.bukkit.Material.FISHING_ROD) || 
+                    (offHand != null && offHand.getType() == org.bukkit.Material.FISHING_ROD)) {
+                    sendFishingActionBar(player);
+                }
+            }
+        }, 20L, 20L);
         // load online players
         for (Player p : Bukkit.getOnlinePlayers()) {
             loadData(p);
@@ -149,6 +174,9 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         if (tournamentManager != null) {
             tournamentManager.shutdown();
         }
+        if (legendaryNPCManager != null) {
+            legendaryNPCManager.shutdown();
+        }
         if (baitManager != null) {
             baitManager.shutdown();
         }
@@ -172,24 +200,46 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             "level INTEGER DEFAULT 1, " +
             "xp INTEGER DEFAULT 0, " +
             "total_catches INTEGER DEFAULT 0, " +
-            "bag_pages INTEGER DEFAULT 0)"
+            "bag_pages INTEGER DEFAULT 0, " +
+            "fatigue_score REAL DEFAULT 0, " +
+            "fatigue_last_update BIGINT DEFAULT 0, " +
+            "legendary_pity INTEGER DEFAULT 0)"
+        );
+        plugin.getDatabaseManager().execute(
+            "CREATE TABLE IF NOT EXISTS coresuite_active_baits (" +
+            "uuid TEXT PRIMARY KEY, " +
+            "bait_id TEXT, " +
+            "bait_type TEXT, " +
+            "casts_remaining INTEGER, " +
+            "expires_at BIGINT, " +
+            "catch_bonus REAL, " +
+            "weight_bonus REAL, " +
+            "rarity_bias TEXT)"
+        );
+        plugin.getDatabaseManager().execute(
+            "CREATE TABLE IF NOT EXISTS coresuite_bait_stock (" +
+            "uuid TEXT, " +
+            "bait_id TEXT, " +
+            "bought_amount INTEGER DEFAULT 0, " +
+            "last_restock BIGINT DEFAULT 0, " +
+            "PRIMARY KEY (uuid, bait_id))"
         );
         plugin.getDatabaseManager().executeAsync(() -> {
             try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
                  java.sql.Statement s = c.createStatement()) {
                 s.execute("ALTER TABLE coresuite_fishing ADD COLUMN bag_pages INTEGER DEFAULT 0");
             } catch (Exception ignored) {}
-        });
-        plugin.getDatabaseManager().executeAsync(() -> {
             try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
                  java.sql.Statement s = c.createStatement()) {
                 s.execute("ALTER TABLE coresuite_fishing ADD COLUMN fatigue_score REAL DEFAULT 0");
             } catch (Exception ignored) {}
-        });
-        plugin.getDatabaseManager().executeAsync(() -> {
             try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
                  java.sql.Statement s = c.createStatement()) {
                 s.execute("ALTER TABLE coresuite_fishing ADD COLUMN fatigue_last_update BIGINT DEFAULT 0");
+            } catch (Exception ignored) {}
+            try (java.sql.Connection c = plugin.getDatabaseManager().getConnection();
+                 java.sql.Statement s = c.createStatement()) {
+                s.execute("ALTER TABLE coresuite_fishing ADD COLUMN legendary_pity INTEGER DEFAULT 0");
             } catch (Exception ignored) {}
         });
         plugin.getDatabaseManager().execute(
@@ -209,11 +259,11 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     private void loadData(Player player) {
         plugin.getDatabaseManager().executeAsync(() -> {
             try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT level, xp, total_catches, bag_pages, fatigue_score, fatigue_last_update FROM coresuite_fishing WHERE uuid = ?")) {
+                 PreparedStatement stmt = conn.prepareStatement("SELECT level, xp, total_catches, bag_pages, fatigue_score, fatigue_last_update, legendary_pity FROM coresuite_fishing WHERE uuid = ?")) {
                 stmt.setString(1, player.getUniqueId().toString());
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        FishData data = new FishData(rs.getInt("level"), rs.getInt("xp"), rs.getInt("total_catches"), rs.getInt("bag_pages"), rs.getDouble("fatigue_score"), rs.getLong("fatigue_last_update"));
+                        FishData data = new FishData(rs.getInt("level"), rs.getInt("xp"), rs.getInt("total_catches"), rs.getInt("bag_pages"), rs.getDouble("fatigue_score"), rs.getLong("fatigue_last_update"), rs.getInt("legendary_pity"));
                         playerData.put(player.getUniqueId(), data);
                     } else {
                         plugin.getDatabaseManager().execute("INSERT INTO coresuite_fishing (uuid, player_name) VALUES (?, ?)", player.getUniqueId().toString(), player.getName());
@@ -229,10 +279,22 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     private void saveData(UUID uuid) {
         FishData data = playerData.get(uuid);
         if (data != null) {
-            plugin.getDatabaseManager().execute(
-                "UPDATE coresuite_fishing SET level = ?, xp = ?, total_catches = ?, bag_pages = ?, fatigue_score = ?, fatigue_last_update = ? WHERE uuid = ?",
-                data.level, data.xp, data.totalCatches, data.bagPages, data.fatigueScore, data.fatigueLastUpdate, uuid.toString()
-            );
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                    "UPDATE coresuite_fishing SET level = ?, xp = ?, total_catches = ?, bag_pages = ?, fatigue_score = ?, fatigue_last_update = ?, legendary_pity = ? WHERE uuid = ?"
+                 )) {
+                stmt.setInt(1, data.level);
+                stmt.setInt(2, data.xp);
+                stmt.setInt(3, data.totalCatches);
+                stmt.setInt(4, data.bagPages);
+                stmt.setDouble(5, data.fatigueScore);
+                stmt.setLong(6, data.fatigueLastUpdate);
+                stmt.setInt(7, data.legendaryPity);
+                stmt.setString(8, uuid.toString());
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to save data for " + uuid, e);
+            }
         }
     }
 
@@ -251,8 +313,10 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         
         if (elapsed > 0) {
             if (data.fatigueScore > 0) {
-                // Decay: full fatigue (100 points) decays to 0 over 1 hour (3600000 ms)
-                double decayRate = 100.0 / 3600000.0; // points per millisecond
+                // Decay: full fatigue (100 points) decays to 0 over X minutes (default 60m)
+                int decayMinutes = config.getInt("fatigue.recovery-time-minutes", 60);
+                double decayMs = decayMinutes * 60000.0;
+                double decayRate = 100.0 / decayMs; // points per millisecond
                 double decay = elapsed * decayRate;
                 double oldScore = data.fatigueScore;
                 data.fatigueScore = Math.max(0.0, data.fatigueScore - decay);
@@ -271,14 +335,13 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             data.fatigueLastUpdate = now; // Always sync the timer
         }
         
-        int threshold = config.getInt("fatigue.threshold", 25);
+        int threshold = config.getInt("fatigue.threshold", 75);
         if (data.fatigueScore <= threshold) {
             return 0.0; // No fatigue below threshold
         }
-        
-        // Scale: threshold -> 0%, (threshold + 100) -> 100%
-        double fatiguePercent = (data.fatigueScore - threshold) / 100.0;
-        return Math.min(1.0, fatiguePercent);
+        // Scale: threshold -> 0%, 100 -> 100%
+        double fatiguePercent = (data.fatigueScore - threshold) / (100.0 - threshold);
+        return Math.min(1.0, Math.max(0.0, fatiguePercent));
     }
 
     @EventHandler
@@ -292,21 +355,32 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     public void onQuit(PlayerQuitEvent event) {
         if (legendaryQuestManager != null) legendaryQuestManager.unloadPlayer(event.getPlayer().getUniqueId());
         
-        // Grab data before removing from cache, then save async to avoid blocking main thread
+        // Grab data and save synchronously to avoid data loss on restart
         FishData data = playerData.get(event.getPlayer().getUniqueId());
         if (data != null) {
             UUID quitUuid = event.getPlayer().getUniqueId();
-            plugin.getDatabaseManager().executeAsync(() -> {
-                plugin.getDatabaseManager().execute(
-                    "UPDATE coresuite_fishing SET level = ?, xp = ?, total_catches = ?, bag_pages = ?, fatigue_score = ?, fatigue_last_update = ? WHERE uuid = ?",
-                    data.level, data.xp, data.totalCatches, data.bagPages, data.fatigueScore, data.fatigueLastUpdate, quitUuid.toString()
-                );
-            });
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                    "UPDATE coresuite_fishing SET level = ?, xp = ?, total_catches = ?, bag_pages = ?, fatigue_score = ?, fatigue_last_update = ?, legendary_pity = ? WHERE uuid = ?"
+                 )) {
+                stmt.setInt(1, data.level);
+                stmt.setInt(2, data.xp);
+                stmt.setInt(3, data.totalCatches);
+                stmt.setInt(4, data.bagPages);
+                stmt.setDouble(5, data.fatigueScore);
+                stmt.setLong(6, data.fatigueLastUpdate);
+                stmt.setInt(7, data.legendaryPity);
+                stmt.setString(8, quitUuid.toString());
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to save data on quit for " + quitUuid, e);
+            }
         }
         fishBagManager.unloadBag(event.getPlayer().getUniqueId());
         playerData.remove(event.getPlayer().getUniqueId());
         lastFishTime.remove(event.getPlayer().getUniqueId());
         fishStreak.remove(event.getPlayer().getUniqueId());
+        chunkCatches.remove(event.getPlayer().getUniqueId());
     }
 
     private void saveCurrentBagPage(Player player, org.bukkit.inventory.Inventory inv, int page) {
@@ -397,8 +471,10 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                         saveCurrentBagPage(player, event.getView().getTopInventory(), page);
                         fishBagManager.sortBag(player.getUniqueId(), this, false);
                         fishBagManager.openBag(player, totalPages, page);
+                    } else if (event.getRawSlot() == 48 && event.getCurrentItem().getType() == org.bukkit.Material.GOLD_INGOT) {
+                        player.performCommand("fish buybag");
                     } else if (event.getRawSlot() == 49 && event.getCurrentItem().getType() == org.bukkit.Material.BARRIER) {
-                        player.closeInventory();
+                        // player.closeInventory();
                         player.performCommand("fish");
                     }
                 }
@@ -519,6 +595,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             }
             
             if (radiusSum > 50) {
+                actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
                 TextUtil.sendActionBar(player, "&c[!] These waters are overfished! Move away!");
                 return;
             }
@@ -545,28 +622,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             if (streak > streakCap) streak = streakCap;
             fishStreak.put(uuid, streak);
 
-            data.totalCatches++;
-            int baseXp = config.getInt("leveling.xp-per-catch", 1);
-            int earnedXp = baseXp;
-            
-            // Random streak bonus XP: 5% chance per streak multiplier to gain +1 to +3 extra XP
-            if (streak > 1 && random.nextDouble() * 100.0 <= (streak * 5.0)) {
-                earnedXp += random.nextInt(3) + 1;
-            }
-            
-            data.xp += earnedXp;
-
-            int needed = data.level * config.getInt("leveling.xp-formula-multiplier", 20);
-            if (data.xp >= needed) {
-                data.xp = 0;
-                data.level++;
-                String lvlMsg = config.getString("messages.level-up", "&e&lLevel Up! &7You are now Angler Level &b{level}");
-                player.sendMessage(TextUtil.colorize(lvlMsg.replace("{level}", String.valueOf(data.level))));
-                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-            }
-            saveDataAsync(uuid);
-            
-            playerData.put(uuid, data);
+            // XP and leveling logic has been moved to trigger only on successful custom catches.
 
             double eventRewardMult = 1.0;
             double eventWeightMult = 1.0;
@@ -632,34 +688,65 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             double multCap = config.getDouble("streak.multiplier-cap", 5.0);
             if (mult > multCap) mult = multCap;
 
-            String streakMsgFormat = config.getString("messages.streak-message", "&7Streak: &b{streak}x&8/&7{cap} &8| &7Angler Lv.&b{level}");
-            String streakText = streakMsgFormat.replace("{streak}", String.valueOf(streak))
-                                               .replace("{cap}", String.valueOf(streakCap))
-                                               .replace("{level}", String.valueOf(data.level));
-            int fatigueDisplayPercent = (int) Math.round(fatiguePercent * 100);
-            StringBuilder actionBar = new StringBuilder(streakText);
-            if (fatigueDisplayPercent > 0) {
-                String fatigueColor = fatigueDisplayPercent >= 85 ? "&4" : fatigueDisplayPercent >= 75 ? "&c" : fatigueDisplayPercent >= 50 ? "&6" : "&e";
-                actionBar.append(" &8| ").append(fatigueColor).append("Fatigue: ").append(fatigueDisplayPercent).append("%");
+            sendFishingActionBar(player);
+            
+            // Check for Legendary Map drop (base 1 in 10000 chance)
+            // First check if player already has a compass/tracker or active quest
+            boolean hasCompassOrTracker = false;
+            if (legendaryQuestManager != null && legendaryQuestManager.getStage(player.getUniqueId()) > 0) {
+                hasCompassOrTracker = true;
             }
-            if (activeBait != null) {
-                String baitName = baitManager != null ? module_getBaitDisplayName(activeBait.baitId) : "Bait";
-                if (activeBait.type.equals("casts")) {
-                    actionBar.append(" &8| &aBait: ").append(activeBait.castsRemaining);
-                } else {
-                    long secsLeft = Math.max(0, (activeBait.expiresAt - System.currentTimeMillis()) / 1000);
-                    actionBar.append(" &8| &aBait: ").append(secsLeft).append("s");
+            if (!hasCompassOrTracker) {
+                NamespacedKey cKey = new NamespacedKey(plugin, "legendary_compass");
+                NamespacedKey tKey = new NamespacedKey(plugin, "legendary_tracker");
+                for (ItemStack invItem : player.getInventory().getContents()) {
+                    if (invItem != null && invItem.hasItemMeta()) {
+                        org.bukkit.persistence.PersistentDataContainer pdc = invItem.getItemMeta().getPersistentDataContainer();
+                        if (pdc.has(cKey, org.bukkit.persistence.PersistentDataType.STRING) ||
+                            pdc.has(tKey, org.bukkit.persistence.PersistentDataType.STRING)) {
+                            hasCompassOrTracker = true;
+                            break;
+                        }
+                    }
                 }
             }
-            TextUtil.sendActionBar(player, actionBar.toString());
             
-            // Check for Legendary Map drop (1 in 5000 chance)
-            double dropChance = config.getDouble("legendary-quest.map-drop-chance", 0.0002);
-            if (random.nextDouble() <= dropChance) {
-                if (legendaryQuestManager != null) {
+            if (!hasCompassOrTracker) {
+                double baseDropChance = config.getDouble("legendary-quest.map-drop-chance", 0.0001);
+                double bonusChance = 0.0;
+                
+                // Only Treasure Hunter affects compass drop, not bait
+                if (enchantManager != null) {
+                    int thLevel = enchantManager.getEnchantLevel(player.getInventory().getItemInMainHand(), net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant.TREASURE_HUNTER);
+                    bonusChance += (thLevel * 0.0001); // 0.01% per level
+                }
+                double finalChance = baseDropChance + bonusChance;
+                finalChance = Math.min(finalChance, 0.001); // Absolute max cap at 0.1% (1 in 1000)
+                
+                boolean gotMap = false;
+                int pityThreshold = config.getInt("legendary-quest.pity-threshold", 2500);
+                
+                if (random.nextDouble() <= finalChance) {
+                    gotMap = true;
+                } else if (data.legendaryPity >= pityThreshold) {
+                    gotMap = true;
+                }
+                
+                if (gotMap && legendaryQuestManager != null) {
+                    data.legendaryPity = 0; // Reset pity on drop
                     legendaryQuestManager.giveMap(player);
                     if (event.getCaught() != null) event.getCaught().remove();
                     return; // Stole the catch!
+                } else {
+                    // If fatigue is >= 75%, do NOT increment pity.
+                    if (fatiguePercent < 0.75) {
+                        data.legendaryPity++;
+                    }
+                }
+            } else {
+                // Player already has compass/tracker or active quest — still increment pity
+                if (fatiguePercent < 0.75) {
+                    data.legendaryPity++;
                 }
             }
 
@@ -726,7 +813,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                             org.bukkit.block.Biome hookBiome = event.getHook().getLocation().getBlock().getBiome();
                             boolean match = false;
                             for (String b : biomes) {
-                                if (hookBiome.name().equalsIgnoreCase(b)) {
+                                if (hookBiome.getKey().getKey().equalsIgnoreCase(b)) {
                                     match = true;
                                     break;
                                 }
@@ -771,6 +858,12 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
 
                         double actualChance = chance * mult;
                         actualChance *= (1.0 + (lureLvl * 0.1 * tierMult)); // Lure of the deep * rod tier
+                        
+                        if (activeBait != null && activeBait.rarityBias != null && !activeBait.rarityBias.isEmpty()) {
+                            if (activeBait.rarityBias.equalsIgnoreCase(rarity)) {
+                                actualChance *= 1.5; // 50% boost to chance if rarity bias matches
+                            }
+                        }
                         if (random.nextDouble() * 100.0 <= actualChance) {
                             double weight = minWeight + (maxWeight - minWeight) * random.nextDouble();
                             weight *= (1.0 + (heavyLvl * 0.05 * tierMult) + baitWeightBonus) * eventWeightMult; // Heavyweight * rod tier + bait
@@ -781,14 +874,14 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                             
                             if (!inPond) {
                                 switch (rarity.toLowerCase()) {
-                                    case "uncommon": addFatigue = 2.0; break;
-                                    case "rare": addFatigue = 5.0; break;
-                                    case "epic": addFatigue = 10.0; break;
-                                    case "legendary": addFatigue = 20.0; break;
-                                    case "mythical": addFatigue = 50.0; break;
-                                    default: addFatigue = 1.0; break;
+                                    case "uncommon": addFatigue = 1.0; break;
+                                    case "rare": addFatigue = 2.5; break;
+                                    case "epic": addFatigue = 5.0; break;
+                                    case "legendary": addFatigue = 15.0; break;
+                                    case "mythical": addFatigue = 30.0; break;
+                                    default: addFatigue = 0.5; break;
                                 }
-                                addFatigue += (weight * 0.1);
+                                addFatigue += (weight * 0.02);
                                 
                                 int tirelessLvl = enchantManager.getEnchantLevel(rod, FishingEnchantManager.CustomEnchant.TIRELESS_CASTER);
                                 if (tirelessLvl > 0) {
@@ -797,10 +890,12 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                                     addFatigue = addFatigue * (1.0 - reduction);
                                 }
                                 
-                                data.fatigueScore += addFatigue;
+                                double oldFatigue = data.fatigueScore;
+                                data.fatigueScore = Math.min(100.0, data.fatigueScore + addFatigue);
+                                addFatigue = data.fatigueScore - oldFatigue;
                             } else {
                                 // Legendary Pond heals fatigue!
-                                double healAmount = 5.0;
+                                double healAmount = config.getDouble("pond-event.fatigue-heal-amount", 5.0);
                                 double oldScore = data.fatigueScore;
                                 data.fatigueScore = Math.max(0.0, data.fatigueScore - healAmount);
                                 addFatigue = -(oldScore - data.fatigueScore); // Store actual healed amount as negative
@@ -844,13 +939,40 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                               }
                           
                               String fatigueMsg = "";
-                              int thresholdCheck = config.getInt("fatigue.threshold", 25);
+                              int thresholdCheck = config.getInt("fatigue.threshold", 75);
                               if (inPond && addFatigue < 0) {
                                   fatigueMsg = " &a(" + String.format("%.1f", addFatigue) + "% Fatigue)";
-                              } else if (!inPond && data.fatigueScore > thresholdCheck) {
-                                  fatigueMsg = " &c(+" + String.format("%.1f", addFatigue) + "% Fatigue)";
+                              } else if (!inPond) {
+                                  fatigueMsg = " &8(&c+" + String.format("%.1f", addFatigue) + "% Fatigue &8| &cTotal: " + String.format("%.1f", data.fatigueScore) + "%&8)";
                               }
                               player.sendMessage(TextUtil.colorize(config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7You caught a &e" + name + " &8(&b" + weight + " kg&8)" + fatigueMsg));
+                              
+                              data.totalCatches++;
+                              if (!inPond && data.fatigueScore > thresholdCheck) {
+                                  actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
+                                  TextUtil.sendActionBar(player, "&cYou are too fatigued to gain XP! Rest or find a Legendary Pond.");
+                              } else {
+                                  int baseXp = config.getInt("leveling.xp-per-catch", 1);
+                                  int earnedXp = baseXp;
+                                  
+                                  if (streak > 1 && random.nextDouble() * 100.0 <= (streak * 5.0)) {
+                                      earnedXp += random.nextInt(3) + 1;
+                                  }
+                                  
+                                  if (amount == 2) {
+                                      earnedXp *= 2;
+                                  }
+                                  
+                                  data.xp += earnedXp;
+                                  int needed = data.level * config.getInt("leveling.xp-formula-multiplier", 20);
+                                  if (data.xp >= needed) {
+                                      data.xp -= needed;
+                                      data.level++;
+                                      String lvlMsg = config.getString("messages.level-up", "&e&lLevel Up! &7You are now Angler Level &b{level}");
+                                      player.sendMessage(TextUtil.colorize(lvlMsg.replace("{level}", String.valueOf(data.level))));
+                                      player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+                                  }
+                              }
                         
                             if (event.getCaught() != null) {
                                 event.getCaught().remove();
@@ -881,6 +1003,8 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 } catch (NumberFormatException ignored) {}
             }
             } // end if config != null
+            saveDataAsync(uuid);
+            playerData.put(uuid, data);
         } // end if CAUGHT_FISH
     } // end onFish
 
@@ -891,7 +1015,19 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             Player player = (Player) sender;
             
             if (args.length > 0) {
-                if (args[0].equalsIgnoreCase("top")) {
+                // /fish quest <1|2|3|cancel> — for clickable chat buttons in quest dialogue
+                if (args[0].equalsIgnoreCase("quest")) {
+                    if (args.length < 2) {
+                        TextUtil.sendMessage(player, "&cUsage: /fish quest <1|2|3|cancel>");
+                        return true;
+                    }
+                    if (legendaryQuestManager != null && legendaryQuestManager.isInChatState(player.getUniqueId())) {
+                        legendaryQuestManager.processChatSync(player, player.getUniqueId(), args[1]);
+                    } else {
+                        TextUtil.sendMessage(player, "&cYou are not in an active dialogue with the Ancient Angler.");
+                    }
+                    return true;
+                } else if (args[0].equalsIgnoreCase("top")) {
                     openTopGUI(player);
                     return true;
                 } else if (args[0].equalsIgnoreCase("sell")) {
@@ -916,8 +1052,8 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     FishData data = playerData.get(player.getUniqueId());
                     if (data == null) return true;
                     
-                    double fatiguePercent = calculateFatigue(player, data);
-                    int display = (int) Math.round(fatiguePercent * 100);
+                    calculateFatigue(player, data); // Process decay
+                    int display = (int) Math.round(data.fatigueScore);
                     
                     if (display <= 0) {
                         TextUtil.sendMessage(player, config.getString("prefix", "&8[&b&lFishing&8] &r") + "&aYou are fully rested and have no fishing fatigue.");
@@ -955,7 +1091,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     if (cost == -1.0) cost = 10000.0 + (nextPage * 15000.0);
                     int reqLevel = config.getInt("bag-pages." + nextPage + ".level-required", -1);
                     if (reqLevel == -1) reqLevel = nextPage * 5;
-                    if (bData != null && bData.level < reqLevel) {
+                    if (nextPage > 1 && bData != null && bData.level < reqLevel) {
                         TextUtil.sendMessage(player, "&cYou need Fishing Level &a" + reqLevel + " &cto purchase this page.");
                         return true;
                     }
@@ -972,6 +1108,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     playerData.put(player.getUniqueId(), bData);
                     
                     TextUtil.sendMessage(player, "&aSuccessfully purchased Fish Bag Page " + nextPage + " for $" + String.format("%.2f", cost) + "!");
+                    player.closeInventory();
                     return true;
                 } else if (args[0].equalsIgnoreCase("bag")) {
                     FishData bData = playerData.get(player.getUniqueId());
@@ -984,16 +1121,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 } else if (args[0].equalsIgnoreCase("info")) {
                     new FishingCollectionManager(plugin, this).openCollectionGUI(player);
                     return true;
-                } else if (args[0].equalsIgnoreCase("spawnangler")) {
-                    if (!player.hasPermission("coresuite.admin")) {
-                        TextUtil.sendMessage(player, "&cYou do not have permission to do this.");
-                        return true;
-                    }
-                    if (wanderingAnglerManager != null) {
-                        wanderingAnglerManager.spawnAngler(player.getLocation());
-                        TextUtil.sendMessage(player, "&aForce-spawned a Wandering Angler!");
-                    }
-                    return true;
+
                 } else if (args[0].equalsIgnoreCase("log")) {
                     // Deprecated or removed, using info now
                     new FishingCollectionManager(plugin, this).openCollectionGUI(player);
@@ -1007,7 +1135,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                         return true;
                     }
                     if (args.length < 2) {
-                        TextUtil.sendMessage(player, "&cUsage: /fish admin <setlevel|addxp|clearlog|forcepond|give> [player] [args]");
+                        TextUtil.sendMessage(player, "&cUsage: /fish admin <setlevel|addxp|fatigue|clearlog|forcepond|give> [player] [args]");
                         return true;
                     }
                     String sub = args[1].toLowerCase();
@@ -1048,6 +1176,24 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                         }
                         return true;
                     }
+                    if (sub.equals("clearanglers")) {
+                        if (wanderingAnglerManager != null) {
+                            int removed = wanderingAnglerManager.clearAllAnglers();
+                            TextUtil.sendMessage(player, "&aSuccessfully removed &e" + removed + " &aWandering Angler(s) from all loaded chunks.");
+                        } else {
+                            TextUtil.sendMessage(player, "&cWandering Angler feature is disabled.");
+                        }
+                        return true;
+                    }
+                    if (sub.equals("spawnangler")) {
+                        if (wanderingAnglerManager != null) {
+                            wanderingAnglerManager.spawnAngler(player.getLocation());
+                            TextUtil.sendMessage(player, "&aForce-spawned a Wandering Angler!");
+                        } else {
+                            TextUtil.sendMessage(player, "&cWandering Angler feature is disabled.");
+                        }
+                        return true;
+                    }
                     if (sub.equals("forcepond")) {
                         if (eventManager != null) {
                             eventManager.forceStartEvent(player.getLocation());
@@ -1071,6 +1217,25 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     if (sub.equals("clearlog")) {
                         plugin.getDatabaseManager().execute("DELETE FROM coresuite_fish_logbook WHERE uuid = ?", tUuid.toString());
                         TextUtil.sendMessage(player, "&aCleared fishing log for " + target.getName() + ".");
+                        return true;
+                    }
+                    if (sub.equals("givebait")) {
+                        if (args.length < 4) {
+                            TextUtil.sendMessage(player, "&cUsage: /fish admin givebait <player> <bait_id> [amount]");
+                            return true;
+                        }
+                        String baitId = args[3].toLowerCase();
+                        int giveAmount = args.length > 4 ? Integer.parseInt(args[4]) : 1;
+                        if (baitManager != null) {
+                            ItemStack baitItem = baitManager.createBaitItem(baitId);
+                            if (baitItem != null) {
+                                baitItem.setAmount(giveAmount);
+                                target.getInventory().addItem(baitItem);
+                                TextUtil.sendMessage(player, "&aGave " + giveAmount + "x " + baitId + " to " + target.getName() + ".");
+                            } else {
+                                TextUtil.sendMessage(player, "&cBait ID '" + baitId + "' not found.");
+                            }
+                        }
                         return true;
                     }
                     if (sub.equals("give")) {
@@ -1124,6 +1289,10 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                         tData.xp += amount;
                         playerData.put(tUuid, tData);
                         TextUtil.sendMessage(player, "&aAdded " + amount + " XP to " + target.getName() + ".");
+                    } else if (sub.equals("fatigue")) {
+                        tData.fatigueScore = Math.max(0.0, Math.min(100.0, amount));
+                        playerData.put(tUuid, tData);
+                        TextUtil.sendMessage(player, "&aSet " + target.getName() + "'s fatigue to " + amount + "%.");
                     } else {
                         TextUtil.sendMessage(player, "&cUnknown admin action.");
                     }
@@ -1142,18 +1311,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     player.getInventory().addItem(fishItem);
                     TextUtil.sendMessage(player, "&aGiven debug fish item (" + material + "). Check your inventory!");
                     return true;
-                } else if (args[0].equalsIgnoreCase("clearanglers")) {
-                    if (!player.hasPermission("coresuite.customfishing.admin")) {
-                        TextUtil.sendMessage(player, "&cNo permission.");
-                        return true;
-                    }
-                    if (wanderingAnglerManager != null) {
-                        int removed = wanderingAnglerManager.clearAllAnglers();
-                        TextUtil.sendMessage(player, "&aSuccessfully removed &e" + removed + " &aWandering Angler(s) from all loaded chunks.");
-                    } else {
-                        TextUtil.sendMessage(player, "&cWandering Angler feature is disabled.");
-                    }
-                    return true;
+
                 }
             }
             
@@ -1171,6 +1329,63 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     }
 
     
+
+    private void sendDetailedStats(Player player, FishData data) {
+        ItemStack rod = player.getInventory().getItemInMainHand();
+        if (rod == null || rod.getType() != org.bukkit.Material.FISHING_ROD) {
+            TextUtil.sendMessage(player, config.getString("prefix", "&8[&b&lFishing&8] &r") + "&cYou must be holding a Fishing Rod to view detailed stats!");
+            return;
+        }
+
+        double fatiguePercent = calculateFatigue(player, data);
+        double fatigueMult = 1.0 - fatiguePercent;
+        
+        int luck = rod.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.LUCK_OF_THE_SEA);
+        
+        BaitManager.ActiveBait activeBait = baitManager != null ? baitManager.getActiveBait(player.getUniqueId()) : null;
+        double baitCatchBonus = activeBait != null ? activeBait.catchChanceBonus : 0.0;
+        double baitWeightBonus = activeBait != null ? activeBait.weightBonus : 0.0;
+        
+        int streak = fishStreak.getOrDefault(player.getUniqueId(), 0);
+        double streakBonus = Math.pow(streak, 0.6) * 0.045;
+
+        double baseCatchMult = (1.0 + (luck * 0.15) + streakBonus + baitCatchBonus) * fatigueMult;
+        double multCap = config.getDouble("streak.multiplier-cap", 5.0);
+        if (baseCatchMult > multCap) baseCatchMult = multCap;
+        
+        double tierMult = 1.0;
+        int lureLvl = 0;
+        int heavyLvl = 0;
+        int doubleHookLvl = 0;
+        int treasureLvl = 0;
+        
+        if (enchantManager != null) {
+            tierMult = enchantManager.getRodTier(rod).getEnchantMultiplier();
+            lureLvl = enchantManager.getEnchantLevel(rod, net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant.LURE_OF_THE_DEEP);
+            heavyLvl = enchantManager.getEnchantLevel(rod, net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant.HEAVYWEIGHT);
+            doubleHookLvl = enchantManager.getEnchantLevel(rod, net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant.DOUBLE_HOOK);
+            treasureLvl = enchantManager.getEnchantLevel(rod, net.rocky.coresuite.module.customfishing.FishingEnchantManager.CustomEnchant.TREASURE_HUNTER);
+        }
+
+        double fishCatchBonusMult = baseCatchMult * (1.0 + (lureLvl * 0.1 * tierMult));
+        double weightBonusMult = (1.0 + (heavyLvl * 0.05 * tierMult) + baitWeightBonus);
+        double treasureBonusMult = baseCatchMult * (1.0 + (treasureLvl * 0.2 * tierMult));
+        double doubleHookChance = (doubleHookLvl * 0.05 * tierMult) * 100.0;
+
+        TextUtil.sendMessage(player, "&8&m----------------------------------------");
+        TextUtil.sendMessage(player, "&b&lDetailed Fishing Stats");
+        TextUtil.sendMessage(player, "&7Based on your current rod, bait, and conditions:");
+        TextUtil.sendMessage(player, "");
+        TextUtil.sendMessage(player, "&7General Catch Multiplier: &a" + String.format("%.2fx", baseCatchMult) + (fatiguePercent > 0 ? " &c(Fatigue Penalty Active)" : ""));
+        TextUtil.sendMessage(player, "&7Fish Catch Rate Multiplier: &a" + String.format("%.2fx", fishCatchBonusMult));
+        TextUtil.sendMessage(player, "&7Fish Weight Multiplier: &e" + String.format("%.2fx", weightBonusMult));
+        TextUtil.sendMessage(player, "&7Treasure Find Multiplier: &d" + String.format("%.2fx", treasureBonusMult));
+        if (doubleHookChance > 0) {
+            TextUtil.sendMessage(player, "&7Double Hook Chance: &6" + String.format("%.1f%%", doubleHookChance));
+        }
+        TextUtil.sendMessage(player, "&8&m----------------------------------------");
+    }
+
     private void openBuyBagGUI(Player player) {
         net.rocky.coresuite.common.gui.Gui gui = new net.rocky.coresuite.common.gui.Gui("&8Purchase Fish Bag?", 3);
         gui.fillBorder(org.bukkit.Material.LIGHT_BLUE_STAINED_GLASS_PANE);
@@ -1191,7 +1406,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 "&7Click to purchase!"
             ),
             e -> {
-                player.closeInventory();
+                // player.closeInventory();
                 player.performCommand("fish buybag");
             }
         ));
@@ -1382,7 +1597,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                         enchantManager.setRodTier(heldRod, nextTier);
                         TextUtil.sendMessage(player, "&a&lRod upgraded to " + nextTier.getDisplayName() + " Quality&a!");
                         player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_USE, 1.0f, 1.0f);
-                        player.closeInventory();
+                        // player.closeInventory();
                         openShopGUI(player);
                     }));
                 } else {
@@ -1435,12 +1650,58 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         }
     }
 
+    public void syncFishItemConfig(ItemStack fish) {
+        if (!isFishItem(fish)) return;
+        org.bukkit.inventory.meta.ItemMeta meta = fish.getItemMeta();
+        if (meta == null) return;
+        
+        String speciesId = meta.getPersistentDataContainer().get(speciesKey, org.bukkit.persistence.PersistentDataType.STRING);
+        if (speciesId == null) return;
+        
+        if (config.getConfigurationSection("species") != null) {
+            for (String key : config.getConfigurationSection("species").getKeys(false)) {
+                String spPath = "species." + key + ".";
+                String confName = config.getString(spPath + "name", "");
+                String confSpeciesId = org.bukkit.ChatColor.stripColor(org.bukkit.ChatColor.translateAlternateColorCodes('&', confName));
+                
+                if (speciesId.equals(confSpeciesId)) {
+                    double confPrice = config.getDouble(spPath + "price-per-kg", 0.0);
+                    double currentPrice = meta.getPersistentDataContainer().getOrDefault(priceKey, org.bukkit.persistence.PersistentDataType.DOUBLE, 0.0);
+                    
+                    if (Math.abs(confPrice - currentPrice) > 0.01) {
+                        double weight = meta.getPersistentDataContainer().getOrDefault(weightKey, org.bukkit.persistence.PersistentDataType.DOUBLE, 0.0);
+                        
+                        meta.getPersistentDataContainer().set(priceKey, org.bukkit.persistence.PersistentDataType.DOUBLE, confPrice);
+                        
+                        meta.displayName(TextUtil.colorize(confName));
+                        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
+                        List<String> confLore = config.getStringList(spPath + "lore");
+                        if (confLore != null) {
+                            for (String line : confLore) {
+                                lore.add(TextUtil.colorize(line));
+                            }
+                        }
+                        lore.add(TextUtil.colorize("&7Weight: &b" + weight + " kg"));
+                        if (confPrice > 0) {
+                            lore.add(TextUtil.colorize("&7Value: &a$" + String.format("%.2f", weight * confPrice)));
+                        }
+                        
+                        meta.lore(lore);
+                        fish.setItemMeta(meta);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     private void openSellGUI(Player player, int page) {
         net.rocky.coresuite.common.gui.Gui gui = new net.rocky.coresuite.common.gui.Gui("&8Sell Fish", 6);
         
         List<ItemStack> fishItems = new ArrayList<>();
         for (ItemStack item : player.getInventory().getContents()) {
             if (isFishItem(item)) {
+                syncFishItemConfig(item);
                 fishItems.add(item);
             }
         }
@@ -1449,6 +1710,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         if (bag != null) {
             for (ItemStack item : bag) {
                 if (isFishItem(item)) {
+                    syncFishItemConfig(item);
                     fishItems.add(item);
                 }
             }
@@ -1465,6 +1727,10 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                 openSellGUI(player, page); // refresh
             }));
             slot++;
+        }
+        
+        for (int i = 45; i < 54; i++) {
+            gui.setItem(i, net.rocky.coresuite.common.gui.GuiButton.of(org.bukkit.Material.GRAY_STAINED_GLASS_PANE, " ", new ArrayList<>(), e -> {}));
         }
         
         if (page > 0) {
@@ -1529,40 +1795,37 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             }
             
             plugin.getServer().getScheduler().runTask(plugin, () -> {
-                List<String> species = config.getStringList("species");
                 int slot = 10;
-                for (String spStr : species) {
-                    String[] parts = spStr.split("\\|", -1);
-                    if (parts.length < 6) continue;
-                    
-                    String name = parts[1];
-                    double pricePerLb = Double.parseDouble(parts[4]);
-                    
-                    String speciesId = org.bukkit.ChatColor.stripColor(org.bukkit.ChatColor.translateAlternateColorCodes('&', name));
-                    
-                    while (slot % 9 == 0 || slot % 9 == 8) slot++;
-                    if (slot >= 53) break;
-                    
-                    if (caughtSpecies.containsKey(speciesId)) {
-                        double maxWeight = caughtSpecies.get(speciesId);
-                        String material = parts[5];
-                        String itemModel = parts.length > 6 ? parts[6].trim() : "";
-                        ItemStack fishItem = createFishItem(name, material, maxWeight, 0, itemModel);
-                        org.bukkit.inventory.meta.ItemMeta meta = fishItem.getItemMeta();
-                        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
-                        lore.add(TextUtil.colorize("&7Personal Best: &b" + maxWeight + " kg"));
-                        meta.lore(lore);
-                        fishItem.setItemMeta(meta);
-                        gui.setItem(slot, new net.rocky.coresuite.common.gui.GuiButton(fishItem, e -> {}));
-                    } else {
-                        ItemStack unknown = new ItemStack(org.bukkit.Material.BARRIER);
-                        org.bukkit.inventory.meta.ItemMeta meta = unknown.getItemMeta();
-                        meta.displayName(TextUtil.colorize("&8???"));
-                        meta.lore(Arrays.asList(TextUtil.colorize("&7You haven't caught this yet.")));
-                        unknown.setItemMeta(meta);
-                        gui.setItem(slot, new net.rocky.coresuite.common.gui.GuiButton(unknown, e -> {}));
+                if (config.getConfigurationSection("species") != null) {
+                    for (String key : config.getConfigurationSection("species").getKeys(false)) {
+                        String spPath = "species." + key + ".";
+                        String name = config.getString(spPath + "name", "&8???");
+                        String speciesId = org.bukkit.ChatColor.stripColor(org.bukkit.ChatColor.translateAlternateColorCodes('&', name));
+                        
+                        while (slot % 9 == 0 || slot % 9 == 8) slot++;
+                        if (slot >= 53) break;
+                        
+                        if (caughtSpecies.containsKey(speciesId)) {
+                            double maxWeight = caughtSpecies.get(speciesId);
+                            String material = config.getString(spPath + "material", "COD");
+                            String itemModel = config.getString(spPath + "item-model", "");
+                            ItemStack fishItem = createFishItem(name, material, maxWeight, 0, itemModel);
+                            org.bukkit.inventory.meta.ItemMeta meta = fishItem.getItemMeta();
+                            List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
+                            lore.add(TextUtil.colorize("&7Personal Best: &b" + maxWeight + " kg"));
+                            meta.lore(lore);
+                            fishItem.setItemMeta(meta);
+                            gui.setItem(slot, new net.rocky.coresuite.common.gui.GuiButton(fishItem, e -> {}));
+                        } else {
+                            ItemStack unknown = new ItemStack(org.bukkit.Material.BARRIER);
+                            org.bukkit.inventory.meta.ItemMeta meta = unknown.getItemMeta();
+                            meta.displayName(TextUtil.colorize("&8???"));
+                            meta.lore(Arrays.asList(TextUtil.colorize("&7You haven't caught this yet.")));
+                            unknown.setItemMeta(meta);
+                            gui.setItem(slot, new net.rocky.coresuite.common.gui.GuiButton(unknown, e -> {}));
+                        }
+                        slot++;
                     }
-                    slot++;
                 }
                 gui.open(player);
             });
@@ -1578,16 +1841,29 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         ItemStack statsHead = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
         org.bukkit.inventory.meta.SkullMeta statsMeta = (org.bukkit.inventory.meta.SkullMeta) statsHead.getItemMeta();
         if (statsMeta != null) {
-            statsMeta.setOwningPlayer(Bukkit.getOfflinePlayer(player.getName()));
+            statsMeta.setOwningPlayer(player);
             statsMeta.displayName(TextUtil.colorize("&b&l" + player.getName() + "'s Stats"));
+            
+            calculateFatigue(player, data); // Process decay
+            int fatigueDisplay = (int) Math.round(data.fatigueScore);
+            String fatigueColor = fatigueDisplay >= 85 ? "&4" : fatigueDisplay >= 75 ? "&c" : fatigueDisplay >= 50 ? "&6" : "&e";
+
             statsMeta.lore(Arrays.asList(
                 TextUtil.colorize("&7Level: &b" + data.level),
                 TextUtil.colorize("&7XP: &b" + data.xp + "&7/&b" + needed),
-                TextUtil.colorize("&7Total Catches: &b" + data.totalCatches)
+                TextUtil.colorize("&7Total Catches: &b" + data.totalCatches),
+                TextUtil.colorize("&7Fatigue: " + fatigueColor + fatigueDisplay + "%"),
+                TextUtil.colorize(""),
+                TextUtil.colorize("&eHold your fishing rod and click"),
+                TextUtil.colorize("&eto view detailed catch stats!")
             ));
             statsHead.setItemMeta(statsMeta);
         }
-        gui.setItem(13, new net.rocky.coresuite.common.gui.GuiButton(statsHead, e -> {}));
+        gui.setItem(13, new net.rocky.coresuite.common.gui.GuiButton(statsHead, e -> {
+            e.setCancelled(true);
+            player.closeInventory();
+            sendDetailedStats(player, data);
+        }));
         
         gui.setItem(28, net.rocky.coresuite.common.gui.GuiButton.of(
             org.bukkit.Material.CHEST,
@@ -1595,16 +1871,10 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             Arrays.asList(
                 "&7Click to open your fish bag.",
                 "",
-                data.bagPages < 10 ? "&eRight-Click to upgrade pages!" : "&aMax Pages Reached!",
-                data.bagPages < 10 ? "&7Cost: &a$" + (config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0) == -1.0 ? 10000.0 + ((data.bagPages + 1) * 15000.0) : config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0)) + " &8| &7Req Level: &b" + (config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1) == -1 ? (data.bagPages + 1) * 5 : config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1)) : ""
+                "&e&o(Upgrade available inside!)"
             ),
             e -> {
-                if (e.isRightClick() && data.bagPages < 10) {
-                    player.closeInventory();
-                    player.performCommand("fish buybag");
-                } else {
-                    player.performCommand("fish bag");
-                }
+                player.performCommand("fish bag");
             }
         ));
         
@@ -1639,13 +1909,13 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         ItemStack leaderboardsHead = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
         org.bukkit.inventory.meta.SkullMeta lbMeta = (org.bukkit.inventory.meta.SkullMeta) leaderboardsHead.getItemMeta();
         if (lbMeta != null) {
-            lbMeta.setOwningPlayer(Bukkit.getOfflinePlayer(player.getName()));
+            lbMeta.setOwningPlayer(player);
             lbMeta.displayName(TextUtil.colorize("&6&lLeaderboards"));
             lbMeta.lore(Arrays.asList(TextUtil.colorize("&7Click to view the server leaderboards.")));
             leaderboardsHead.setItemMeta(lbMeta);
         }
         gui.setItem(33, new net.rocky.coresuite.common.gui.GuiButton(leaderboardsHead, e -> {
-            player.closeInventory();
+            // player.closeInventory();
             player.performCommand("fish top");
         }));
         
@@ -1743,7 +2013,9 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     ItemStack head = new ItemStack(org.bukkit.Material.PLAYER_HEAD);
                     org.bukkit.inventory.meta.SkullMeta meta = (org.bukkit.inventory.meta.SkullMeta) head.getItemMeta();
                     if (meta != null) {
-                        if (pName != null && !pName.equals("Unknown")) {
+                        if (top.uuid != null) {
+                            meta.setOwningPlayer(Bukkit.getOfflinePlayer(top.uuid));
+                        } else if (pName != null && !pName.equals("Unknown")) {
                             meta.setOwningPlayer(Bukkit.getOfflinePlayer(pName));
                         }
                         meta.displayName(TextUtil.colorize("&b&l#" + (i + 1) + " &f" + pName));
@@ -1763,7 +2035,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     "&c&lBack",
                     Arrays.asList("&7Return to the main menu."),
                     e -> {
-                        player.closeInventory();
+                        // player.closeInventory();
                         player.performCommand("fish");
                     }
                 ));
@@ -1788,6 +2060,43 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         return config.getString("baits." + baitId + ".name", "&aBait");
     }
 
+    public void sendFishingActionBar(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (actionbarOverride.getOrDefault(uuid, 0L) > System.currentTimeMillis()) return;
+        
+        FishData data = playerData.get(uuid);
+        if (data == null) return;
+        
+        int streak = fishStreak.getOrDefault(uuid, 0);
+        int streakCap = config.getInt("streak.max-multiplier", 10);
+        calculateFatigue(player, data); // To process decay
+        
+        String streakMsgFormat = config.getString("messages.streak-message", "&7Streak: &b{streak}x&8/&7{cap} &8| &7Angler Lv.&b{level}");
+        String streakText = streakMsgFormat.replace("{streak}", String.valueOf(streak))
+                                           .replace("{cap}", String.valueOf(streakCap))
+                                           .replace("{level}", String.valueOf(data.level));
+        int fatigueDisplayPercent = (int) Math.round(data.fatigueScore);
+        StringBuilder actionBar = new StringBuilder(streakText);
+        if (fatigueDisplayPercent > 0) {
+            String fatigueColor = fatigueDisplayPercent >= 85 ? "&4" : fatigueDisplayPercent >= 75 ? "&c" : fatigueDisplayPercent >= 50 ? "&6" : "&e";
+            actionBar.append(" &8| ").append(fatigueColor).append("Fatigue: ").append(fatigueDisplayPercent).append("%");
+        }
+        
+        if (baitManager != null) {
+            BaitManager.ActiveBait activeBait = baitManager.getActiveBait(uuid);
+            if (activeBait != null) {
+                String baitName = module_getBaitDisplayName(activeBait.baitId);
+                if ("casts".equalsIgnoreCase(activeBait.type)) {
+                    actionBar.append(" &8| &aBait: ").append(activeBait.castsRemaining).append(" casts");
+                } else {
+                    long secsLeft = Math.max(0, (activeBait.expiresAt - System.currentTimeMillis()) / 1000);
+                    actionBar.append(" &8| &aBait: ").append(secsLeft).append("s");
+                }
+            }
+        }
+        TextUtil.sendActionBar(player, actionBar.toString());
+    }
+
     public static class FishData {
         public int level;
         public int xp;
@@ -1795,6 +2104,7 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
         public int bagPages;
         public double fatigueScore;
         public long fatigueLastUpdate;
+        public int legendaryPity;
         
         public FishData(int level, int xp, int totalCatches, int bagPages) {
             this.level = level;
@@ -1803,15 +2113,21 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
             this.bagPages = bagPages;
             this.fatigueScore = 0.0;
             this.fatigueLastUpdate = System.currentTimeMillis();
+            this.legendaryPity = 0;
         }
         
         public FishData(int level, int xp, int totalCatches, int bagPages, double fatigueScore, long fatigueLastUpdate) {
+            this(level, xp, totalCatches, bagPages, fatigueScore, fatigueLastUpdate, 0);
+        }
+
+        public FishData(int level, int xp, int totalCatches, int bagPages, double fatigueScore, long fatigueLastUpdate, int legendaryPity) {
             this.level = level;
             this.xp = xp;
             this.totalCatches = totalCatches;
             this.bagPages = bagPages;
             this.fatigueScore = fatigueScore;
             this.fatigueLastUpdate = fatigueLastUpdate;
+            this.legendaryPity = legendaryPity;
         }
     }
 
@@ -1819,8 +2135,8 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("fish")) {
             if (args.length == 1) {
-                List<String> options = new ArrayList<>(Arrays.asList("top", "sell", "log", "bag", "shop", "pond", "fatigue", "tournament", "bait", "hof"));
-                if (sender.hasPermission("coresuite.customfishing.admin")) {
+                List<String> options = new ArrayList<>(Arrays.asList("top", "sell", "log", "bag", "shop", "pond", "fatigue", "tournament", "bait", "hof", "info"));
+                if (sender.hasPermission("coresuite.customfishing.admin") || sender.hasPermission("coresuite.admin")) {
                     options.add("admin");
                 }
                 List<String> result = new ArrayList<>();
@@ -1830,20 +2146,42 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
                     }
                 }
                 return result;
-            } else if (args.length > 1 && args[0].equalsIgnoreCase("admin") && sender.hasPermission("coresuite.customfishing.admin")) {
+            } else if (args.length > 1 && args[0].equalsIgnoreCase("admin") && (sender.hasPermission("coresuite.customfishing.admin") || sender.hasPermission("coresuite.admin"))) {
                 List<String> result = new ArrayList<>();
                 if (args.length == 2) {
-                    org.bukkit.util.StringUtil.copyPartialMatches(args[1], Arrays.asList("setlevel", "addxp", "clearlog", "forcepond", "give"), result);
+                    org.bukkit.util.StringUtil.copyPartialMatches(args[1], Arrays.asList("setlevel", "addxp", "clearlog", "forcepond", "give", "givebait", "legendary", "clearanglers", "spawnangler", "fatigue"), result);
                 } else if (args.length == 3) {
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        if (p.getName().toLowerCase().startsWith(args[2].toLowerCase())) {
-                            result.add(p.getName());
+                    if (args[1].equalsIgnoreCase("legendary")) {
+                        org.bukkit.util.StringUtil.copyPartialMatches(args[2], Arrays.asList("givemap"), result);
+                    } else if (args[1].equalsIgnoreCase("forcepond")) {
+                        // forcepond takes no more arguments
+                    } else {
+                        // All others (setlevel, addxp, clearlog, give, givebait) take a player name as the 3rd argument
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            if (p.getName().toLowerCase().startsWith(args[2].toLowerCase())) {
+                                result.add(p.getName());
+                            }
                         }
                     }
-                } else if (args.length == 4 && args[1].equalsIgnoreCase("give")) {
-                    if (config.getConfigurationSection("species") != null) {
-                        List<String> species = new ArrayList<>(config.getConfigurationSection("species").getKeys(false));
-                        org.bukkit.util.StringUtil.copyPartialMatches(args[3], species, result);
+                } else if (args.length == 4) {
+                    if (args[1].equalsIgnoreCase("give")) {
+                        if (config.getConfigurationSection("species") != null) {
+                            List<String> species = new ArrayList<>(config.getConfigurationSection("species").getKeys(false));
+                            org.bukkit.util.StringUtil.copyPartialMatches(args[3], species, result);
+                        }
+                    } else if (args[1].equalsIgnoreCase("givebait")) {
+                        if (config.getConfigurationSection("baits") != null) {
+                            List<String> baits = new ArrayList<>(config.getConfigurationSection("baits").getKeys(false));
+                            org.bukkit.util.StringUtil.copyPartialMatches(args[3], baits, result);
+                        }
+                    } else if (args[1].equalsIgnoreCase("fatigue")) {
+                        org.bukkit.util.StringUtil.copyPartialMatches(args[3], Arrays.asList("set", "reset"), result);
+                    } else if (args[1].equalsIgnoreCase("legendary") && args[2].equalsIgnoreCase("givemap")) {
+                        for (Player p : Bukkit.getOnlinePlayers()) {
+                            if (p.getName().toLowerCase().startsWith(args[3].toLowerCase())) {
+                                result.add(p.getName());
+                            }
+                        }
                     }
                 }
                 return result;
@@ -1858,6 +2196,31 @@ public class CustomFishingModule extends Module implements Listener, CommandExec
     public LegendaryQuestManager getLegendaryQuestManager() { return legendaryQuestManager; }
     public NamespacedKey getSpeciesKey() { return speciesKey; }
     public FishingEnchantManager getEnchantManager() { return enchantManager; }
+
+    /**
+     * Adds Angler Levels to a player. Used by the quest system for level rewards.
+     * This directly modifies the player's FishData level field and persists it.
+     */
+    public void addAnglerLevels(Player player, int levels) {
+        FishData data = playerData.get(player.getUniqueId());
+        if (data == null) {
+            data = new FishData(1, 0, 0, 0);
+            playerData.put(player.getUniqueId(), data);
+        }
+        data.level += levels;
+        playerData.put(player.getUniqueId(), data);
+        saveDataAsync(player.getUniqueId());
+        String levelUpMsg = config.getString("messages.level-up", "&a&lLEVEL UP! &7You are now Angler Level &b{level}&7!");
+        TextUtil.sendMessage(player, levelUpMsg.replace("{level}", String.valueOf(data.level)));
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+    }
+
+    /**
+     * Returns the FishData for a player, or null if not loaded.
+     */
+    public FishData getPlayerData(UUID uuid) {
+        return playerData.get(uuid);
+    }
 }
 
 

@@ -165,30 +165,32 @@ public class FishingEventManager {
                     return;
                 }
                 
-                // Draw circle
-                double x = radius * Math.cos(angle);
-                double z = radius * Math.sin(angle);
-                Location pLoc = activePond.clone().add(x, 0.5, z);
-                
-                pLoc.getWorld().spawnParticle(Particle.END_ROD, pLoc, 2, 0.05, 0.05, 0.05, 0.01);
-                if (random.nextDouble() < 0.3) {
-                    pLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, pLoc, 1, 0.0, 0.0, 0.0, 0.02);
+                // Draw 4 segments of the circle per run to maintain speed but reduce scheduler overhead
+                for (int i = 0; i < 4; i++) {
+                    double x = radius * Math.cos(angle);
+                    double z = radius * Math.sin(angle);
+                    Location pLoc = activePond.clone().add(x, 0.5, z);
+                    
+                    pLoc.getWorld().spawnParticle(Particle.END_ROD, pLoc, 2, 0.05, 0.05, 0.05, 0.01);
+                    if (random.nextDouble() < 0.3) {
+                        pLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, pLoc, 1, 0.0, 0.0, 0.0, 0.02);
+                    }
+                    
+                    angle += 0.2;
+                    if (angle > Math.PI * 2) angle = 0;
                 }
                 
-                angle += 0.2;
-                if (angle > Math.PI * 2) angle = 0;
-                
-                // Random splashes inside
-                if (random.nextDouble() < 0.3) {
+                // Random splashes inside (scaled up chance to compensate for less frequent runs)
+                if (random.nextDouble() < 0.8) {
                     double rx = (random.nextDouble() * 2 - 1) * radius;
                     double rz = (random.nextDouble() * 2 - 1) * radius;
                     if ((rx * rx + rz * rz) <= (radius * radius)) {
                         Location inner = activePond.clone().add(rx, 0.5, rz);
-                        inner.getWorld().spawnParticle(Particle.PORTAL, inner, 3, 0.1, 0.1, 0.1, 0.05);
+                        inner.getWorld().spawnParticle(Particle.PORTAL, inner, 6, 0.1, 0.1, 0.1, 0.05);
                     }
                 }
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        }.runTaskTimer(plugin, 0L, 4L);
 
         // End Task
         endEventTask = new BukkitRunnable() {

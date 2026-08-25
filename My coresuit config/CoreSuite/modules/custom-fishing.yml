@@ -1,318 +1,428 @@
+# ═══════════════════════════════════════════════════
+# CORE SUITE - CUSTOM FISHING MODULE
+# ═══════════════════════════════════════════════════
+# This configuration file manages all settings related
+# to the custom fishing system.
+# ═══════════════════════════════════════════════════
+
+# Version of the configuration file (do not change)
+config-version: 2
+
+# Global prefix used for chat messages
+# ==========================================
+#         CORE SUITE - CUSTOM FISHING
+# ==========================================
+# The prefix shown before all fishing chat messages.
 prefix: '&8[&b&lFishing&8] &r'
 
+# ═══════════════════════════════════════════════════
+# STREAK & FATIGUE
+# ═══════════════════════════════════════════════════
+# Settings for the catch streak and fishing fatigue
+# mechanics.
+
+# Time in seconds before a fishing streak expires
+
+# ==========================================
+#                STREAKS
+# ==========================================
+# Time in seconds before your fishing combo streak resets.
 streak-timeout: 45
 
+# Multiplier caps for catch rewards based on streak.
 streak:
-
+  # Maximum streak multiplier
   multiplier-cap: 5.0
 
+
+# ==========================================
+#                FATIGUE SYSTEM
+# ==========================================
+# Controls how fast players get tired and stop gaining XP.
 fatigue:
-
-  threshold: 25
-
+  # Time in minutes it takes to fully recover from fatigue
+  recovery-time-minutes: 60
+  # The threshold value where fatigue starts affecting catches
+  threshold: 75
+  # Message shown when the player is getting fatigued
   message: '&c&oGetting tired...'
 
+# ═══════════════════════════════════════════════════
+# LEGENDARY QUEST
+# ═══════════════════════════════════════════════════
+# Settings for the legendary quest system.
+
+
+# ==========================================
+#            ANCIENT ANGLER QUEST
+# ==========================================
+# Settings for the Tidecaller's Pearl and the hidden legendary NPC.
+legendary-quest:
+  # Base chance to drop a legendary map
+  map-drop-chance: 0.0002
+  # Maximum chance to drop a legendary map
+  map-drop-chance-cap: 0.001
+  # The number of casts before pity threshold kicks in
+  pity-threshold: 2500
+  # Time in seconds before an idle quest NPC despawns
+  npc-idle-timeout-seconds: 300
+  # Maximum distance in blocks a player can be from the NPC
+  npc-max-distance-blocks: 50
+  # Base chance bonus for the Tireless Caster enchant
+  tireless-caster-base-chance: 1.0
+  # Decay rate for the Tireless Caster enchant bonus
+  tireless-caster-decay: 0.5
+  # Base money penalty for failing a quest
+  fail-penalty-base: 10000
+  # Multiplier applied to the penalty for consecutive failures
+  fail-penalty-multiplier: 2.0
+  # Maximum money penalty for failing
+  fail-penalty-cap: 500000
+  # Whether players can go into debt from failing (true/false)
+  fail-penalty-allow-debt: true
+  # Cost to perform a sacrifice
+  sacrifice-cost: 25000
+  # Minimum value of fish to seize if sacrifice is skipped
+  sacrifice-no-fish-seizure: 50000
+  # Weight for pulling a legendary fish during sacrifice
+  sacrifice-legendary-weight: 50
+  # Weight for pulling an epic fish during sacrifice
+  sacrifice-epic-weight: 30
+  # Weight for pulling a rare fish during sacrifice
+  sacrifice-rare-weight: 20
+  # Broadcast a message server-wide on the first NPC summon
+  broadcast-on-first-summon: true
+  # Sound played during the broadcast
+  broadcast-sound: ENTITY_WITHER_SPAWN
+  # Volume of the broadcast sound
+  broadcast-sound-volume: 0.5
+  # Pitch of the broadcast sound
+  broadcast-sound-pitch: 0.7
+  # Timeout in seconds for chat interactions with the NPC
+  chat-timeout-seconds: 120
+  # Skin value data for the NPC
+  npc-skin-value: ewogICJ0aW1lc3RhbXAiIDogMTc0NjA0NDA0MTU3MywKICAicHJvZmlsZUlkIiA6ICI2YWVmMjM3Y2RhNDY0Y2QzYTdiZDcxYjg3YzFlMDEwNSIsCiAgInByb2ZpbGVOYW1lIiA6ICJLYWlqdW5va2kiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOTg5NzRlY2U3NTczMWRhODhhYzExNWY1YjNmZGE1OTEyOWE4Y2ZjOWI5ODc1MDlkNTEzZGQ0ZWNjZDZkZGRhNyIKICAgIH0KICB9Cn0=
+  # Skin signature data for the NPC
+  npc-skin-signature: gIMUCJ2+EsOOHaC0V8zgR0J1kmxHU+7rC9P+DiXoAVkBQes6X1RdII2qSHjGTuBcUWvWBEVJ6rtOiJ9ItiEKs98ULG+DAf0tbKWDLgHyR9IZorK1bCr2PRIDbTuxDdDneafDTsZHwpbltFPlnarhUHLf1BR81efpoRi3LXJne+NEGlURcaHP5dBcPMpjOuw+rUZRok5/Usl8Pk932YvuXoX+v4FtyzsRM1r0WVxvfzS6BjN58/qEQ1RFmGXoNixZHB8Ibtx/tM/UxiBVAxTw0ncm2lfBz1MLQ38NgC+Ah71gdTqGA76Qu2PGxmqVRovc05t1ND+ExtigYxWPHnWiJeIxqYTIRmoIKXWPKWeFstMYMuKnyFkG3Ska/nH9Lemdf80W9ylM3N7s2c383rEb7hk721d5S8dL6tDQFITIAqZdeUynqrX/4Qc5d635HQ8EBVOZGDnimr7A2N3M3bKX65cxJ370EKOUIvRfORLk9VBS4qzxIgJhY9/Wc+MF96/SNJHL4SuorSDbw48e1SSaYw5hGG+3mZrgV3f9Twfxpd8KNuNT2fwZumEdmhXZYMH5HODyk1w+E88/3m7D+827dIZir+e7IO0poN1wr+wkYdpZ1sgZtEqamtv1lDZzy2cNb3KRKYL0+Q1qMGB87yiiK8WUv64NhwnzRC4eNdIDxoA=
+
+# ═══════════════════════════════════════════════════
+# ENCHANTS
+# ═══════════════════════════════════════════════════
+# Configuration for custom fishing rod enchantments.
+
+
+# ==========================================
+#          FISHING ENCHANTMENTS
+# ==========================================
+# Custom enchants available in the /fish shop.
+enchants:
+  lure_of_the_deep:
+    name: '&bLure of the Deep'
+    desc: 'Increases chance of catching fish.'
+    base-price: 100000
+    price-multiplier: 1.5
+    max-level: 3
+    xp-required: 45
+    catches-required: 30
+  heavyweight:
+    name: '&cHeavyweight'
+    desc: 'Increases the weight of fish caught.'
+    base-price: 250000
+    price-multiplier: 1.8
+    max-level: 5
+    xp-required: 45
+    catches-required: 100
+  double_hook:
+    name: '&aDouble Hook'
+    desc: 'Chance to catch two fish at once.'
+    base-price: 500000
+    price-multiplier: 2.0
+    max-level: 3
+    xp-required: 60
+    catches-required: 150
+  treasure_hunter:
+    name: '&6Treasure Hunter'
+    desc: 'Increases chance to find rare rewards.'
+    base-price: 500000
+    price-multiplier: 2.5
+    max-level: 3
+    xp-required: 60
+    catches-required: 175
+  tireless_caster:
+    name: '&aTireless Caster'
+    desc: 'Reduces fishing fatigue generation.'
+    base-price: 500000
+    price-multiplier: 2.0
+    max-level: 3
+    xp-required: 150
+    catches-required: 500
+
+# ═══════════════════════════════════════════════════
+# MESSAGES
+# ═══════════════════════════════════════════════════
+# Chat messages related to fishing.
+
+
+# ==========================================
+#               MESSAGES
+# ==========================================
+# Customizable messages for the module.
 messages:
-
-  streak-message: '&7Streak: &b{streak}x&8/&7{cap} &8| &7Angler Lv.&b{level}'
-
+  streak-message: '&7Streak: &b{streak}x&8/&7{cap} &8- &7Angler Lv.&b{level}'
   junk-catch-message: '&7You caught {name}&7... not exactly treasure.'
-
   level-up: '&a&lLEVEL UP! &7You are now Angler Level &b{level}&7!'
 
+# ═══════════════════════════════════════════════════
+# POND EVENT
+# ═══════════════════════════════════════════════════
+# Configuration for the Legendary Fishing Pond event.
+
+
+# ==========================================
+#           LEGENDARY POND EVENT
+# ==========================================
+# Periodic world events where a pond spawns giving massive bonuses.
 pond-event:
-
   enabled: true
-
-  interval-minutes: 30
-
+  interval-minutes: 60
+  fatigue-heal-amount: 3.0
   forming-minutes: 10
-
   duration-minutes: 10
-
   forming-sound: BLOCK_NOTE_BLOCK_CHIME
-
   start-sound: UI_TOAST_CHALLENGE_COMPLETE
-
   min-players: 2
-
   spawn-radius: 8000
-
   radius: 5.0
-
   reward-multiplier: 2.0
-
   weight-multiplier: 2.0
-
-  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for
-
-    bonus rewards!'
-
+  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for\nbonus rewards!'
   leave-message: '&7✦ You left the Legendary Fishing Pond area.'
 
-enchants:
+# ═══════════════════════════════════════════════════
+# BAG PAGES
+# ═══════════════════════════════════════════════════
+# Configuration for fishing bag pages and their unlock
+# requirements (cost and required level).
 
-  lure_of_the_deep:
 
-    name: '&bLure of the Deep'
-
-    description: Increases chance of catching fish.
-
-    base-price: 100000.0
-
-    price-multiplier: 1.5
-
-    max-level: 3
-
-    xp-required: 45
-
-    catches-required: 30
-
-  heavyweight:
-
-    name: '&cHeavyweight'
-
-    description: Increases the weight of fish caught.
-
-    base-price: 250000.0
-
-    price-multiplier: 1.8
-
-    max-level: 5
-
-    xp-required: 45
-
-    catches-required: 100
-
-  double_hook:
-
-    name: '&aDouble Hook'
-
-    description: Chance to catch two fish at once.
-
-    base-price: 500000.0
-
-    price-multiplier: 2.0
-
-    max-level: 3
-
-    xp-required: 60
-
-    catches-required: 150
-
-  treasure_hunter:
-
-    name: '&6Treasure Hunter'
-
-    description: Increases chance to find rare rewards.
-
-    base-price: 500000.0
-
-    price-multiplier: 2.5
-
-    max-level: 3
-
-    xp-required: 60
-
-    catches-required: 175
-
+# ==========================================
+#               FISH BAG
+# ==========================================
+# Progression and pricing for expanding the virtual Fish Bag.
 bag-pages:
-
   '2':
-
-    price: 15000.0
-
+    cost: 15000
     level-required: 5
-
   '3':
-
-    price: 30000.0
-
+    cost: 30000
     level-required: 10
-
   '4':
-
-    price: 50000.0
-
+    cost: 50000
     level-required: 15
-
   '5':
-    price: 75000.0
+    cost: 75000
     level-required: 20
   '6':
-    price: 100000.0
+    cost: 100000
     level-required: 30
   '7':
-    price: 150000.0
+    cost: 150000
     level-required: 40
   '8':
-    price: 200000.0
+    cost: 200000
     level-required: 50
   '9':
-    price: 300000.0
+    cost: 300000
     level-required: 65
   '10':
-    price: 500000.0
+    cost: 500000
     level-required: 80
 
+# ═══════════════════════════════════════════════════
+# TOURNAMENT
+# ═══════════════════════════════════════════════════
+# Settings for periodic fishing tournaments.
+
+
+# ==========================================
+#              TOURNAMENTS
+# ==========================================
+# Weekly/Daily automated fishing competitions.
 tournament:
   enabled: true
   reset-day: MONDAY
   reset-hour: 0
-  prizes:
-    1st: 500000.0
-    2nd: 250000.0
-    3rd: 100000.0
-  prize-commands:
-    1st: ""
-    2nd: ""
-    3rd: ""
   min-participants: 3
+  prizes:
+    '1': 50000
+    '2': 25000
+    '3': 10000
+  prize-commands:
+    '1': []
+    '2': []
+    '3': []
 
+# ═══════════════════════════════════════════════════
+# ROD TIERS
+# ═══════════════════════════════════════════════════
+# Available fishing rod tiers and their properties.
+
+
+# ==========================================
+#                ROD TIERS
+# ==========================================
+# Upgradable fishing rods with base multipliers.
 rod-tiers:
   bronze:
-    name: "&6Bronze"
-    enchant-multiplier: 1.15
-    price: 50000.0
-    level-required: 5
+    color: '§6'
+    multiplier: 1.15
+    cost: 50000
+    level: 5
   silver:
-    name: "&fSilver"
-    enchant-multiplier: 1.30
-    price: 150000.0
-    level-required: 15
+    color: '§f'
+    multiplier: 1.3
+    cost: 150000
+    level: 15
   gold:
-    name: "&eGold"
-    enchant-multiplier: 1.50
-    price: 350000.0
-    level-required: 25
+    color: '§e'
+    multiplier: 1.5
+    cost: 350000
+    level: 25
   diamond:
-    name: "&bDiamond"
-    enchant-multiplier: 1.75
-    price: 750000.0
-    level-required: 40
+    color: '§b'
+    multiplier: 1.75
+    cost: 750000
+    level: 40
   netherite:
-    name: "&4Netherite"
-    enchant-multiplier: 2.0
-    price: 1500000.0
-    level-required: 60
+    color: '§4'
+    multiplier: 2.0
+    cost: 1500000
+    level: 60
 
+# ═══════════════════════════════════════════════════
+# BAITS
+# ═══════════════════════════════════════════════════
+# Configuration for various baits used in fishing.
+
+
+# ==========================================
+#                  BAITS
+# ==========================================
+# Custom baits to boost chances, weight, and rarity.
 baits:
   worm:
-    name: "&aEarthworm Bait"
+    name: 'Earthworm Bait'
     material: SLIME_BALL
-    item-model: ""
-    lore:
-      - "&8&oStandard fishing bait"
-      - ""
-      - "&7A classic, reliable earthworm used"
-      - "&7by novice anglers to quickly attract"
-      - "&7nearby fish."
-      - ""
-      - "&b&lStats:"
-      - " &8▪ &7Catch Chance: &a+15%"
-      - " &8▪ &7Durability: &e20 Casts"
-      - ""
-      - "&eClick to apply to your rod!"
-    price: 35000.0
-    type: casts
-    casts: 20
-    duration-seconds: 0
-    catch-chance-bonus: 0.15
+    price: 65000
+    daily-limit: 10
+    casts: 10
+    catch-chance-bonus: 0.1
     weight-bonus: 0.0
-    rarity-bias: ""
-  golden_lure:
-    name: "&6Gilded Spinner"
-    material: GOLD_NUGGET
-    item-model: ""
     lore:
-      - "&8&oHeavyweight fishing lure"
-      - ""
-      - "&7This shimmering golden lure flashes"
-      - "&7brightly in the water, aggressively"
-      - "&7attracting much heavier fish than usual."
-      - ""
-      - "&b&lStats:"
-      - " &8▪ &7Weight Bonus: &a+25%"
-      - " &8▪ &7Durability: &e15 Casts"
-      - ""
-      - "&eClick to apply to your rod!"
-    price: 75000.0
-    type: casts
-    casts: 15
-    duration-seconds: 0
+      - '&7A simple earthworm to attract'
+      - '&7common fish.'
+  golden_lure:
+    name: 'Gilded Spinner'
+    material: GOLD_NUGGET
+    price: 95000
+    daily-limit: 5
+    casts: 10
     catch-chance-bonus: 0.0
     weight-bonus: 0.25
-    rarity-bias: ""
+    lore:
+      - '&7A shiny lure that attracts'
+      - '&7heavier fish.'
   tide_essence:
-    name: "&bTide's Blessing"
+    name: "Tide's Blessing"
     material: HEART_OF_THE_SEA
-    item-model: ""
-    lore:
-      - "&8&oMagical ocean essence"
-      - ""
-      - "&7A potent vial of ocean magic. Pouring"
-      - "&7this over your line guarantees an"
-      - "&7incredible bite rate for a limited time."
-      - ""
-      - "&b&lStats:"
-      - " &8▪ &7Catch Chance: &a+20%"
-      - " &8▪ &7Duration: &e5 Minutes"
-      - ""
-      - "&eClick to apply to your rod!"
-    price: 125000.0
-    type: time
-    casts: 0
-    duration-seconds: 300
-    catch-chance-bonus: 0.20
+    price: 250000
+    daily-limit: 5
+    time: 180
+    catch-chance-bonus: 0.35
     weight-bonus: 0.0
-    rarity-bias: ""
-  mythical_chum:
-    name: "&d&lAbyssal Chum"
-    material: MAGMA_CREAM
-    item-model: ""
     lore:
-      - "&8&oLegendary deep-sea bait"
-      - ""
-      - "&7A pungent, ancient mixture of deep sea"
-      - "&7remains. Its scent drives the rarest"
-      - "&7and most elusive fish into a frenzy."
-      - ""
-      - "&b&lStats:"
-      - " &8▪ &7Rarity Bias: &dEpic+"
-      - " &8▪ &7Rarity Chance: &a+50%"
-      - " &8▪ &7Duration: &e3 Minutes"
-      - ""
-      - "&eClick to apply to your rod!"
-    price: 250000.0
-    type: time
-    casts: 0
-    duration-seconds: 180
-    catch-chance-bonus: 0.0
-    weight-bonus: 0.0
-    rarity-bias: "epic"
+      - '&7A magical essence that significantly'
+      - '&7increases catch rates for a limited time.'
+  mythic_chum:
+    name: 'Mythical Chum'
+    material: FERMENTED_SPIDER_EYE
+    price: 500000
+    daily-limit: 5
+    time: 300
+    catch-chance-bonus: 0.55
+    weight-bonus: 0.5
+    rarity-bias: epic
+    lore:
+      - '&7A foul-smelling bait that attracts'
+      - '&7the rarest and heaviest of fish.'
 
+# ═══════════════════════════════════════════════════
+# REWARDS
+# ═══════════════════════════════════════════════════
+# Fishing rewards configuration.
+
+
+# ==========================================
+#               TREASURE REWARDS
+# ==========================================
+# Rare items, keys, and commands executed when players fish up treasure.
+# Format: <weight>|<Rarity>|<Display Name>|<Sound>|<Command (without /)>
 rewards:
+  treasure:
+    chance: 0.05
+    items:
+      - material: DIAMOND
+        amount: 1
+      - material: GOLD_INGOT
+        amount: 3
+  junk:
+    chance: 0.15
+    items:
+      - material: LEATHER_BOOTS
+        amount: 1
+      - material: STICK
+        amount: 1
 
-- 5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon
+# ═══════════════════════════════════════════════════
+# BAIT SHOP
+# ═══════════════════════════════════════════════════
+# Settings for the bait shop.
 
-  1
 
-- 3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1
+# ==========================================
+#                BAIT SHOP
+# ==========================================
+# Daily bait limits and restock pricing.
+bait-shop:
+  force-restock-price: 500000.0
 
-- 0.5|Legendary|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player}
+# ═══════════════════════════════════════════════════
+# FISH SPECIES
+# ═══════════════════════════════════════════════════
+# Each species entry defines a catchable fish type.
+# See the plugin wiki for the full species format.
+# DO NOT remove species entries — add new ones below
+# the existing entries.
+# ═══════════════════════════════════════════════════
+# species:
+#   <species_id>:
+#     name: '<color_code>Display Name'
+#     rarity: Common|Uncommon|Rare|Epic|Legendary|Mythical
+#     lore: [...]
+#     chance: <float>        # Base catch probability
+#     min-weight: <float>    # Minimum weight in kg
+#     max-weight: <float>    # Maximum weight in kg
+#     price-per-kg: <float>  # Sell price per kilogram
+#     material: COD          # Minecraft item material
+#     item-model: <string>   # Resource pack model ID
+#     biomes: [...]           # List of valid biomes
 
-  potions 1
 
-- 0.1|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player}
 
-  elite 1
-
-- 0.1|Legendary|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player}
-
-  spawner 1
-
-- 10.0|Junk|&8Old Boot|entity.item.break|give {player} leather_boots 1
-
+# ==========================================
+#                FISH SPECIES
+# ==========================================
+# Every custom fish in the game. Defines weight ranges, price, models, and biomes.
 species:
 
   alexpaima:

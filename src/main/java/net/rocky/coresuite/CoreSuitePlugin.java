@@ -164,6 +164,7 @@ public final class CoreSuitePlugin extends JavaPlugin {
         // Phase 4 — Gameplay
         moduleManager.registerModule(new net.rocky.coresuite.module.combattag.CombatTagModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.customfishing.CustomFishingModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.profile.ProfileModule(this));
 
         // Phase 5 — Content-heavy
         moduleManager.registerModule(new net.rocky.coresuite.module.chatgames.ChatGamesModule(this));
@@ -181,6 +182,10 @@ public final class CoreSuitePlugin extends JavaPlugin {
         // Phase 9 — Announce & Gambling
         moduleManager.registerModule(new net.rocky.coresuite.module.announce.AnnounceModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.gambling.GamblingModule(this));
+
+        // Phase 10 — Website Integration & System
+        moduleManager.registerModule(new net.rocky.coresuite.module.website.WebsiteModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.autorestarter.AutoRestarterModule(this));
     }
 
     // ── Static accessor ──

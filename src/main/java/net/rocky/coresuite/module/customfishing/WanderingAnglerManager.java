@@ -159,10 +159,53 @@ public class WanderingAnglerManager implements Listener {
         pdc.set(anglerKey, PersistentDataType.BYTE, (byte) 1);
         pdc.set(spawnTimeKey, PersistentDataType.LONG, System.currentTimeMillis());
 
-        Collections.shuffle(keys);
+        List<String> common = new ArrayList<>();
+        List<String> rare = new ArrayList<>();
+        List<String> legendary = new ArrayList<>();
+
+        for (String k : keys) {
+            String r = module.getConfig().getString("species." + k + ".rarity", "Common").toLowerCase();
+            if (r.equals("legendary") || r.equals("mythical")) {
+                legendary.add(k);
+            } else if (r.equals("rare") || r.equals("epic") || r.equals("uncommon")) {
+                rare.add(k);
+            } else {
+                common.add(k);
+            }
+        }
+
         List<String> chosenFish = new ArrayList<>();
-        for (int i = 0; i < Math.min(3, keys.size()); i++) {
-            chosenFish.add(keys.get(i));
+        
+        // Pick 3 random fish using weighted probabilities
+        for (int i = 0; i < 3; i++) {
+            double roll = random.nextDouble() * 100.0;
+            List<String> pool;
+            
+            // 70% chance to pick from common pool
+            // 25% chance to pick from rare pool
+            // 5% chance to pick from legendary pool
+            if (roll < 70 && !common.isEmpty()) {
+                pool = common;
+            } else if (roll < 95 && !rare.isEmpty()) {
+                pool = rare;
+            } else if (!legendary.isEmpty()) {
+                pool = legendary;
+            } else if (!rare.isEmpty()) { // fallback
+                pool = rare;
+            } else { // ultimate fallback
+                pool = common;
+            }
+            
+            if (pool != null && !pool.isEmpty()) {
+                String chosen = pool.get(random.nextInt(pool.size()));
+                if (!chosenFish.contains(chosen)) {
+                    chosenFish.add(chosen);
+                } else {
+                    // Try one more time if duplicate
+                    chosen = pool.get(random.nextInt(pool.size()));
+                    if (!chosenFish.contains(chosen)) chosenFish.add(chosen);
+                }
+            }
         }
 
         if (chosenFish.size() > 0) pdc.set(fish1Key, PersistentDataType.STRING, chosenFish.get(0));

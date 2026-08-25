@@ -214,8 +214,12 @@ public class VulcanPunishModule extends Module implements Listener, CommandExecu
             
             if (isBypassed(target.getUniqueId())) return true;
 
-            int tier = prepareOffense(target);
-            handlePunishment(target, tier, appealLink, false, "");
+            plugin.getDatabaseManager().executeAsync(() -> {
+                int tier = prepareOffense(target);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    handlePunishment(target, tier, appealLink, false, "");
+                });
+            });
             return true;
         } 
         else if (cmd.equals("vulcanwarn")) {
@@ -233,9 +237,13 @@ public class VulcanPunishModule extends Module implements Listener, CommandExecu
                 return true;
             }
             
-            int tier = prepareOffense(target);
-            handlePunishment(target, tier, appealLink, true, "[Staff: " + sender.getName() + "] " + reason);
-            TextUtil.sendMessage(sender, "&a[Vulcan] Applied punishment for " + target.getName() + ".");
+            plugin.getDatabaseManager().executeAsync(() -> {
+                int tier = prepareOffense(target);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    handlePunishment(target, tier, appealLink, true, "[Staff: " + sender.getName() + "] " + reason);
+                    TextUtil.sendMessage(sender, "&a[Vulcan] Applied punishment for " + target.getName() + ".");
+                });
+            });
             return true;
         }
         else if (cmd.equals("vulcancheck")) {

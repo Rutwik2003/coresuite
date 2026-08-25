@@ -63,9 +63,10 @@ public class FishingTournamentManager {
                 try (PreparedStatement ps = conn.prepareStatement(
                         "SELECT meta_value FROM coresuite_fish_tournament_meta WHERE meta_key = 'last_paid_week'"
                 )) {
-                    ResultSet rs = ps.executeQuery();
-                    if (rs.next()) {
-                        lastPaidWeekStart = Long.parseLong(rs.getString("meta_value"));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            lastPaidWeekStart = Long.parseLong(rs.getString("meta_value"));
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -130,9 +131,10 @@ public class FishingTournamentManager {
                     "SELECT COUNT(DISTINCT uuid) AS count FROM coresuite_fish_tournament WHERE week_start = ?"
             )) {
                 psCount.setLong(1, previousWeekStart);
-                ResultSet rs = psCount.executeQuery();
-                if (rs.next()) {
-                    totalParticipants = rs.getInt("count");
+                try (ResultSet rs = psCount.executeQuery()) {
+                    if (rs.next()) {
+                        totalParticipants = rs.getInt("count");
+                    }
                 }
             }
 
@@ -148,15 +150,16 @@ public class FishingTournamentManager {
                                 "FROM coresuite_fish_tournament WHERE week_start = ? ORDER BY total_weight DESC LIMIT 3"
                 )) {
                     ps.setLong(1, previousWeekStart);
-                    ResultSet rs = ps.executeQuery();
-                    int rank = 1;
-                    while (rs.next()) {
-                        winners.add(new Winner(
-                                rs.getString("uuid"),
-                                rs.getString("player_name"),
-                                rs.getDouble("total_weight"),
-                                rank++
-                        ));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        int rank = 1;
+                        while (rs.next()) {
+                            winners.add(new Winner(
+                                    rs.getString("uuid"),
+                                    rs.getString("player_name"),
+                                    rs.getDouble("total_weight"),
+                                    rank++
+                            ));
+                        }
                     }
                 }
 
@@ -208,17 +211,18 @@ public class FishingTournamentManager {
                                 "FROM coresuite_fish_tournament WHERE week_start = ? ORDER BY total_weight DESC LIMIT 10"
                 )) {
                     ps.setLong(1, currentWeekStart);
-                    ResultSet rs = ps.executeQuery();
-                    int rank = 1;
-                    while (rs.next()) {
-                        top10.add(new TournamentEntry(
-                                rs.getString("uuid"),
-                                rs.getString("player_name"),
-                                rs.getDouble("total_weight"),
-                                rs.getInt("total_catches"),
-                                rs.getDouble("biggest_catch"),
-                                rank++
-                        ));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        int rank = 1;
+                        while (rs.next()) {
+                            top10.add(new TournamentEntry(
+                                    rs.getString("uuid"),
+                                    rs.getString("player_name"),
+                                    rs.getDouble("total_weight"),
+                                    rs.getInt("total_catches"),
+                                    rs.getDouble("biggest_catch"),
+                                    rank++
+                            ));
+                        }
                     }
                 }
 
@@ -230,16 +234,17 @@ public class FishingTournamentManager {
                 )) {
                     ps.setLong(1, currentWeekStart);
                     ps.setString(2, player.getUniqueId().toString());
-                    ResultSet rs = ps.executeQuery();
-                    if (rs.next()) {
-                        ownEntry = new TournamentEntry(
-                                rs.getString("uuid"),
-                                player.getName(),
-                                rs.getDouble("total_weight"),
-                                rs.getInt("total_catches"),
-                                rs.getDouble("biggest_catch"),
-                                rs.getInt("rank")
-                        );
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) {
+                            ownEntry = new TournamentEntry(
+                                    rs.getString("uuid"),
+                                    player.getName(),
+                                    rs.getDouble("total_weight"),
+                                    rs.getInt("total_catches"),
+                                    rs.getDouble("biggest_catch"),
+                                    rs.getInt("rank")
+                            );
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -319,7 +324,7 @@ public class FishingTournamentManager {
                         "&cBack",
                         Arrays.asList(),
                         event -> {
-                            player.closeInventory();
+                            // player.closeInventory();
                             player.performCommand("fish");
                         }
                 ));

@@ -157,7 +157,17 @@ commands:
   store:
     description: Open the store GUI
     usage: /<command>
-    aliases: [rank, crate]
+    aliases: [crate]
+  rank:
+    description: Get a link to the store website
+    usage: /<command>
+  link:
+    description: Link your Minecraft account to Discord
+    usage: /<command>
+  profile:
+    description: View your player profile and stats
+    usage: /<command>
+    permission: coresuite.profile.use
   storeadmin:
     description: Store admin commands
     usage: /<command> approve <player> <packageKey>
@@ -166,6 +176,10 @@ commands:
     description: Open the gambling GUI
     usage: /<command>
     permission: coresuite.gambling.use
+  autorestart:
+    description: Manage server auto restarts
+    usage: /<command> [now|cancel|set|time]
+    permission: coresuite.admin
 
 permissions:
   coresuite.admin:
@@ -249,6 +263,9 @@ permissions:
   coresuite.store.admin:
     description: Store administration
     default: op
+  coresuite.profile.use:
+    description: Access to profile module
+    default: true
   coresuite.gambling.use:
     description: Access to gambling module
     default: true

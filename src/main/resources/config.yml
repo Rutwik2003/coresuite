@@ -21,9 +21,12 @@ modules:
   chat-games: true
   kill-podium: false
   vulcan-punish: true
-  store: false
+  store: true
   announce: true
   gambling: true
+  profile: true
+  website: true
+  autorestarter: true
 
 # Storage settings
 storage:
