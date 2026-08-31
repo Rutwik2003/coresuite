@@ -1,27 +1,54 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  net.kyori.adventure.text.Component
+ *  net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+ *  org.bukkit.Bukkit
+ *  org.bukkit.Location
+ *  org.bukkit.Material
+ *  org.bukkit.Particle
+ *  org.bukkit.Sound
+ *  org.bukkit.World
+ *  org.bukkit.block.Block
+ *  org.bukkit.command.CommandSender
+ *  org.bukkit.configuration.file.FileConfiguration
+ *  org.bukkit.entity.Player
+ *  org.bukkit.plugin.Plugin
+ *  org.bukkit.scheduler.BukkitRunnable
+ *  org.bukkit.scheduler.BukkitTask
+ */
 package net.rocky.coresuite.module.customfishing;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
+import net.rocky.coresuite.module.customfishing.CustomFishingModule;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
-
 public class FishingEventManager {
-
     private final CoreSuitePlugin plugin;
     private final CustomFishingModule module;
     private final Random random = new Random();
-
     private Location activePond = null;
     private Location formingPond = null;
     private BukkitTask eventTimerTask;
@@ -29,320 +56,319 @@ public class FishingEventManager {
     private BukkitTask endEventTask;
     private BukkitTask pondCheckTask;
     private BukkitTask formingTask;
-    private final java.util.Set<java.util.UUID> playersInPond = new java.util.HashSet<>();
-    private final java.util.List<org.bukkit.scheduler.BukkitTask> warningTasks = new java.util.ArrayList<>();
+    private final Set<UUID> playersInPond = new HashSet<UUID>();
+    private final List<BukkitTask> warningTasks = new ArrayList<BukkitTask>();
 
     public FishingEventManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;
         this.module = module;
-        startTimer();
+        this.startTimer();
     }
 
     public void shutdown() {
-        if (eventTimerTask != null) eventTimerTask.cancel();
-        if (particleTask != null) particleTask.cancel();
-        if (endEventTask != null) endEventTask.cancel();
-        if (pondCheckTask != null) pondCheckTask.cancel();
-        if (formingTask != null) formingTask.cancel();
-        for (org.bukkit.scheduler.BukkitTask task : warningTasks) task.cancel();
-        warningTasks.clear();
-        playersInPond.clear();
-        activePond = null;
-        formingPond = null;
+        if (this.eventTimerTask != null) {
+            this.eventTimerTask.cancel();
+        }
+        if (this.particleTask != null) {
+            this.particleTask.cancel();
+        }
+        if (this.endEventTask != null) {
+            this.endEventTask.cancel();
+        }
+        if (this.pondCheckTask != null) {
+            this.pondCheckTask.cancel();
+        }
+        if (this.formingTask != null) {
+            this.formingTask.cancel();
+        }
+        for (BukkitTask task : this.warningTasks) {
+            task.cancel();
+        }
+        this.warningTasks.clear();
+        this.playersInPond.clear();
+        this.activePond = null;
+        this.formingPond = null;
     }
 
     public Location getActivePond() {
-        return activePond;
+        return this.activePond;
     }
 
     public Location getFormingPond() {
-        return formingPond;
+        return this.formingPond;
     }
 
     private void startTimer() {
-        FileConfiguration config = module.getConfig();
-        if (!config.getBoolean("pond-event.enabled", true)) return;
-
+        final FileConfiguration config = this.module.getConfig();
+        if (!config.getBoolean("pond-event.enabled", true)) {
+            return;
+        }
         int interval = config.getInt("pond-event.interval-minutes", 30);
-        
-        eventTimerTask = new BukkitRunnable() {
-            @Override
+        this.eventTimerTask = new BukkitRunnable(){
+
             public void run() {
-                if (activePond != null || formingTask != null) return; // Already running or forming
-
+                if (FishingEventManager.this.activePond != null || FishingEventManager.this.formingTask != null) {
+                    return;
+                }
                 int minPlayers = config.getInt("pond-event.min-players", 2);
-                if (Bukkit.getOnlinePlayers().size() < minPlayers) return;
-
-                startEvent(null);
+                if (Bukkit.getOnlinePlayers().size() < minPlayers) {
+                    return;
+                }
+                FishingEventManager.this.startEvent(null);
             }
-        }.runTaskTimer(plugin, 20L * 60 * interval, 20L * 60 * interval);
+        }.runTaskTimer((Plugin)this.plugin, 1200L * (long)interval, 1200L * (long)interval);
     }
 
     public void forceStartEvent(Location loc) {
-        if (activePond != null) endEvent();
-        if (formingTask != null) { formingTask.cancel(); formingTask = null; formingPond = null; }
-        // Snap to ground/water surface — don't use raw player Y (could be flying)
+        if (this.activePond != null) {
+            this.endEvent();
+        }
+        if (this.formingTask != null) {
+            this.formingTask.cancel();
+            this.formingTask = null;
+            this.formingPond = null;
+        }
         Block highest = loc.getWorld().getHighestBlockAt(loc);
-        actuallyStartEvent(highest.getLocation(), module.getConfig());
+        this.actuallyStartEvent(highest.getLocation(), this.module.getConfig());
     }
 
     public void startEvent(Location anchor) {
-        if (activePond != null) endEvent(); // Override existing event
-        if (formingTask != null) { formingTask.cancel(); formingTask = null; formingPond = null; }
-        
-        FileConfiguration config = module.getConfig();
-        
+        if (this.activePond != null) {
+            this.endEvent();
+        }
+        if (this.formingTask != null) {
+            this.formingTask.cancel();
+            this.formingTask = null;
+            this.formingPond = null;
+        }
+        FileConfiguration config = this.module.getConfig();
         if (anchor != null) {
-            // Admin forced, search closely around them synchronously
-            Location foundWater = findWaterSync(anchor, 50, 30);
-            if (foundWater != null) actuallyStartEvent(foundWater, config);
+            Location foundWater = this.findWaterSync(anchor, 50, 30);
+            if (foundWater != null) {
+                this.actuallyStartEvent(foundWater, config);
+            }
         } else {
-            // Automated - search anywhere up to spawn-radius (or world border)
-            org.bukkit.World world = Bukkit.getWorlds().get(0);
-            double borderSize = world.getWorldBorder().getSize() / 2;
-            int maxRadius = config.getInt("pond-event.spawn-radius", (int) borderSize);
-            
-            searchWaterAsync(world, maxRadius, 50); // try 50 random spots async
+            World world = (World)Bukkit.getWorlds().get(0);
+            double borderSize = world.getWorldBorder().getSize() / 2.0;
+            int maxRadius = config.getInt("pond-event.spawn-radius", (int)borderSize);
+            this.searchWaterAsync(world, maxRadius, 50);
         }
     }
 
-    private void startFormingPhase(Location foundWater, FileConfiguration config) {
+    private void startFormingPhase(final Location foundWater, final FileConfiguration config) {
+        Location center;
         String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
         int formDelayMinutes = config.getInt("pond-event.forming-minutes", 5);
-        Location center = foundWater.clone().add(0.5, 0.9, 0.5);
-        formingPond = center;
-        String bcast = prefix + "&e&lA Legendary Fish Pond is starting to form at &b" + 
-                center.getBlockX() + ", " + center.getBlockZ() + "&e! It will be fully formed in &b" + formDelayMinutes + " minutes&e!";
-        
+        this.formingPond = center = foundWater.clone().add(0.5, 0.9, 0.5);
+        String bcast = prefix + "&e&lA Legendary Fish Pond is starting to form at &b" + center.getBlockX() + ", " + center.getBlockZ() + "&e! It will be fully formed in &b" + formDelayMinutes + " minutes&e!";
         String soundStr = config.getString("pond-event.forming-sound", "BLOCK_NOTE_BLOCK_CHIME");
-        org.bukkit.Sound sound = org.bukkit.Sound.BLOCK_NOTE_BLOCK_CHIME;
+        Sound sound = Sound.BLOCK_NOTE_BLOCK_CHIME;
         try {
-            sound = org.bukkit.Sound.valueOf(soundStr.toUpperCase());
-        } catch (Exception ignored) {}
-        
+            sound = Sound.valueOf((String)soundStr.toUpperCase());
+        }
+        catch (Exception exception) {
+            // empty catch block
+        }
         for (Player p : Bukkit.getOnlinePlayers()) {
-            TextUtil.sendMessage(p, bcast);
+            TextUtil.sendMessage((CommandSender)p, bcast);
             p.playSound(p.getLocation(), sound, 1.0f, 1.0f);
         }
+        this.formingTask = new BukkitRunnable(){
 
-        formingTask = new BukkitRunnable() {
-            @Override
             public void run() {
-                formingTask = null;
-                actuallyStartEvent(foundWater, config);
+                FishingEventManager.this.formingTask = null;
+                FishingEventManager.this.actuallyStartEvent(foundWater, config);
             }
-        }.runTaskLater(plugin, 20L * 60 * formDelayMinutes);
+        }.runTaskLater((Plugin)this.plugin, 1200L * (long)formDelayMinutes);
     }
 
-    private void actuallyStartEvent(Location foundWater, FileConfiguration config) {
-        activePond = foundWater.clone().add(0.5, 0.9, 0.5); // Center on block, slightly above surface
-        formingPond = null;
-        double radius = config.getDouble("pond-event.radius", 5.0);
+    private void actuallyStartEvent(Location foundWater, final FileConfiguration config) {
+        this.activePond = foundWater.clone().add(0.5, 0.9, 0.5);
+        this.formingPond = null;
+        final double radius = config.getDouble("pond-event.radius", 5.0);
         int duration = config.getInt("pond-event.duration-minutes", 10);
-
-        String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-        String bcast = prefix + "&b&lThe Legendary Fish Pond has fully formed at &e" + 
-                activePond.getBlockX() + ", " + activePond.getBlockZ() + " &bfor &e" + duration + " minutes&b!";
-        
+        final String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
+        String bcast = prefix + "&b&lThe Legendary Fish Pond has fully formed at &e" + this.activePond.getBlockX() + ", " + this.activePond.getBlockZ() + " &bfor &e" + duration + " minutes&b!";
         String soundStr = config.getString("pond-event.start-sound", "UI_TOAST_CHALLENGE_COMPLETE");
-        org.bukkit.Sound sound = org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE;
+        Sound sound = Sound.UI_TOAST_CHALLENGE_COMPLETE;
         try {
-            sound = org.bukkit.Sound.valueOf(soundStr.toUpperCase());
-        } catch (Exception ignored) {}
-        
+            sound = Sound.valueOf((String)soundStr.toUpperCase());
+        }
+        catch (Exception exception) {
+            // empty catch block
+        }
         for (Player p : Bukkit.getOnlinePlayers()) {
-            TextUtil.sendMessage(p, bcast);
+            TextUtil.sendMessage((CommandSender)p, bcast);
             p.playSound(p.getLocation(), sound, 0.5f, 1.5f);
         }
+        this.particleTask = new BukkitRunnable(){
+            double angle = 0.0;
 
-        // Particle Task
-        particleTask = new BukkitRunnable() {
-            double angle = 0;
-            @Override
             public void run() {
-                if (activePond == null) {
+                double rz;
+                double rx;
+                if (FishingEventManager.this.activePond == null) {
                     this.cancel();
                     return;
                 }
-                
-                // Draw 4 segments of the circle per run to maintain speed but reduce scheduler overhead
-                for (int i = 0; i < 4; i++) {
-                    double x = radius * Math.cos(angle);
-                    double z = radius * Math.sin(angle);
-                    Location pLoc = activePond.clone().add(x, 0.5, z);
-                    
+                for (int i = 0; i < 4; ++i) {
+                    double x = radius * Math.cos(this.angle);
+                    double z = radius * Math.sin(this.angle);
+                    Location pLoc = FishingEventManager.this.activePond.clone().add(x, 0.5, z);
                     pLoc.getWorld().spawnParticle(Particle.END_ROD, pLoc, 2, 0.05, 0.05, 0.05, 0.01);
-                    if (random.nextDouble() < 0.3) {
+                    if (FishingEventManager.this.random.nextDouble() < 0.3) {
                         pLoc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, pLoc, 1, 0.0, 0.0, 0.0, 0.02);
                     }
-                    
-                    angle += 0.2;
-                    if (angle > Math.PI * 2) angle = 0;
+                    this.angle += 0.2;
+                    if (!(this.angle > Math.PI * 2)) continue;
+                    this.angle = 0.0;
                 }
-                
-                // Random splashes inside (scaled up chance to compensate for less frequent runs)
-                if (random.nextDouble() < 0.8) {
-                    double rx = (random.nextDouble() * 2 - 1) * radius;
-                    double rz = (random.nextDouble() * 2 - 1) * radius;
-                    if ((rx * rx + rz * rz) <= (radius * radius)) {
-                        Location inner = activePond.clone().add(rx, 0.5, rz);
-                        inner.getWorld().spawnParticle(Particle.PORTAL, inner, 6, 0.1, 0.1, 0.1, 0.05);
+                if (FishingEventManager.this.random.nextDouble() < 0.8 && (rx = (FishingEventManager.this.random.nextDouble() * 2.0 - 1.0) * radius) * rx + (rz = (FishingEventManager.this.random.nextDouble() * 2.0 - 1.0) * radius) * rz <= radius * radius) {
+                    Location inner = FishingEventManager.this.activePond.clone().add(rx, 0.5, rz);
+                    inner.getWorld().spawnParticle(Particle.PORTAL, inner, 6, 0.1, 0.1, 0.1, 0.05);
+                }
+            }
+        }.runTaskTimer((Plugin)this.plugin, 0L, 4L);
+        this.endEventTask = new BukkitRunnable(){
+
+            public void run() {
+                FishingEventManager.this.endEvent();
+            }
+        }.runTaskLater((Plugin)this.plugin, 1200L * (long)duration);
+        if (duration > 5) {
+            this.warningTasks.add(new BukkitRunnable(){
+
+                public void run() {
+                    if (FishingEventManager.this.activePond != null) {
+                        Bukkit.broadcast((Component)LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&eThe Legendary Fish Pond will disappear in 5 minutes!"));
                     }
                 }
-            }
-        }.runTaskTimer(plugin, 0L, 4L);
-
-        // End Task
-        endEventTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                endEvent();
-            }
-        }.runTaskLater(plugin, 20L * 60 * duration);
-        
-        // Warning tasks
-        if (duration > 5) {
-            warningTasks.add(new BukkitRunnable() {
-                @Override
-                public void run() {
-                    if (activePond != null) Bukkit.broadcast(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&eThe Legendary Fish Pond will disappear in 5 minutes!"));
-                }
-            }.runTaskLater(plugin, 20L * 60 * (duration - 5)));
+            }.runTaskLater((Plugin)this.plugin, 1200L * (long)(duration - 5)));
         }
         if (duration > 2) {
-            warningTasks.add(new BukkitRunnable() {
-                @Override
+            this.warningTasks.add(new BukkitRunnable(){
+
                 public void run() {
-                    if (activePond != null) Bukkit.broadcast(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&cThe Legendary Fish Pond will disappear in 2 minutes!"));
+                    if (FishingEventManager.this.activePond != null) {
+                        Bukkit.broadcast((Component)LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&cThe Legendary Fish Pond will disappear in 2 minutes!"));
+                    }
                 }
-            }.runTaskLater(plugin, 20L * 60 * (duration - 2)));
+            }.runTaskLater((Plugin)this.plugin, 1200L * (long)(duration - 2)));
         }
         if (duration > 1) {
-            warningTasks.add(new BukkitRunnable() {
-                @Override
-                public void run() {
-                    if (activePond != null) Bukkit.broadcast(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&4&lThe Legendary Fish Pond will disappear in 1 minute!"));
-                }
-            }.runTaskLater(plugin, 20L * 60 * (duration - 1)));
-        }
+            this.warningTasks.add(new BukkitRunnable(){
 
-        // Pond enter/leave tracking task
-        pondCheckTask = new BukkitRunnable() {
-            @Override
+                public void run() {
+                    if (FishingEventManager.this.activePond != null) {
+                        Bukkit.broadcast((Component)LegacyComponentSerializer.legacyAmpersand().deserialize(prefix + "&4&lThe Legendary Fish Pond will disappear in 1 minute!"));
+                    }
+                }
+            }.runTaskLater((Plugin)this.plugin, 1200L * (long)(duration - 1)));
+        }
+        this.pondCheckTask = new BukkitRunnable(){
+
             public void run() {
-                if (activePond == null) {
+                if (FishingEventManager.this.activePond == null) {
                     this.cancel();
                     return;
                 }
                 double checkRadius = config.getDouble("pond-event.radius", 5.0);
                 double radSq = checkRadius * checkRadius;
                 String pondPrefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-                String enterMsg = config.getString("pond-event.enter-message", "&a✦ You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!");
-                String leaveMsg = config.getString("pond-event.leave-message", "&7✦ You left the Legendary Fishing Pond area.");
-
+                String enterMsg = config.getString("pond-event.enter-message", "&a\u2726 You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!");
+                String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.");
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    if (!p.getWorld().getName().equals(activePond.getWorld().getName())) {
-                        if (playersInPond.remove(p.getUniqueId())) {
-                            TextUtil.sendMessage(p, pondPrefix + leaveMsg);
-                        }
+                    if (!p.getWorld().getName().equals(FishingEventManager.this.activePond.getWorld().getName())) {
+                        if (!FishingEventManager.this.playersInPond.remove(p.getUniqueId())) continue;
+                        TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
                         continue;
                     }
-                    double dx = p.getLocation().getX() - activePond.getX();
-                    double dz = p.getLocation().getZ() - activePond.getZ();
-                    double dy = Math.abs(p.getLocation().getY() - activePond.getY());
-
+                    double dx = p.getLocation().getX() - FishingEventManager.this.activePond.getX();
+                    double dz = p.getLocation().getZ() - FishingEventManager.this.activePond.getZ();
+                    double dy = Math.abs(p.getLocation().getY() - FishingEventManager.this.activePond.getY());
                     if (dx * dx + dz * dz <= radSq && dy <= 10.0) {
-                        if (playersInPond.add(p.getUniqueId())) {
-                            TextUtil.sendMessage(p, pondPrefix + enterMsg);
-                            p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
-                        }
-                    } else {
-                        if (playersInPond.remove(p.getUniqueId())) {
-                            TextUtil.sendMessage(p, pondPrefix + leaveMsg);
-                        }
+                        if (!FishingEventManager.this.playersInPond.add(p.getUniqueId())) continue;
+                        TextUtil.sendMessage((CommandSender)p, pondPrefix + enterMsg);
+                        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
+                        continue;
                     }
+                    if (!FishingEventManager.this.playersInPond.remove(p.getUniqueId())) continue;
+                    TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L);
+        }.runTaskTimer((Plugin)this.plugin, 0L, 20L);
     }
 
     private void endEvent() {
-        if (activePond == null) return;
-        
-        FileConfiguration config = module.getConfig();
+        if (this.activePond == null) {
+            return;
+        }
+        FileConfiguration config = this.module.getConfig();
         String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-        String leaveMsg = config.getString("pond-event.leave-message", "&7✦ You left the Legendary Fishing Pond area.");
-        
-        // Notify all players in the pond that the event ended
-        for (java.util.UUID uuid : playersInPond) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) {
-                TextUtil.sendMessage(p, prefix + leaveMsg);
-            }
+        String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.");
+        for (UUID uuid : this.playersInPond) {
+            Player p = Bukkit.getPlayer((UUID)uuid);
+            if (p == null) continue;
+            TextUtil.sendMessage((CommandSender)p, prefix + leaveMsg);
         }
-        playersInPond.clear();
-        
+        this.playersInPond.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
-            TextUtil.sendMessage(p, prefix + "&7The Legendary Fish Pond has faded away...");
+            TextUtil.sendMessage((CommandSender)p, prefix + "&7The Legendary Fish Pond has faded away...");
         }
-        
-        activePond = null;
-        if (particleTask != null) particleTask.cancel();
-        endEventTask = null;
-        if (pondCheckTask != null) pondCheckTask.cancel();
-        for (org.bukkit.scheduler.BukkitTask task : warningTasks) task.cancel();
-        warningTasks.clear();
+        this.activePond = null;
+        if (this.particleTask != null) {
+            this.particleTask.cancel();
+        }
+        this.endEventTask = null;
+        if (this.pondCheckTask != null) {
+            this.pondCheckTask.cancel();
+        }
+        for (BukkitTask task : this.warningTasks) {
+            task.cancel();
+        }
+        this.warningTasks.clear();
     }
 
-    private void searchWaterAsync(org.bukkit.World world, int radius, int attemptsLeft) {
-        if (attemptsLeft <= 0) return; // Gave up
-        
+    private void searchWaterAsync(World world, int radius, int attemptsLeft) {
+        if (attemptsLeft <= 0) {
+            return;
+        }
         Location center = world.getSpawnLocation();
-        int offsetX = (random.nextInt(radius * 2) - radius);
-        int offsetZ = (random.nextInt(radius * 2) - radius);
+        int offsetX = this.random.nextInt(radius * 2) - radius;
+        int offsetZ = this.random.nextInt(radius * 2) - radius;
         int targetX = center.getBlockX() + offsetX;
         int targetZ = center.getBlockZ() + offsetZ;
-        
-        // Asynchronously load the chunk so we don't lag the server at all
-        world.getChunkAtAsync(targetX >> 4, targetZ >> 4).thenAccept(chunk -> {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                Location testLoc = new Location(world, targetX, 0, targetZ);
-                Block highest = world.getHighestBlockAt(testLoc);
-                if (highest.getType() == Material.WATER && isLargeWaterBody(highest)) {
-                    startFormingPhase(highest.getLocation(), module.getConfig());
-                } else {
-                    searchWaterAsync(world, radius, attemptsLeft - 1);
-                }
-            });
-        });
+        world.getChunkAtAsync(targetX >> 4, targetZ >> 4).thenAccept(chunk -> Bukkit.getScheduler().runTask((Plugin)this.plugin, () -> {
+            Location testLoc = new Location(world, (double)targetX, 0.0, (double)targetZ);
+            Block highest = world.getHighestBlockAt(testLoc);
+            if (highest.getType() == Material.WATER && this.isLargeWaterBody(highest)) {
+                this.startFormingPhase(highest.getLocation(), this.module.getConfig());
+            } else {
+                this.searchWaterAsync(world, radius, attemptsLeft - 1);
+            }
+        }));
     }
 
     private Location findWaterSync(Location anchor, int searchRadius, int attempts) {
-        for (int i = 0; i < attempts; i++) {
-            int offsetX = (random.nextInt(searchRadius * 2) - searchRadius);
-            int offsetZ = (random.nextInt(searchRadius * 2) - searchRadius);
-            
-            Location testLoc = anchor.clone().add(offsetX, 0, offsetZ);
+        for (int i = 0; i < attempts; ++i) {
+            int offsetX = this.random.nextInt(searchRadius * 2) - searchRadius;
+            int offsetZ = this.random.nextInt(searchRadius * 2) - searchRadius;
+            Location testLoc = anchor.clone().add((double)offsetX, 0.0, (double)offsetZ);
             Block highest = testLoc.getWorld().getHighestBlockAt(testLoc);
-            
-            if (highest.getType() == Material.WATER && isLargeWaterBody(highest)) {
-                return highest.getLocation();
-            }
+            if (highest.getType() != Material.WATER || !this.isLargeWaterBody(highest)) continue;
+            return highest.getLocation();
         }
         return null;
     }
 
     private boolean isLargeWaterBody(Block center) {
-        for (int x = -1; x <= 1; x++) {
-            for (int z = -1; z <= 1; z++) {
-                if (center.getRelative(x, 0, z).getType() != Material.WATER) {
-                    return false;
-                }
+        for (int x = -1; x <= 1; ++x) {
+            for (int z = -1; z <= 1; ++z) {
+                if (center.getRelative(x, 0, z).getType() == Material.WATER) continue;
+                return false;
             }
         }
         return true;
     }
 }
-
-
 

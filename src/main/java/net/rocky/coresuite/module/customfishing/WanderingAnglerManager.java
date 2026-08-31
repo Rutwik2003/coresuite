@@ -1,17 +1,71 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  net.kyori.adventure.text.Component
+ *  org.bukkit.Bukkit
+ *  org.bukkit.ChatColor
+ *  org.bukkit.Location
+ *  org.bukkit.Material
+ *  org.bukkit.NamespacedKey
+ *  org.bukkit.OfflinePlayer
+ *  org.bukkit.Particle
+ *  org.bukkit.Sound
+ *  org.bukkit.World
+ *  org.bukkit.block.Block
+ *  org.bukkit.command.CommandSender
+ *  org.bukkit.configuration.ConfigurationSection
+ *  org.bukkit.entity.Entity
+ *  org.bukkit.entity.EntityType
+ *  org.bukkit.entity.Player
+ *  org.bukkit.entity.Villager
+ *  org.bukkit.entity.Villager$Profession
+ *  org.bukkit.entity.Villager$Type
+ *  org.bukkit.event.EventHandler
+ *  org.bukkit.event.Listener
+ *  org.bukkit.event.entity.EntityBreedEvent
+ *  org.bukkit.event.entity.EntityDamageEvent
+ *  org.bukkit.event.entity.EntityTransformEvent
+ *  org.bukkit.event.entity.VillagerAcquireTradeEvent
+ *  org.bukkit.event.player.PlayerInteractEntityEvent
+ *  org.bukkit.event.world.ChunkLoadEvent
+ *  org.bukkit.inventory.ItemStack
+ *  org.bukkit.inventory.meta.ItemMeta
+ *  org.bukkit.persistence.PersistentDataContainer
+ *  org.bukkit.persistence.PersistentDataType
+ *  org.bukkit.plugin.Plugin
+ *  org.bukkit.potion.PotionEffect
+ *  org.bukkit.potion.PotionEffectType
+ *  org.bukkit.scheduler.BukkitTask
+ */
 package net.rocky.coresuite.module.customfishing;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+import java.util.logging.Level;
+import net.kyori.adventure.text.Component;
 import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.gui.Gui;
-import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
+import net.rocky.coresuite.module.customfishing.CustomFishingModule;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
@@ -24,39 +78,26 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.event.entity.VillagerAcquireTradeEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
-import java.util.logging.Level;
-
-public class WanderingAnglerManager implements Listener {
-
+public class WanderingAnglerManager
+implements Listener {
     private final CoreSuitePlugin plugin;
     private final CustomFishingModule module;
     private final Random random = new Random();
-
     private final NamespacedKey anglerKey;
     private final NamespacedKey fish1Key;
     private final NamespacedKey fish2Key;
     private final NamespacedKey fish3Key;
     private final NamespacedKey spawnTimeKey;
-
     private UUID activeAnglerUuid = null;
     private BukkitTask activeDespawnTask = null;
     private BukkitTask spawningTask = null;
@@ -64,85 +105,82 @@ public class WanderingAnglerManager implements Listener {
     public WanderingAnglerManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;
         this.module = module;
-        this.anglerKey = new NamespacedKey(plugin, "wandering_angler");
-        this.fish1Key = new NamespacedKey(plugin, "wa_fish_1");
-        this.fish2Key = new NamespacedKey(plugin, "wa_fish_2");
-        this.fish3Key = new NamespacedKey(plugin, "wa_fish_3");
-        this.spawnTimeKey = new NamespacedKey(plugin, "wa_spawn_time");
-
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
-
-        checkExistingAnglers();
-        startSpawningTask();
+        this.anglerKey = new NamespacedKey((Plugin)plugin, "wandering_angler");
+        this.fish1Key = new NamespacedKey((Plugin)plugin, "wa_fish_1");
+        this.fish2Key = new NamespacedKey((Plugin)plugin, "wa_fish_2");
+        this.fish3Key = new NamespacedKey((Plugin)plugin, "wa_fish_3");
+        this.spawnTimeKey = new NamespacedKey((Plugin)plugin, "wa_spawn_time");
+        plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
+        this.checkExistingAnglers();
+        this.startSpawningTask();
     }
 
     private void checkExistingAnglers() {
         long now = System.currentTimeMillis();
-        long maxAge = 15 * 60 * 1000L;
-
+        long maxAge = 900000L;
         for (World w : Bukkit.getWorlds()) {
             for (Entity e : w.getEntities()) {
-                if (e.getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
-                    Long spawnTime = e.getPersistentDataContainer().get(spawnTimeKey, PersistentDataType.LONG);
-                    if (spawnTime == null) {
-                        e.remove();
-                        continue;
-                    }
-
-                    long age = now - spawnTime;
-                    if (age >= maxAge) {
-                        e.remove();
-                    } else if (activeAnglerUuid == null) {
-                        activeAnglerUuid = e.getUniqueId();
-                        long remainingTicks = (maxAge - age) / 50L;
-                        scheduleDespawn(activeAnglerUuid, remainingTicks);
-                    } else {
-                        e.remove();
-                    }
+                if (!e.getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) continue;
+                Long spawnTime = (Long)e.getPersistentDataContainer().get(this.spawnTimeKey, PersistentDataType.LONG);
+                if (spawnTime == null) {
+                    e.remove();
+                    continue;
                 }
+                long age = now - spawnTime;
+                if (age >= maxAge) {
+                    e.remove();
+                    continue;
+                }
+                if (this.activeAnglerUuid == null) {
+                    this.activeAnglerUuid = e.getUniqueId();
+                    long remainingTicks = (maxAge - age) / 50L;
+                    this.scheduleDespawn(this.activeAnglerUuid, remainingTicks);
+                    continue;
+                }
+                e.remove();
             }
         }
     }
 
     private void startSpawningTask() {
-        spawningTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
-            if (players.isEmpty()) return;
-
-            Player target = players.get(random.nextInt(players.size()));
-            Location spawnLoc = findSafeSpawn(target.getLocation());
+        this.spawningTask = Bukkit.getScheduler().runTaskTimer((Plugin)this.plugin, () -> {
+            ArrayList players = new ArrayList(Bukkit.getOnlinePlayers());
+            if (players.isEmpty()) {
+                return;
+            }
+            Player target = (Player)players.get(this.random.nextInt(players.size()));
+            Location spawnLoc = this.findSafeSpawn(target.getLocation());
             if (spawnLoc != null) {
-                spawnAngler(spawnLoc);
+                this.spawnAngler(spawnLoc);
             }
         }, 54000L, 54000L);
     }
 
     private Location findSafeSpawn(Location playerLoc) {
         int radius = 15;
-        for (int i = 0; i < 20; i++) {
-            int dx = random.nextInt(radius * 2) - radius;
-            int dz = random.nextInt(radius * 2) - radius;
-            Location tryLoc = playerLoc.clone().add(dx, 0, dz);
+        for (int i = 0; i < 20; ++i) {
+            Location spawnLoc;
+            int dx = this.random.nextInt(radius * 2) - radius;
+            int dz = this.random.nextInt(radius * 2) - radius;
+            Location tryLoc = playerLoc.clone().add((double)dx, 0.0, (double)dz);
             Block highest = tryLoc.getWorld().getHighestBlockAt(tryLoc);
-            if (highest.getType().isSolid() && highest.getType() != Material.LAVA) {
-                Location spawnLoc = highest.getLocation().add(0.5, 1, 0.5);
-                if (spawnLoc.distance(playerLoc) > 5) {
-                    return spawnLoc;
-                }
-            }
+            if (!highest.getType().isSolid() || highest.getType() == Material.LAVA || !((spawnLoc = highest.getLocation().add(0.5, 1.0, 0.5)).distance(playerLoc) > 5.0)) continue;
+            return spawnLoc;
         }
         return null;
     }
 
     public void spawnAngler(Location loc) {
-        ConfigurationSection speciesSec = module.getConfig().getConfigurationSection("species");
-        if (speciesSec == null) return;
-        List<String> keys = new ArrayList<>(speciesSec.getKeys(false));
-        if (keys.isEmpty()) return;
-
-        removeActiveAngler();
-
-        Villager trader = (Villager) loc.getWorld().spawnEntity(loc, EntityType.VILLAGER);
+        ConfigurationSection speciesSec = this.module.getConfig().getConfigurationSection("species");
+        if (speciesSec == null) {
+            return;
+        }
+        ArrayList keys = new ArrayList(speciesSec.getKeys(false));
+        if (keys.isEmpty()) {
+            return;
+        }
+        this.removeActiveAngler();
+        Villager trader = (Villager)loc.getWorld().spawnEntity(loc, EntityType.VILLAGER);
         trader.setProfession(Villager.Profession.FISHERMAN);
         trader.setVillagerType(Villager.Type.JUNGLE);
         trader.customName(TextUtil.colorize("&b&lWandering Angler"));
@@ -154,319 +192,276 @@ public class WanderingAnglerManager implements Listener {
         trader.setCanPickupItems(false);
         trader.setPersistent(false);
         trader.setRemoveWhenFarAway(true);
-
         PersistentDataContainer pdc = trader.getPersistentDataContainer();
-        pdc.set(anglerKey, PersistentDataType.BYTE, (byte) 1);
-        pdc.set(spawnTimeKey, PersistentDataType.LONG, System.currentTimeMillis());
-
-        List<String> common = new ArrayList<>();
-        List<String> rare = new ArrayList<>();
-        List<String> legendary = new ArrayList<>();
-
-        for (String k : keys) {
-            String r = module.getConfig().getString("species." + k + ".rarity", "Common").toLowerCase();
+        pdc.set(this.anglerKey, PersistentDataType.BYTE, (byte) 1);
+        pdc.set(this.spawnTimeKey, PersistentDataType.LONG, System.currentTimeMillis());
+        ArrayList<String> common = new ArrayList<String>();
+        ArrayList<String> rare = new ArrayList<String>();
+        ArrayList<String> legendary = new ArrayList<String>();
+        for (String k : (java.util.List<String>)(java.util.List<?>)keys) {
+            String r = this.module.getConfig().getString("species." + k + ".rarity", "Common").toLowerCase();
             if (r.equals("legendary") || r.equals("mythical")) {
                 legendary.add(k);
-            } else if (r.equals("rare") || r.equals("epic") || r.equals("uncommon")) {
+                continue;
+            }
+            if (r.equals("rare") || r.equals("epic") || r.equals("uncommon")) {
                 rare.add(k);
-            } else {
-                common.add(k);
+                continue;
             }
+            common.add(k);
         }
-
-        List<String> chosenFish = new ArrayList<>();
-        
-        // Pick 3 random fish using weighted probabilities
-        for (int i = 0; i < 3; i++) {
-            double roll = random.nextDouble() * 100.0;
-            List<String> pool;
-            
-            // 70% chance to pick from common pool
-            // 25% chance to pick from rare pool
-            // 5% chance to pick from legendary pool
-            if (roll < 70 && !common.isEmpty()) {
-                pool = common;
-            } else if (roll < 95 && !rare.isEmpty()) {
-                pool = rare;
-            } else if (!legendary.isEmpty()) {
-                pool = legendary;
-            } else if (!rare.isEmpty()) { // fallback
-                pool = rare;
-            } else { // ultimate fallback
-                pool = common;
+        ArrayList<String> chosenFish = new ArrayList<String>();
+        for (int i = 0; i < 3; ++i) {
+            double roll = this.random.nextDouble() * 100.0;
+            ArrayList<String> pool = roll < 70.0 && !common.isEmpty() ? common : (roll < 95.0 && !rare.isEmpty() ? rare : (!legendary.isEmpty() ? legendary : (!rare.isEmpty() ? rare : common)));
+            if (pool == null || pool.isEmpty()) continue;
+            String chosen = (String)pool.get(this.random.nextInt(pool.size()));
+            if (!chosenFish.contains(chosen)) {
+                chosenFish.add(chosen);
+                continue;
             }
-            
-            if (pool != null && !pool.isEmpty()) {
-                String chosen = pool.get(random.nextInt(pool.size()));
-                if (!chosenFish.contains(chosen)) {
-                    chosenFish.add(chosen);
-                } else {
-                    // Try one more time if duplicate
-                    chosen = pool.get(random.nextInt(pool.size()));
-                    if (!chosenFish.contains(chosen)) chosenFish.add(chosen);
-                }
-            }
+            chosen = (String)pool.get(this.random.nextInt(pool.size()));
+            if (chosenFish.contains(chosen)) continue;
+            chosenFish.add(chosen);
         }
-
-        if (chosenFish.size() > 0) pdc.set(fish1Key, PersistentDataType.STRING, chosenFish.get(0));
-        if (chosenFish.size() > 1) pdc.set(fish2Key, PersistentDataType.STRING, chosenFish.get(1));
-        if (chosenFish.size() > 2) pdc.set(fish3Key, PersistentDataType.STRING, chosenFish.get(2));
-
-        loc.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc.clone().add(0, 1, 0), 20, 0.5, 0.5, 0.5, 0.05);
-        loc.getWorld().playSound(loc, Sound.ENTITY_WANDERING_TRADER_AMBIENT, 1f, 1f);
-
-        String prefix = module.getConfig().getString("prefix", "&8[&b&lFishing&8] &r");
-        Bukkit.broadcast(TextUtil.colorize(prefix + "&dThe Wandering Angler has appeared somewhere in the world! He will stay for 15 minutes."));
-
-        activeAnglerUuid = trader.getUniqueId();
-        scheduleDespawn(activeAnglerUuid, 15 * 60 * 20L);
+        if (chosenFish.size() > 0) {
+            pdc.set(this.fish1Key, PersistentDataType.STRING, ((String)chosenFish.get(0)));
+        }
+        if (chosenFish.size() > 1) {
+            pdc.set(this.fish2Key, PersistentDataType.STRING, ((String)chosenFish.get(1)));
+        }
+        if (chosenFish.size() > 2) {
+            pdc.set(this.fish3Key, PersistentDataType.STRING, ((String)chosenFish.get(2)));
+        }
+        loc.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc.clone().add(0.0, 1.0, 0.0), 20, 0.5, 0.5, 0.5, 0.05);
+        loc.getWorld().playSound(loc, Sound.ENTITY_WANDERING_TRADER_AMBIENT, 1.0f, 1.0f);
+        String prefix = this.module.getConfig().getString("prefix", "&8[&b&lFishing&8] &r");
+        Bukkit.broadcast((Component)TextUtil.colorize(prefix + "&dThe Wandering Angler has appeared somewhere in the world! He will stay for 15 minutes."));
+        this.activeAnglerUuid = trader.getUniqueId();
+        this.scheduleDespawn(this.activeAnglerUuid, 18000L);
     }
 
     private void scheduleDespawn(UUID entityId, long ticks) {
-        if (activeDespawnTask != null) {
-            activeDespawnTask.cancel();
+        if (this.activeDespawnTask != null) {
+            this.activeDespawnTask.cancel();
         }
-        activeDespawnTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            Entity entity = Bukkit.getEntity(entityId);
+        this.activeDespawnTask = Bukkit.getScheduler().runTaskLater((Plugin)this.plugin, () -> {
+            Entity entity = Bukkit.getEntity((UUID)entityId);
             if (entity != null && entity.isValid()) {
-                entity.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, entity.getLocation().clone().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.05);
-                entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_WANDERING_TRADER_DISAPPEARED, 1f, 1f);
+                entity.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, entity.getLocation().clone().add(0.0, 1.0, 0.0), 30, 0.5, 0.5, 0.5, 0.05);
+                entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_WANDERING_TRADER_DISAPPEARED, 1.0f, 1.0f);
                 entity.remove();
-                String prefix = module.getConfig().getString("prefix", "&8[&b&lFishing&8] &r");
-                Bukkit.broadcast(TextUtil.colorize(prefix + "&7The Wandering Angler has departed."));
+                String prefix = this.module.getConfig().getString("prefix", "&8[&b&lFishing&8] &r");
+                Bukkit.broadcast((Component)TextUtil.colorize(prefix + "&7The Wandering Angler has departed."));
             }
-            activeAnglerUuid = null;
+            this.activeAnglerUuid = null;
         }, ticks);
     }
 
     private void removeActiveAngler() {
-        if (activeDespawnTask != null) {
-            activeDespawnTask.cancel();
-            activeDespawnTask = null;
+        if (this.activeDespawnTask != null) {
+            this.activeDespawnTask.cancel();
+            this.activeDespawnTask = null;
         }
-        if (activeAnglerUuid != null) {
-            Entity entity = Bukkit.getEntity(activeAnglerUuid);
+        if (this.activeAnglerUuid != null) {
+            Entity entity = Bukkit.getEntity((UUID)this.activeAnglerUuid);
             if (entity != null && entity.isValid()) {
                 entity.remove();
             }
-            activeAnglerUuid = null;
+            this.activeAnglerUuid = null;
         }
     }
 
     public void shutdown() {
-        if (spawningTask != null) {
-            spawningTask.cancel();
-            spawningTask = null;
+        if (this.spawningTask != null) {
+            this.spawningTask.cancel();
+            this.spawningTask = null;
         }
-        removeActiveAngler();
+        this.removeActiveAngler();
     }
 
     public int clearAllAnglers() {
         int count = 0;
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
+        for (World world : Bukkit.getWorlds()) {
             for (Entity entity : world.getEntities()) {
-                if (entity.getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
-                    entity.remove();
-                    count++;
-                }
+                if (!entity.getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) continue;
+                entity.remove();
+                ++count;
             }
         }
-        
-        activeAnglerUuid = null;
-        if (activeDespawnTask != null) {
-            activeDespawnTask.cancel();
-            activeDespawnTask = null;
+        this.activeAnglerUuid = null;
+        if (this.activeDespawnTask != null) {
+            this.activeDespawnTask.cancel();
+            this.activeDespawnTask = null;
         }
         return count;
     }
 
     @EventHandler
     public void onBreed(EntityBreedEvent event) {
-        if (event.getMother().getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE) ||
-            event.getFather().getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
+        if (event.getMother().getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE) || event.getFather().getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onTransform(EntityTransformEvent event) {
-        if (event.getEntity().getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
+        if (event.getEntity().getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onAcquireTrade(VillagerAcquireTradeEvent event) {
-        if (event.getEntity().getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
+        if (event.getEntity().getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onDamage(EntityDamageEvent event) {
-        if (event.getEntity().getPersistentDataContainer().has(anglerKey, PersistentDataType.BYTE)) {
+        if (event.getEntity().getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof Villager trader) {
-            PersistentDataContainer pdc = trader.getPersistentDataContainer();
-            if (pdc.has(anglerKey, PersistentDataType.BYTE)) {
-                event.setCancelled(true);
-                openBlackMarket(event.getPlayer(), trader);
-            }
+        Villager trader;
+        PersistentDataContainer pdc;
+        Entity entity = event.getRightClicked();
+        if (entity instanceof Villager && (pdc = (trader = (Villager)entity).getPersistentDataContainer()).has(this.anglerKey, PersistentDataType.BYTE)) {
+            event.setCancelled(true);
+            this.openBlackMarket(event.getPlayer(), trader);
         }
     }
 
     @EventHandler
-    public void onChunkLoad(org.bukkit.event.world.ChunkLoadEvent event) {
-        for (org.bukkit.entity.Entity entity : event.getChunk().getEntities()) {
-            if (entity.getPersistentDataContainer().has(anglerKey, org.bukkit.persistence.PersistentDataType.BYTE)) {
-                if (activeAnglerUuid == null || !entity.getUniqueId().equals(activeAnglerUuid)) {
-                    entity.remove();
-                }
-            }
+    public void onChunkLoad(ChunkLoadEvent event) {
+        for (Entity entity : event.getChunk().getEntities()) {
+            if (!entity.getPersistentDataContainer().has(this.anglerKey, PersistentDataType.BYTE) || this.activeAnglerUuid != null && entity.getUniqueId().equals(this.activeAnglerUuid)) continue;
+            entity.remove();
         }
     }
 
     private void openBlackMarket(Player player, Villager trader) {
-        plugin.getDatabaseManager().executeAsync(() -> {
-            Set<String> caughtSpecies = new HashSet<>();
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT species_id FROM coresuite_fish_logbook WHERE uuid = ?")) {
+        this.plugin.getDatabaseManager().executeAsync(() -> {
+            HashSet<String> caughtSpecies = new HashSet<String>();
+            try (Connection conn = this.plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT species_id FROM coresuite_fish_logbook WHERE uuid = ?");){
                 stmt.setString(1, player.getUniqueId().toString());
-                try (ResultSet rs = stmt.executeQuery()) {
+                try (ResultSet rs = stmt.executeQuery();){
                     while (rs.next()) {
                         caughtSpecies.add(rs.getString("species_id"));
                     }
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "Failed to load fish logbook for NPC", e);
             }
-            
-            Bukkit.getScheduler().runTask(plugin, () -> {
+            catch (SQLException e) {
+                this.plugin.getLogger().log(Level.SEVERE, "Failed to load fish logbook for NPC", e);
+            }
+            Bukkit.getScheduler().runTask((Plugin)this.plugin, () -> {
                 Gui gui = new Gui("&0Wandering Angler", 3);
                 gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
-
                 PersistentDataContainer pdc = trader.getPersistentDataContainer();
-                String f1 = pdc.get(fish1Key, PersistentDataType.STRING);
-                String f2 = pdc.get(fish2Key, PersistentDataType.STRING);
-                String f3 = pdc.get(fish3Key, PersistentDataType.STRING);
-
-                int[] slots = {11, 13, 15};
-                String[] fishes = {f1, f2, f3};
-
-                for (int i = 0; i < 3; i++) {
+                String f1 = (String)pdc.get(this.fish1Key, PersistentDataType.STRING);
+                String f2 = (String)pdc.get(this.fish2Key, PersistentDataType.STRING);
+                String f3 = (String)pdc.get(this.fish3Key, PersistentDataType.STRING);
+                int[] slots = new int[]{11, 13, 15};
+                String[] fishes = new String[]{f1, f2, f3};
+                for (int i = 0; i < 3; ++i) {
+                    
+                    Material mat;
                     if (fishes[i] == null) continue;
                     String speciesKey = fishes[i];
-                    ConfigurationSection sec = module.getConfig().getConfigurationSection("species." + speciesKey);
+                    ConfigurationSection sec = this.module.getConfig().getConfigurationSection("species." + speciesKey);
                     if (sec == null) continue;
-
                     String coloredName = sec.getString("name", speciesKey);
-                    String uncoloredName = org.bukkit.ChatColor.stripColor(org.bukkit.ChatColor.translateAlternateColorCodes('&', coloredName));
-
-                    List<String> lore = new ArrayList<>();
+                    String uncoloredName = ChatColor.stripColor((String)ChatColor.translateAlternateColorCodes((char)'&', (String)coloredName));
+                    ArrayList<Object> lore = new ArrayList<Object>();
                     lore.add("&7I am paying &d2.5x &7the normal");
                     lore.add("&7price for any &b" + uncoloredName + "&7 you have!");
                     lore.add("");
                     lore.add("&aClick here to sell 1x " + uncoloredName);
-
-                    Material mat;
                     try {
-                        mat = Material.valueOf(sec.getString("material", "COD").toUpperCase());
-                    } catch (Exception e) {
+                        mat = Material.valueOf((String)sec.getString("material", "COD").toUpperCase());
+                    }
+                    catch (Exception e) {
                         mat = Material.COD;
                     }
                     ItemStack displayItem = new ItemStack(mat);
                     ItemMeta meta = displayItem.getItemMeta();
                     if (meta != null) {
+                        String itemModelStr;
                         meta.displayName(TextUtil.colorize("&6&lBounty: " + coloredName));
-                        meta.lore(lore.stream().map(TextUtil::colorize).toList());
-                        
-                        if (sec.contains("custom-model-data")) meta.setCustomModelData(sec.getInt("custom-model-data"));
-                        
-                        String itemModelStr = sec.getString("item-model", "");
-                        if (!itemModelStr.isEmpty()) {
-                            meta.setItemModel(NamespacedKey.fromString(itemModelStr));
+                        meta.lore(((java.util.List<String>)(java.util.List<?>)lore).stream().map(TextUtil::colorize).toList());
+                        if (sec.contains("custom-model-data")) {
+                            meta.setCustomModelData(Integer.valueOf(sec.getInt("custom-model-data")));
                         }
-                        
+                        if (!(itemModelStr = sec.getString("item-model", "")).isEmpty()) {
+                            meta.setItemModel(NamespacedKey.fromString((String)itemModelStr));
+                        }
                         displayItem.setItemMeta(meta);
                     }
-                    
-                    if (!caughtSpecies.contains(uncoloredName)) {
-                        displayItem = new ItemStack(Material.PAPER);
-                        ItemMeta m = displayItem.getItemMeta();
-                        if (m != null) {
-                            m.displayName(TextUtil.colorize("&8???"));
-                            m.setItemModel(NamespacedKey.fromString("barely_default:fish_unknown"));
-                            List<String> unkLore = new ArrayList<>();
-                            unkLore.add("&7I am looking for an undiscovered fish...");
-                            unkLore.add("&cYou have not caught this species yet!");
-                            List<String> biomes = sec.getStringList("biomes");
-                            if (biomes != null && !biomes.isEmpty()) {
-                                unkLore.add("");
-                                unkLore.add("&7Required Biomes:");
-                                for (String b : biomes) {
-                                    unkLore.add("&8- &7" + b);
-                                }
+                    org.bukkit.inventory.meta.ItemMeta m = null;
+                    if (!caughtSpecies.contains(uncoloredName) && ((m = (displayItem = new ItemStack(Material.PAPER)).getItemMeta()) != null)) {
+                        m.displayName(TextUtil.colorize("&8???"));
+                        m.setItemModel(NamespacedKey.fromString((String)"barely_default:fish_unknown"));
+                        ArrayList<Object> unkLore = new ArrayList<Object>();
+                        unkLore.add("&7I am looking for an undiscovered fish...");
+                        unkLore.add("&cYou have not caught this species yet!");
+                        List biomes = sec.getStringList("biomes");
+                        if (biomes != null && !biomes.isEmpty()) {
+                            unkLore.add("");
+                            unkLore.add("&7Required Biomes:");
+                            for (String b : (java.util.List<String>)(java.util.List<?>)(java.util.List<String>)(java.util.List<?>)biomes) {
+                                unkLore.add("&8- &7" + b);
                             }
-                            m.lore(unkLore.stream().map(TextUtil::colorize).toList());
-                            displayItem.setItemMeta(m);
                         }
+                        m.lore(((java.util.List<String>)(java.util.List<?>)unkLore).stream().map(TextUtil::colorize).toList());
+                        displayItem.setItemMeta(m);
                     }
-
-                    final boolean isKnown = caughtSpecies.contains(uncoloredName);
-                    final String targetStrippedName = uncoloredName;
-
+                    boolean isKnown = caughtSpecies.contains(uncoloredName);
+                    String targetStrippedName = uncoloredName;
                     gui.setItem(slots[i], displayItem, click -> {
                         if (!isKnown) {
-                            TextUtil.sendMessage(player, "&cYou have not discovered this fish yet!");
-                            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                            TextUtil.sendMessage((CommandSender)player, "&cYou have not discovered this fish yet!");
+                            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                             return;
                         }
                         boolean sold = false;
-                        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
-                            ItemStack item = player.getInventory().getItem(slot);
-                            if (item == null || !item.hasItemMeta()) continue;
+                        for (int slot = 0; slot < player.getInventory().getSize(); ++slot) {
+                            String spName;
+                            NamespacedKey spKey;
                             
-                            ItemMeta m = item.getItemMeta();
-                            PersistentDataContainer itemPdc = m.getPersistentDataContainer();
-                            NamespacedKey spKey = new NamespacedKey(plugin, "fish_species");
-                            if (itemPdc.has(spKey, PersistentDataType.STRING)) {
-                                String spName = itemPdc.get(spKey, PersistentDataType.STRING);
-                                if (targetStrippedName.equals(spName)) {
-                                    double w = itemPdc.getOrDefault(new NamespacedKey(plugin, "fish_weight"), PersistentDataType.DOUBLE, 1.0);
-                                    double price = itemPdc.getOrDefault(new NamespacedKey(plugin, "fish_price"), PersistentDataType.DOUBLE, 1.0);
-                                    
-                                    double totalValue = w * price * 2.5;
-                                    
-                                    if (item.getAmount() <= 1) {
-                                        player.getInventory().setItem(slot, null);
-                                    } else {
-                                        item.setAmount(item.getAmount() - 1);
-                                        player.getInventory().setItem(slot, item);
-                                    }
-                                    
-                                    plugin.getEconomyManager().deposit(player, totalValue);
-                                    TextUtil.sendMessage(player, "&aSold 1x " + coloredName + " &ato the Angler for &d$" + String.format("%.2f", totalValue) + "&a!");
-                                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
-                                    sold = true;
-                                    break;
-                                }
+                            PersistentDataContainer itemPdc;
+                            ItemStack item2 = player.getInventory().getItem(slot);
+                            ItemMeta mLocal;
+                            if (item2 == null || !item2.hasItemMeta() || !(itemPdc = (mLocal = item2.getItemMeta()).getPersistentDataContainer()).has(spKey = new NamespacedKey((Plugin)this.plugin, "fish_species"), PersistentDataType.STRING) || !targetStrippedName.equals(spName = (String)itemPdc.get(spKey, PersistentDataType.STRING))) continue;
+                            double w = (Double)itemPdc.getOrDefault(new NamespacedKey((Plugin)this.plugin, "fish_weight"), PersistentDataType.DOUBLE, 1.0);
+                            double price = (Double)itemPdc.getOrDefault(new NamespacedKey((Plugin)this.plugin, "fish_price"), PersistentDataType.DOUBLE, 1.0);
+                            double totalValue = w * price * 2.5;
+                            if (item2.getAmount() <= 1) {
+                                player.getInventory().setItem(slot, null);
+                            } else {
+                                item2.setAmount(item2.getAmount() - 1);
+                                
                             }
+                            this.plugin.getEconomyManager().deposit((OfflinePlayer)player, totalValue);
+                            TextUtil.sendMessage((CommandSender)player, "&aSold 1x " + coloredName + " &ato the Angler for &d$" + String.format("%.2f", totalValue) + "&a!");
+                            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+                            sold = true;
+                            break;
                         }
                         if (!sold) {
-                            TextUtil.sendMessage(player, "&cYou don't have any " + coloredName + " &cin your inventory!");
-                            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
+                            TextUtil.sendMessage((CommandSender)player, "&cYou don't have any " + coloredName + " &cin your inventory!");
+                            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                         }
                     });
                 }
-
                 gui.open(player);
-                player.playSound(player.getLocation(), Sound.ENTITY_WANDERING_TRADER_TRADE, 1f, 1f);
+                player.playSound(player.getLocation(), Sound.ENTITY_WANDERING_TRADER_TRADE, 1.0f, 1.0f);
             });
         });
     }
 }
+

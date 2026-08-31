@@ -181,6 +181,10 @@ commands:
     usage: /<command> [now|cancel|set|time]
     permission: coresuite.admin
 
+  treasurehunt:
+    description: Treasure hunt admin/player command
+    usage: /<command> [give|verify|setlocation|resetclaim]
+    permission: coresuite.treasurehunt.use
 permissions:
   coresuite.admin:
     description: Access to /coresuite admin commands
@@ -269,3 +273,9 @@ permissions:
   coresuite.gambling.use:
     description: Access to gambling module
     default: true
+  coresuite.treasurehunt.use:
+    description: Use treasure hunt verify command
+    default: true
+  coresuite.treasurehunt.admin:
+    description: Admin treasure hunt commands
+    default: op
