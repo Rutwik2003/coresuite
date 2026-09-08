@@ -66,8 +66,19 @@ public final class EconomyManager {
      */
     public boolean deposit(OfflinePlayer player, double amount) {
         if (!isAvailable() || player == null || amount <= 0) return false;
-        EconomyResponse response = economy.depositPlayer(player, amount);
-        return response.transactionSuccess();
+        try {
+            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
+            EconomyResponse response = economy.depositPlayer(target, amount);
+            if (response != null && response.transactionSuccess()) return true;
+        } catch (Throwable ignored) {}
+        if (player.getName() != null) {
+            try {
+                EconomyResponse response = economy.depositPlayer(player.getName(), amount);
+                if (response != null && response.transactionSuccess()) return true;
+            } catch (Throwable ignored) {}
+        }
+        plugin.getLogger().warning("[EconomyManager] Failed to deposit " + amount + " to player: " + player.getName());
+        return false;
     }
 
     /**
@@ -79,8 +90,19 @@ public final class EconomyManager {
      */
     public boolean withdraw(OfflinePlayer player, double amount) {
         if (!isAvailable() || player == null || amount <= 0) return false;
-        EconomyResponse response = economy.withdrawPlayer(player, amount);
-        return response.transactionSuccess();
+        try {
+            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
+            EconomyResponse response = economy.withdrawPlayer(target, amount);
+            if (response != null && response.transactionSuccess()) return true;
+        } catch (Throwable ignored) {}
+        if (player.getName() != null) {
+            try {
+                EconomyResponse response = economy.withdrawPlayer(player.getName(), amount);
+                if (response != null && response.transactionSuccess()) return true;
+            } catch (Throwable ignored) {}
+        }
+        plugin.getLogger().warning("[EconomyManager] Failed to withdraw " + amount + " from player: " + player.getName());
+        return false;
     }
 
     /**
@@ -91,7 +113,16 @@ public final class EconomyManager {
      */
     public double getBalance(OfflinePlayer player) {
         if (!isAvailable() || player == null) return 0.0;
-        return economy.getBalance(player);
+        try {
+            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
+            return economy.getBalance(target);
+        } catch (Throwable ignored) {}
+        if (player.getName() != null) {
+            try {
+                return economy.getBalance(player.getName());
+            } catch (Throwable ignored) {}
+        }
+        return 0.0;
     }
 
     /**
@@ -103,7 +134,16 @@ public final class EconomyManager {
      */
     public boolean has(OfflinePlayer player, double amount) {
         if (!isAvailable() || player == null) return false;
-        return economy.has(player, amount);
+        try {
+            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
+            return economy.has(target, amount);
+        } catch (Throwable ignored) {}
+        if (player.getName() != null) {
+            try {
+                return economy.has(player.getName(), amount);
+            } catch (Throwable ignored) {}
+        }
+        return false;
     }
 
     /**

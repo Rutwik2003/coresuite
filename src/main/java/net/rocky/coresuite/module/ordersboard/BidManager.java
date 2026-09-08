@@ -3,6 +3,8 @@ package net.rocky.coresuite.module.ordersboard;
 import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.sql.Connection;
@@ -172,13 +174,33 @@ public class BidManager {
      * Accept a bid: updates bid status, updates order price, persists contractor & ACCEPTED status, notifies bidder.
      */
     public void acceptBid(Bid bid, Order order, Runnable onSuccess, Runnable onFail) {
-        // Run balance adjustment check on main thread first
         UUID posterUuid = UUID.fromString(order.getPosterUuid());
-        org.bukkit.OfflinePlayer poster = Bukkit.getOfflinePlayer(posterUuid);
+        Player onlinePoster = Bukkit.getPlayer(posterUuid);
+        OfflinePlayer poster = (onlinePoster != null) ? onlinePoster : Bukkit.getOfflinePlayer(posterUuid);
         double diff = bid.bidAmount() - order.getPriceTotal();
-        if (diff > 0 && !plugin.getEconomyManager().has(poster, diff)) {
-            Bukkit.getScheduler().runTask(plugin, onFail);
-            return;
+
+        // 1. If negotiated price is HIGHER, withdraw difference upfront synchronously on main thread
+        if (diff > 0) {
+            if (!plugin.getEconomyManager().has(poster, diff)) {
+                if (onlinePoster != null) {
+                    onlinePoster.playSound(onlinePoster.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                    TextUtil.sendMessage(onlinePoster, "&8[&6Orders&8] &cYou do not have enough money to accept this higher bid! You need an extra &e" + plugin.getEconomyManager().format(diff) + "&c.");
+                }
+                Bukkit.getScheduler().runTask(plugin, onFail);
+                return;
+            }
+            boolean withdrawn = plugin.getEconomyManager().withdraw(poster, diff);
+            if (!withdrawn) {
+                if (onlinePoster != null) {
+                    onlinePoster.playSound(onlinePoster.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                    TextUtil.sendMessage(onlinePoster, "&8[&6Orders&8] &cTransaction failed: could not withdraw &e" + plugin.getEconomyManager().format(diff) + " &cfor escrow adjustment.");
+                }
+                Bukkit.getScheduler().runTask(plugin, onFail);
+                return;
+            }
+            if (onlinePoster != null) {
+                TextUtil.sendMessage(onlinePoster, "&8[&6Orders&8] &c-" + plugin.getEconomyManager().format(diff) + " &7withdrawn from your balance and added to order escrow.");
+            }
         }
 
         plugin.getDatabaseManager().executeAsync(() -> {
@@ -192,6 +214,9 @@ public class BidManager {
                         try (ResultSet rs = checkStmt.executeQuery()) {
                             if (!rs.next() || rs.getInt("active") != 1 || !"OPEN".equalsIgnoreCase(rs.getString("status"))) {
                                 conn.rollback();
+                                if (diff > 0) {
+                                    Bukkit.getScheduler().runTask(plugin, () -> plugin.getEconomyManager().deposit(poster, diff));
+                                }
                                 Bukkit.getScheduler().runTask(plugin, onFail);
                                 return;
                             }
@@ -227,22 +252,29 @@ public class BidManager {
                     conn.commit();
                 } catch (SQLException ex) {
                     conn.rollback();
+                    if (diff > 0) {
+                        Bukkit.getScheduler().runTask(plugin, () -> plugin.getEconomyManager().deposit(poster, diff));
+                    }
                     throw ex;
                 } finally {
                     conn.setAutoCommit(true);
                 }
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Failed to accept bid", e);
+                if (diff > 0) {
+                    Bukkit.getScheduler().runTask(plugin, () -> plugin.getEconomyManager().deposit(poster, diff));
+                }
                 Bukkit.getScheduler().runTask(plugin, onFail);
                 return;
             }
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                // Adjust poster balance for escrow difference
-                if (diff > 0) {
-                    plugin.getEconomyManager().withdraw(poster, diff);
-                } else if (diff < 0) {
+                // If negotiated price was LOWER, refund excess escrow to poster
+                if (diff < 0) {
                     plugin.getEconomyManager().deposit(poster, -diff);
+                    if (onlinePoster != null) {
+                        TextUtil.sendMessage(onlinePoster, "&8[&6Orders&8] &a+" + plugin.getEconomyManager().format(-diff) + " &7excess escrow refunded to your balance!");
+                    }
                 }
 
                 // Update in-memory order object

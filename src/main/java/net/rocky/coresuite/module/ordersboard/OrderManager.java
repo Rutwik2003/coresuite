@@ -461,7 +461,9 @@ public class OrderManager {
                                 activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
                                 
                                 double priceRemaining = order.getPriceRemaining();
-                                plugin.getEconomyManager().deposit(Bukkit.getOfflinePlayer(pUuid), priceRemaining);
+                                org.bukkit.entity.Player pOnline = Bukkit.getPlayer(pUuid);
+                                org.bukkit.OfflinePlayer pTarget = (pOnline != null) ? pOnline : Bukkit.getOfflinePlayer(pUuid);
+                                plugin.getEconomyManager().deposit(pTarget, priceRemaining);
                                 onSuccess.accept(priceRemaining);
                             });
                             return;
