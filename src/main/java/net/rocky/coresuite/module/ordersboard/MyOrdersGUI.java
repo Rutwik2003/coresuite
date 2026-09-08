@@ -62,13 +62,23 @@ public class MyOrdersGUI {
                     lore.add("&7Type:       &fItem Request");
                     lore.add("&7Progress:   &a" + order.getAmountFilled() + "&7/&f" + order.getAmountNeeded() + " &7items");
                     lore.add("&7Per item:   &a" + plugin.getEconomyManager().format(order.getPricePerItem()));
-                    lore.add("&7Remaining:  &a" + plugin.getEconomyManager().format(order.getPriceRemaining()));
+                    lore.add("&7Total:      &a" + plugin.getEconomyManager().format(order.getPriceTotal()));
+                    lore.add("&8&m────────────────────");
+                    if (order.getStatus() == Order.Status.ACCEPTED) {
+                        String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
+                        lore.add("&7Status:     &a✓ Accepted by &f" + acceptor);
+                        lore.add("&7Awaiting delivery of items from &f" + acceptor);
+                    } else {
+                        lore.add("&7Status:     &eOpen for fulfillment / bids");
+                    }
                 } else {
                     lore.add("&7Type:       &bService Request");
                     lore.add("&7Details:    &f" + (order.getDescription() != null ? order.getDescription() : "N/A"));
                     lore.add("&7Reward:     &a" + plugin.getEconomyManager().format(order.getPriceTotal()));
+                    lore.add("&8&m────────────────────");
                     if (order.getStatus() == Order.Status.ACCEPTED) {
-                        lore.add("&7Accepted:   &a" + order.getAcceptedByName());
+                        String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
+                        lore.add("&7Status:     &a✓ Accepted by &f" + acceptor);
                         lore.add("&a▶ Click to MARK COMPLETED (Pay acceptor)");
                     } else {
                         lore.add("&7Status:     &eWaiting for someone to accept");

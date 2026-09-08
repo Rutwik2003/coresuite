@@ -21,8 +21,8 @@ public class Order {
     // SERVICE orders
     private final String description;         // null for ITEM
 
-    private final double pricePerItem;        // for ITEM: total/amount. For SERVICE: total price (amount=1)
-    private final double priceTotal;
+    private double pricePerItem;        // for ITEM: total/amount. For SERVICE: total price (amount=1)
+    private double priceTotal;
     private final long postedAt;
     private final long expiresAt;
     private boolean active;
@@ -81,6 +81,8 @@ public class Order {
     public void setAmountFilled(int amountFilled)     { this.amountFilled = amountFilled; }
     public void setActive(boolean active)             { this.active = active; }
     public void setStatus(Status status)              { this.status = status; }
+    public void setPriceTotal(double priceTotal)      { this.priceTotal = priceTotal; }
+    public void setPricePerItem(double pricePerItem)  { this.pricePerItem = pricePerItem; }
     public void setAcceptedBy(String uuid, String name) {
         this.acceptedByUuid = uuid;
         this.acceptedByName = name;

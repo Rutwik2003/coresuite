@@ -12,6 +12,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.util.StringUtil;
 
 import java.util.ArrayList;
@@ -64,6 +65,13 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
         }
     }
 
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        if (orderManager != null) {
+            orderManager.deliverPendingItems(event.getPlayer());
+        }
+    }
+
     @Override
     public void onDisable() {
         PluginCommand command = plugin.getCommand("orders");
@@ -85,6 +93,9 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
         }
         
         Player player = (Player) sender;
+        if (orderManager != null) {
+            orderManager.deliverPendingItems(player);
+        }
         
         if (args.length == 0 || args[0].equalsIgnoreCase("gui")) {
             boardGUI.open(player, 1, BoardGUI.SortMode.HIGHEST_PAYOUT);

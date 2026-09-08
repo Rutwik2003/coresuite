@@ -65,6 +65,14 @@ public class OrderManager {
                 "filled_at BIGINT NOT NULL" +
                 ")"
         );
+        plugin.getDatabaseManager().execute(
+                "CREATE TABLE IF NOT EXISTS coresuite_orders_pending_items (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "player_uuid TEXT NOT NULL, " +
+                "material TEXT NOT NULL, " +
+                "amount INTEGER NOT NULL" +
+                ")"
+        );
     }
 
     private void loadCache() {
@@ -323,6 +331,18 @@ public class OrderManager {
                                 Bukkit.getScheduler().runTask(plugin, onFail);
                                 return;
                             }
+
+                            if (order.getStatus() == Order.Status.ACCEPTED && order.getAcceptedByUuid() != null) {
+                                if (!order.getAcceptedByUuid().equals(filler.getUniqueId().toString())) {
+                                    conn.rollback();
+                                    Bukkit.getScheduler().runTask(plugin, () -> {
+                                        String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                                        TextUtil.sendMessage(filler, prefix + "&cThis order deal is reserved for &f" + order.getAcceptedByName() + "&c.");
+                                        onFail.run();
+                                    });
+                                    return;
+                                }
+                            }
                             
                             int actualToFill = Math.min(amountToFill, order.getAmountRemaining());
                             
@@ -340,7 +360,11 @@ public class OrderManager {
                                 
                                 plugin.getDatabaseManager().executeAsync(() -> {
                                     try {
-                                        try (PreparedStatement updateStmt = conn.prepareStatement("UPDATE coresuite_orders SET amount_filled = amount_filled + ? WHERE id = ?")) {
+                                        boolean fullyFilled = (order.getAmountFilled() + actualToFill >= order.getAmountNeeded());
+                                        String updateSql = fullyFilled
+                                            ? "UPDATE coresuite_orders SET amount_filled = amount_filled + ?, active = 0, status = 'COMPLETED' WHERE id = ?"
+                                            : "UPDATE coresuite_orders SET amount_filled = amount_filled + ? WHERE id = ?";
+                                        try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
                                             updateStmt.setInt(1, actualToFill);
                                             updateStmt.setInt(2, orderId);
                                             updateStmt.executeUpdate();
@@ -355,13 +379,29 @@ public class OrderManager {
                                             insertFill.setLong(6, System.currentTimeMillis());
                                             insertFill.executeUpdate();
                                         }
+
+                                        // If poster is offline, queue pending items
+                                        Player posterCheck = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
+                                        if (posterCheck == null) {
+                                            try (PreparedStatement pendingStmt = conn.prepareStatement(
+                                                    "INSERT INTO coresuite_orders_pending_items (player_uuid, material, amount) VALUES (?, ?, ?)")) {
+                                                pendingStmt.setString(1, order.getPosterUuid());
+                                                pendingStmt.setString(2, order.getMaterial().name());
+                                                pendingStmt.setInt(3, actualToFill);
+                                                pendingStmt.executeUpdate();
+                                            }
+                                        }
                                         
                                         conn.commit();
                                         
                                         Bukkit.getScheduler().runTask(plugin, () -> {
-                                            // Notify poster
+                                            // Notify poster and deliver items if online
                                             Player poster = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
                                             if (poster != null) {
+                                                Map<Integer, ItemStack> overflow = poster.getInventory().addItem(new ItemStack(order.getMaterial(), actualToFill));
+                                                if (!overflow.isEmpty()) {
+                                                    overflow.values().forEach(it -> poster.getWorld().dropItemNaturally(poster.getLocation(), it));
+                                                }
                                                 String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
                                                 int newFilled = order.getAmountFilled() + actualToFill;
                                                 if (newFilled >= order.getAmountNeeded()) {
@@ -422,6 +462,10 @@ public class OrderManager {
                             try (PreparedStatement updateStmt = conn.prepareStatement("UPDATE coresuite_orders SET active = 0 WHERE id = ?")) {
                                 updateStmt.setInt(1, orderId);
                                 updateStmt.executeUpdate();
+                            }
+                            try (PreparedStatement rejectBids = conn.prepareStatement("UPDATE coresuite_order_bids SET status = 'REJECTED' WHERE order_id = ? AND status = 'PENDING'")) {
+                                rejectBids.setInt(1, orderId);
+                                rejectBids.executeUpdate();
                             }
                             conn.commit();
                             
@@ -560,5 +604,52 @@ public class OrderManager {
             }
         }
         return sb.toString().trim();
+    }
+
+    public void deliverPendingItems(Player player) {
+        plugin.getDatabaseManager().executeAsync(() -> {
+            List<Map.Entry<Material, Integer>> itemsToGive = new ArrayList<>();
+            List<Integer> idsToDelete = new ArrayList<>();
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT id, material, amount FROM coresuite_orders_pending_items WHERE player_uuid = ?")) {
+                stmt.setString(1, player.getUniqueId().toString());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        String matStr = rs.getString("material");
+                        Material mat = Material.matchMaterial(matStr);
+                        int amt = rs.getInt("amount");
+                        if (mat != null && amt > 0) {
+                            itemsToGive.add(Map.entry(mat, amt));
+                            idsToDelete.add(rs.getInt("id"));
+                        }
+                    }
+                }
+                if (!idsToDelete.isEmpty()) {
+                    try (PreparedStatement del = conn.prepareStatement("DELETE FROM coresuite_orders_pending_items WHERE id = ?")) {
+                        for (int id : idsToDelete) {
+                            del.setInt(1, id);
+                            del.addBatch();
+                        }
+                        del.executeBatch();
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to load pending item deliveries", e);
+            }
+
+            if (!itemsToGive.isEmpty()) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                    for (Map.Entry<Material, Integer> entry : itemsToGive) {
+                        Map<Integer, ItemStack> overflow = player.getInventory().addItem(new ItemStack(entry.getKey(), entry.getValue()));
+                        if (!overflow.isEmpty()) {
+                            overflow.values().forEach(it -> player.getWorld().dropItemNaturally(player.getLocation(), it));
+                        }
+                        TextUtil.sendMessage(player, prefix + "&aDelivered &e" + entry.getValue() + "x " + formatMaterialName(entry.getKey()) + " &afrom fulfilled orders while you were away!");
+                    }
+                });
+            }
+        });
     }
 }

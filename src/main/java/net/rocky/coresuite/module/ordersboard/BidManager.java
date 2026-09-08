@@ -59,18 +59,56 @@ public class BidManager {
 
     /** Place a new bid on an order. Notifies poster if online. */
     public void placeBid(Order order, Player bidder, double amount, Runnable onSuccess, Runnable onFail) {
+        if (order.getStatus() == Order.Status.ACCEPTED) {
+            Bukkit.getScheduler().runTask(plugin, onFail);
+            return;
+        }
         plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT INTO coresuite_order_bids (order_id, bidder_uuid, bidder_name, bid_amount, bid_at, status) " +
-                     "VALUES (?, ?, ?, ?, ?, 'PENDING')",
-                     Statement.RETURN_GENERATED_KEYS)) {
-                stmt.setInt(1, order.getId());
-                stmt.setString(2, bidder.getUniqueId().toString());
-                stmt.setString(3, bidder.getName());
-                stmt.setDouble(4, amount);
-                stmt.setLong(5, System.currentTimeMillis());
-                stmt.executeUpdate();
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                // Verify order is still OPEN, active, and not expired in DB
+                try (PreparedStatement checkOrder = conn.prepareStatement(
+                        "SELECT status, active, expires_at FROM coresuite_orders WHERE id = ?")) {
+                    checkOrder.setInt(1, order.getId());
+                    try (ResultSet rs = checkOrder.executeQuery()) {
+                        if (!rs.next() || rs.getInt("active") != 1 || rs.getLong("expires_at") <= System.currentTimeMillis() || !"OPEN".equalsIgnoreCase(rs.getString("status"))) {
+                            Bukkit.getScheduler().runTask(plugin, onFail);
+                            return;
+                        }
+                    }
+                }
+
+                // Check if bidder already has a PENDING bid on this order
+                int existingBidId = -1;
+                try (PreparedStatement checkBid = conn.prepareStatement(
+                        "SELECT id FROM coresuite_order_bids WHERE order_id = ? AND bidder_uuid = ? AND status = 'PENDING'")) {
+                    checkBid.setInt(1, order.getId());
+                    checkBid.setString(2, bidder.getUniqueId().toString());
+                    try (ResultSet rs = checkBid.executeQuery()) {
+                        if (rs.next()) existingBidId = rs.getInt("id");
+                    }
+                }
+
+                if (existingBidId > 0) {
+                    try (PreparedStatement updateBid = conn.prepareStatement(
+                            "UPDATE coresuite_order_bids SET bid_amount = ?, bid_at = ? WHERE id = ?")) {
+                        updateBid.setDouble(1, amount);
+                        updateBid.setLong(2, System.currentTimeMillis());
+                        updateBid.setInt(3, existingBidId);
+                        updateBid.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "INSERT INTO coresuite_order_bids (order_id, bidder_uuid, bidder_name, bid_amount, bid_at, status) " +
+                            "VALUES (?, ?, ?, ?, ?, 'PENDING')",
+                            Statement.RETURN_GENERATED_KEYS)) {
+                        stmt.setInt(1, order.getId());
+                        stmt.setString(2, bidder.getUniqueId().toString());
+                        stmt.setString(3, bidder.getName());
+                        stmt.setDouble(4, amount);
+                        stmt.setLong(5, System.currentTimeMillis());
+                        stmt.executeUpdate();
+                    }
+                }
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Failed to place bid", e);
                 Bukkit.getScheduler().runTask(plugin, onFail);
@@ -131,13 +169,35 @@ public class BidManager {
     }
 
     /**
-     * Accept a bid: updates bid status, updates order price, notifies bidder.
+     * Accept a bid: updates bid status, updates order price, persists contractor & ACCEPTED status, notifies bidder.
      */
     public void acceptBid(Bid bid, Order order, Runnable onSuccess, Runnable onFail) {
+        // Run balance adjustment check on main thread first
+        UUID posterUuid = UUID.fromString(order.getPosterUuid());
+        org.bukkit.OfflinePlayer poster = Bukkit.getOfflinePlayer(posterUuid);
+        double diff = bid.bidAmount() - order.getPriceTotal();
+        if (diff > 0 && !plugin.getEconomyManager().has(poster, diff)) {
+            Bukkit.getScheduler().runTask(plugin, onFail);
+            return;
+        }
+
         plugin.getDatabaseManager().executeAsync(() -> {
             try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                 conn.setAutoCommit(false);
                 try {
+                    // Double check order is still active and OPEN in DB
+                    try (PreparedStatement checkStmt = conn.prepareStatement(
+                            "SELECT status, active FROM coresuite_orders WHERE id = ?")) {
+                        checkStmt.setInt(1, order.getId());
+                        try (ResultSet rs = checkStmt.executeQuery()) {
+                            if (!rs.next() || rs.getInt("active") != 1 || !"OPEN".equalsIgnoreCase(rs.getString("status"))) {
+                                conn.rollback();
+                                Bukkit.getScheduler().runTask(plugin, onFail);
+                                return;
+                            }
+                        }
+                    }
+
                     // Mark bid as ACCEPTED
                     try (PreparedStatement stmt = conn.prepareStatement(
                             "UPDATE coresuite_order_bids SET status = 'ACCEPTED' WHERE id = ?")) {
@@ -151,15 +211,17 @@ public class BidManager {
                         stmt.setInt(2, bid.id());
                         stmt.executeUpdate();
                     }
-                    // Update order price_total and price_per_item to the bid amount
+                    // Update order price_total, price_per_item, status = 'ACCEPTED', accepted_by_uuid, accepted_by_name
                     double newPricePerItem = order.getAmountNeeded() > 0
                         ? bid.bidAmount() / order.getAmountNeeded()
                         : bid.bidAmount();
                     try (PreparedStatement stmt = conn.prepareStatement(
-                            "UPDATE coresuite_orders SET price_total = ?, price_per_item = ? WHERE id = ?")) {
+                            "UPDATE coresuite_orders SET price_total = ?, price_per_item = ?, status = 'ACCEPTED', accepted_by_uuid = ?, accepted_by_name = ? WHERE id = ?")) {
                         stmt.setDouble(1, bid.bidAmount());
                         stmt.setDouble(2, newPricePerItem);
-                        stmt.setInt(3, bid.orderId());
+                        stmt.setString(3, bid.bidderUuid());
+                        stmt.setString(4, bid.bidderName());
+                        stmt.setInt(5, bid.orderId());
                         stmt.executeUpdate();
                     }
                     conn.commit();
@@ -174,15 +236,33 @@ public class BidManager {
                 Bukkit.getScheduler().runTask(plugin, onFail);
                 return;
             }
+
             Bukkit.getScheduler().runTask(plugin, () -> {
+                // Adjust poster balance for escrow difference
+                if (diff > 0) {
+                    plugin.getEconomyManager().withdraw(poster, diff);
+                } else if (diff < 0) {
+                    plugin.getEconomyManager().deposit(poster, -diff);
+                }
+
+                // Update in-memory order object
+                order.setStatus(Order.Status.ACCEPTED);
+                order.setAcceptedBy(bid.bidderUuid(), bid.bidderName());
+                double newPricePerItem = order.getAmountNeeded() > 0
+                    ? bid.bidAmount() / order.getAmountNeeded()
+                    : bid.bidAmount();
+                order.setPriceTotal(bid.bidAmount());
+                order.setPricePerItem(newPricePerItem);
+
                 onSuccess.run();
+
                 // Notify bidder
                 Player bidder = Bukkit.getPlayer(UUID.fromString(bid.bidderUuid()));
                 if (bidder != null) {
                     String type = order.isItemOrder() ? order.getDisplayTitle() : "service";
                     TextUtil.sendMessage(bidder,
                         "&8[&6Orders&8] &a\u2713 Your bid of &e" + plugin.getEconomyManager().format(bid.bidAmount()) +
-                        " &awas accepted on the &f" + type + " &aorder! Check &e/orders &ato fill it.");
+                        " &awas accepted by &f" + order.getPosterName() + "&a on the &f" + type + " &aorder! Check &e/orders &ato fill it.");
                 }
             });
         });

@@ -89,15 +89,46 @@ public class BoardGUI {
                     lore.add("&7Per item:  &a" + plugin.getEconomyManager().format(order.getPricePerItem()));
                     lore.add("&7Remaining: &a" + plugin.getEconomyManager().format(order.getPriceRemaining()));
                     lore.add("&8&m────────────────────");
-                    if (playerHas == 0) {
-                        lore.add("&c✗ You have none of this item");
+
+                    boolean isAccepted = (order.getStatus() == Order.Status.ACCEPTED);
+                    boolean isContractor = isAccepted && player.getUniqueId().toString().equals(order.getAcceptedByUuid());
+                    boolean isPoster = player.getUniqueId().toString().equals(order.getPosterUuid());
+
+                    if (isAccepted) {
+                        String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
+                        lore.add("&a✓ Deal Accepted by: &f" + acceptor);
+                        lore.add("&7Agreed Payout:      &a" + plugin.getEconomyManager().format(order.getPriceTotal()));
+                        lore.add("&8&m────────────────────");
+
+                        if (isContractor) {
+                            if (playerHas == 0) {
+                                lore.add("&c✗ You have none of this item");
+                                lore.add("&7Deliver " + order.getAmountRemaining() + "x to claim &a" + plugin.getEconomyManager().format(order.getPriceRemaining()));
+                            } else {
+                                lore.add("&aYou have: &f" + playerHas + " &7in inventory");
+                                lore.add(playerHas >= order.getAmountRemaining()
+                                    ? "&a▶ Click to fulfill your accepted order! (" + plugin.getEconomyManager().format(order.getPriceRemaining()) + ")"
+                                    : "&e▶ Click to partially fulfill (+&a" + plugin.getEconomyManager().format(playerHas * order.getPricePerItem()) + "&e)");
+                            }
+                        } else if (isPoster) {
+                            lore.add("&e(Deal locked with &f" + acceptor + "&e)");
+                            lore.add("&7Waiting for them to deliver items.");
+                        } else {
+                            lore.add("&e(Reserved for &f" + acceptor + "&e)");
+                            lore.add("&8(Deal locked — awaiting delivery)");
+                        }
                     } else {
-                        lore.add("&aYou have: &f" + playerHas + " &7in inventory");
-                        lore.add(playerHas >= order.getAmountRemaining()
-                            ? "&a▶ Click to fill COMPLETELY (" + plugin.getEconomyManager().format(order.getPriceRemaining()) + ")"
-                            : "&e▶ Click to partially fill (+&a" + plugin.getEconomyManager().format(playerHas * order.getPricePerItem()) + "&e)");
+                        if (playerHas == 0) {
+                            lore.add("&c✗ You have none of this item");
+                        } else {
+                            lore.add("&aYou have: &f" + playerHas + " &7in inventory");
+                            lore.add(playerHas >= order.getAmountRemaining()
+                                ? "&a▶ Click to fill COMPLETELY (" + plugin.getEconomyManager().format(order.getPriceRemaining()) + ")"
+                                : "&e▶ Click to partially fill (+&a" + plugin.getEconomyManager().format(playerHas * order.getPricePerItem()) + "&e)");
+                        }
+                        lore.add("&6▶ Right-Click to PLACE BID / BARGAIN");
                     }
-                    lore.add("&6▶ Right-Click to PLACE BID / BARGAIN");
+
                     final int finalPlayerHas = playerHas;
                     gui.setItem(ITEM_SLOTS[slotIdx++], GuiButton.of(order.getDisplayMaterial(),
                         "&f" + order.getDisplayTitle(), lore,
@@ -107,7 +138,17 @@ public class BoardGUI {
                                     TextUtil.sendMessage(player, "&8[&6Orders&8] &cYou cannot bid on your own order.");
                                     return;
                                 }
+                                if (order.getStatus() == Order.Status.ACCEPTED) {
+                                    String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+                                    TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order has already been accepted by &f" + acceptor + "&c.");
+                                    return;
+                                }
                                 if (bidGUI != null) bidGUI.openPlaceBid(player, order);
+                                return;
+                            }
+                            if (isAccepted && !isContractor) {
+                                String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+                                TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order deal is reserved for &f" + acceptor + "&c.");
                                 return;
                             }
                             if (finalPlayerHas == 0) {
@@ -125,8 +166,8 @@ public class BoardGUI {
                     lore.add("&7Reward:  &a" + plugin.getEconomyManager().format(order.getPriceTotal()));
                     lore.add("&8&m────────────────────");
                     if (order.getStatus() == Order.Status.ACCEPTED && order.getAcceptedByName() != null) {
-                        lore.add("&eAccepted by: &f" + order.getAcceptedByName());
-                        lore.add("&8(Already taken — can't accept)");
+                        lore.add("&a✓ Accepted by: &f" + order.getAcceptedByName());
+                        lore.add("&8(Deal locked — awaiting completion)");
                     } else if (order.getPosterUuid().equals(player.getUniqueId().toString())) {
                         lore.add("&7This is your own order");
                     } else {
@@ -140,6 +181,11 @@ public class BoardGUI {
                             if (e.isRightClick()) {
                                 if (order.getPosterUuid().equals(player.getUniqueId().toString())) {
                                     TextUtil.sendMessage(player, "&8[&6Orders&8] &cYou cannot bid on your own order.");
+                                    return;
+                                }
+                                if (order.getStatus() == Order.Status.ACCEPTED) {
+                                    String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+                                    TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order has already been accepted by &f" + acceptor + "&c.");
                                     return;
                                 }
                                 if (bidGUI != null) bidGUI.openPlaceBid(player, order);

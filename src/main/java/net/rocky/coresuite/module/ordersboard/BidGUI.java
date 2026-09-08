@@ -57,6 +57,18 @@ public class BidGUI {
 
         String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
 
+        if (order.getStatus() == Order.Status.ACCEPTED) {
+            String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+            TextUtil.sendMessage(player, prefix + "&cThis order has already been accepted by &f" + acceptor + "&c.");
+            return;
+        }
+        if (!order.isActive() || order.isExpired()) {
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+            TextUtil.sendMessage(player, prefix + "&cThis order is no longer active.");
+            return;
+        }
+
         // Current order info
         String typeInfo = order.isItemOrder()
             ? "x" + order.getAmountRemaining() + " " + order.getDisplayTitle()
@@ -205,13 +217,19 @@ public class BidGUI {
                 "&e\u25b6 Click to accept"
             ),
             e -> {
+                double diff = bid.bidAmount() - order.getPriceTotal();
+                if (diff > 0 && !plugin.getEconomyManager().has(poster, diff)) {
+                    poster.playSound(poster.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.5f);
+                    TextUtil.sendMessage(poster, prefix + "&cYou do not have enough money to accept this higher bid! You need an extra &e" + plugin.getEconomyManager().format(diff) + "&c.");
+                    return;
+                }
                 poster.playSound(poster.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
                 bidManager.acceptBid(bid, order,
                     () -> {
-                        TextUtil.sendMessage(poster, prefix + "&aBid accepted! Order price updated to &e" + plugin.getEconomyManager().format(bid.bidAmount()));
+                        TextUtil.sendMessage(poster, prefix + "&aBid accepted! Deal locked with &f" + bid.bidderName() + "&a at &e" + plugin.getEconomyManager().format(bid.bidAmount()));
                         poster.closeInventory();
                     },
-                    () -> TextUtil.sendMessage(poster, prefix + "&cFailed to accept bid.")
+                    () -> TextUtil.sendMessage(poster, prefix + "&cFailed to accept bid (order may have expired or already been accepted).")
                 );
             }));
 
