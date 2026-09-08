@@ -37,10 +37,10 @@ public record ArtifactFragment(String setId, int fragmentIndex, String displayNa
             meta.getPersistentDataContainer().set(fragmentKey, PersistentDataType.INTEGER, fragmentIndex);
 
             if (meta instanceof org.bukkit.inventory.meta.BookMeta bookMeta) {
-                bookMeta.title(TextUtil.colorize(displayName));
-                bookMeta.author(net.kyori.adventure.text.Component.text("Ancient Chronicler"));
-                bookMeta.pages(List.of(
-                    TextUtil.colorize(
+                bookMeta.setTitle(TextUtil.legacyColorize(displayName));
+                bookMeta.setAuthor("Ancient Chronicler");
+                bookMeta.setPages(List.of(
+                    TextUtil.legacyColorize(
                         "&8&l=== " + displayName + " &8&l===\n\n" +
                         "&7Part &f" + fragmentIndex + "&7 of the &6" + setName + "&7 artifact set.\n\n" +
                         "&8The pages are worn by centuries of time, carrying forgotten whispers of the ancient realm.\n\n" +

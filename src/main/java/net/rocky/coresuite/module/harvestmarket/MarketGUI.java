@@ -39,6 +39,10 @@ public class MarketGUI {
         this.config        = config;
     }
 
+    // ══════════════════════════════════════════════════════════════════════════
+    //  MAIN HARVEST MARKET SCREEN (5 Rows)
+    // ══════════════════════════════════════════════════════════════════════════
+
     public void open(Player player) {
         UUID uuid = player.getUniqueId();
         
@@ -47,7 +51,7 @@ public class MarketGUI {
                 int seasonId = seasonManager.getCurrentSeason() != null ? seasonManager.getCurrentSeason().getId() : -1;
                 lbManager.getTopSellers(seasonId, 3, topSellers -> {
                     
-                    Gui gui = new Gui("&8▶ &2&l🌾 Harvest Market &8◀", 6);
+                    Gui gui = new Gui("&8▶ &2&l🌾 Harvest Market &8◀", 5);
                     gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
                     
                     Season season = seasonManager.getCurrentSeason();
@@ -57,181 +61,118 @@ public class MarketGUI {
                     double bonusMult   = config.getDouble("bonus-multiplier", 2.5);
                     double goldenMult  = config.getDouble("golden-multiplier", 25.0);
 
-                    // Slot 0: Guide / How It Works
-                    gui.setItem(0, GuiButton.of(Material.BOOK, "&e&l📖 How It Works & Guide",
+                    // ── Row 0: Top Header & Navigation ────────────────────────
+                    gui.setItem(0, GuiButton.of(Material.BOOK, "&e&l📖 Farmer's Guide & Rules",
                         List.of(
                             "&8&m────────────────────",
-                            "&7New to the Harvest Market?",
-                            "&7Click here to learn about:",
-                            "&a  ▸ Crop Seasons (2.5× Bonus)",
-                            "&a  ▸ Fair Quota System",
-                            "&6  ▸ Rare Golden Crops (25× Bonus)",
+                            "&7Learn how to earn maximum profit:",
+                            "&a  ▸ In-Season Bonus (2.5×)",
+                            "&a  ▸ Season Quota Limits",
+                            "&6  ▸ Golden Crop Mutations (25×)",
                             "&e  ▸ Daily Farming Bounties",
-                            "&b  ▸ Seasonal Leaderboards",
                             "&8&m────────────────────",
-                            "&e▶ Click to open Farming Guide"
+                            "&e▶ Click to read guide"
                         ),
                         e -> {
                             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                             openHowItWorks(player);
                         }
                     ));
-                    
-                    // Slot 4: Main Header
+
                     gui.setItem(4, GuiButton.of(Material.WHEAT, "&2&l🌾 Harvest Market &8[Season #" + seasonIdStr + "]",
                         List.of(
                             "&8&m────────────────────",
                             "&7Season:     &a#" + seasonIdStr,
                             "&7Featured:   " + cropsStr,
-                            "&7Time Left:   &e" + timeLeft,
+                            "&7Time Left:  &e" + timeLeft,
                             "&8&m────────────────────",
-                            "&7In-season crops earn a massive &e" + bonusMult + "×&7 bonus!",
-                            "&7Break fully-grown crops for &6Golden Crops&7!",
-                            "&8&m────────────────────"
-                        ),
-                        e -> {}
+                            "&7Sell featured crops below for a &e" + bonusMult + "× cash bonus&7!",
+                            "&7Break mature crops for &6Golden Crop &7drops."
+                        ), e -> {}
                     ));
 
-                    // Separator row (27-35)
-                    for (int i = 27; i <= 35; i++) {
-                        gui.setItem(i, GuiButton.filler(Material.GREEN_STAINED_GLASS_PANE));
+                    // Leaderboard item (slot 8)
+                    List<String> lbLore = new ArrayList<>();
+                    lbLore.add("&8&m────────────────────");
+                    for (int i = 0; i < 3; i++) {
+                        if (i < topSellers.size()) {
+                            HarvestLeaderboardManager.LeaderboardEntry entry = topSellers.get(i);
+                            String color = i == 0 ? "&e" : (i == 1 ? "&f" : "&6");
+                            lbLore.add(color + "#" + (i + 1) + " &f" + entry.playerName + "&7: &a" + TextUtil.formatNumber(entry.totalSold) + " crops");
+                        } else {
+                            lbLore.add("&7#" + (i + 1) + " &8None");
+                        }
                     }
-                    gui.setItem(31, GuiButton.of(Material.LIME_STAINED_GLASS_PANE, "&a&l📋 Daily Farming Bounties", List.of(
-                        "&7Complete daily orders for cash bonuses!"
-                    ), e -> {}));
-                    
-                    // Bottom navigation bar
-                    for (int i = 45; i <= 53; i++) {
-                        gui.setItem(i, GuiButton.filler(Material.BLACK_STAINED_GLASS_PANE));
-                    }
-                    gui.setItem(49, GuiButton.of(Material.BARRIER, "&c&lClose", List.of(), e -> player.closeInventory()));
-                    gui.setItem(45, GuiButton.of(Material.PAPER, "&7Season Info", 
-                        List.of(
-                            "&8&m────────────────────",
-                            "&7Season: &f#" + seasonIdStr,
-                            "&7Ends:   &e" + timeLeft,
-                            "&7Bonus:  &e" + bonusMult + "x",
-                            "&8&m────────────────────"
-                        ), e -> {}));
-                    gui.setItem(53, GuiButton.of(Material.CLOCK, "&eRefresh", List.of(), e -> open(player)));
+                    lbLore.add("&8&m────────────────────");
+                    lbLore.add("&7Top 3 receive crate keys & cash at season end!");
+                    gui.setItem(8, GuiButton.of(Material.GOLD_BLOCK, "&6&l🏆 Top Farmers", lbLore, e -> {}));
 
-                    int[] inSeasonSlots = {10, 11, 12, 13, 14, 15, 16};
-                    int[] offSeasonSlots = {19, 20, 21, 22, 23, 24, 25};
-                    
+                    // ── Row 1: Featured In-Season Crops (slots 10, 12, 14, 16) ─
                     List<Material> inSeason = season != null ? season.getInSeasonCrops() : new ArrayList<>();
                     Map<Material, Double> basePrices = sellManager.getBasePrices();
-                    List<Material> allCrops = new ArrayList<>(basePrices.keySet());
-                    List<Material> offSeason = allCrops.stream().filter(m -> !inSeason.contains(m)).collect(Collectors.toList());
-                    
-                    int inIndex = 0;
-                    for (Material mat : inSeason) {
-                        if (inIndex >= inSeasonSlots.length) break;
-                        double basePrice = basePrices.getOrDefault(mat, 0.0);
+                    int used = sellManager.getQuotaUsed(uuid);
+                    int max = config.getInt("max-quota-per-season", 5000);
+                    int remainingQuota = Math.max(0, max - used);
+
+                    int[] featuredSlots = {10, 12, 14, 16};
+                    for (int i = 0; i < Math.min(inSeason.size(), featuredSlots.length); i++) {
+                        Material mat = inSeason.get(i);
+                        double basePrice  = basePrices.getOrDefault(mat, 10.0);
                         double bonusPrice = basePrice * bonusMult;
-                        int used = sellManager.getQuotaUsed(uuid);
-                        int max = config.getInt("max-quota-per-season", 5000);
-                        int remaining = Math.max(0, max - used);
                         int count = countItems(player, mat, false);
-                        
-                        List<String> lore = new ArrayList<>();
-                        lore.add("&8&m────────────────────");
-                        lore.add("&7Base price: &f$" + TextUtil.formatNumber(basePrice) + "/ea");
-                        lore.add("&a" + bonusMult + "× Season price: &e&l$" + TextUtil.formatNumber(bonusPrice) + "/ea");
-                        lore.add("&8&m────────────────────");
-                        lore.add("&7Season quota:    &f" + used + "/" + max + " items");
-                        lore.add("&7Remaining quota: &a" + remaining);
-                        lore.add("&8&m────────────────────");
-                        
+
+                        List<String> cropLore = new ArrayList<>();
+                        cropLore.add("&8&m────────────────────");
+                        cropLore.add("&7Standard Price: &f$" + TextUtil.formatNumber(basePrice));
+                        cropLore.add("&aSeason Price:   &e&l$" + TextUtil.formatNumber(bonusPrice) + " &a(" + bonusMult + "×)");
+                        cropLore.add("&8&m────────────────────");
+                        cropLore.add("&7Your Inventory: &f" + count + " items");
+                        cropLore.add("&7Remaining Quota: &a" + remainingQuota + " items");
+                        cropLore.add("&8&m────────────────────");
+
                         if (count > 0) {
-                            lore.add("&aYou have: &f" + count);
-                            if (remaining > 0) lore.add("&e▶ Click to sell ALL at bonus price!");
-                            else lore.add("&cQuota reached — selling at base rate ($" + TextUtil.formatNumber(basePrice) + ")");
+                            if (remainingQuota > 0) {
+                                int atBonus = Math.min(count, remainingQuota);
+                                int atBase = count - atBonus;
+                                double earnings = (atBonus * bonusPrice) + (atBase * basePrice);
+                                cropLore.add("&e▶ Click to SELL ALL for &a$" + TextUtil.formatNumber(earnings) + "&e!");
+                            } else {
+                                cropLore.add("&cQuota reached — selling at standard base price");
+                                cropLore.add("&e▶ Click to sell for &f$" + TextUtil.formatNumber(count * basePrice));
+                            }
                         } else {
-                            lore.add("&cYou have none of this crop");
+                            cropLore.add("&c✗ You have none in your inventory");
                         }
-                        
-                        GuiButton btn = GuiButton.of(mat, "&a&l" + capitalize(mat.name()) + " &2[IN SEASON]", lore, e -> {
+
+                        gui.setItem(featuredSlots[i], GuiButton.of(mat, "&a&l" + capitalize(mat.name()) + " &2[IN-SEASON]", cropLore, e -> {
                             if (count > 0) {
                                 sellManager.sellCrops(player, mat, count, false, total -> {
-                                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
+                                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
                                     lbManager.recordSell(uuid, player.getName(), seasonId, count);
                                     bountyManager.recordSell(uuid, mat, count);
                                     TextUtil.sendMessage(player, config.getString("messages.sold-bonus", "")
                                             .replace("{amount}", String.valueOf(count))
                                             .replace("{crop}", capitalize(mat.name()))
                                             .replace("{money}", "$" + TextUtil.formatNumber(total))
-                                            .replace("{rate}", remaining > 0 ? String.valueOf(bonusMult) : "1.0"));
+                                            .replace("{rate}", remainingQuota > 0 ? String.valueOf(bonusMult) : "1.0"));
                                     open(player);
                                 }, () -> {});
+                            } else {
+                                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                                TextUtil.sendMessage(player, "&cYou don't have any " + capitalize(mat.name()) + " to sell!");
                             }
-                        });
-                        
-                        gui.setItem(inSeasonSlots[inIndex++], btn);
+                        }));
                     }
-                    
-                    int offIndex = 0;
-                    for (Material mat : offSeason) {
-                        if (offIndex >= offSeasonSlots.length) break;
-                        double basePrice = basePrices.getOrDefault(mat, 0.0);
-                        int count = countItems(player, mat, false);
-                        
-                        List<String> lore = new ArrayList<>();
-                        lore.add("&8&m────────────────────");
-                        lore.add("&7Base price: &f$" + TextUtil.formatNumber(basePrice) + "/ea");
-                        lore.add("&8(Off-season — normal price)");
-                        lore.add("&8&m────────────────────");
-                        if (count > 0) {
-                            lore.add("&7You have: &f" + count);
-                            lore.add("&e▶ Click to sell at standard price");
-                        } else {
-                            lore.add("&cYou have none of this crop");
-                        }
-                        
-                        GuiButton btn = GuiButton.of(mat, "&7" + capitalize(mat.name()) + " &8[Base Rate]", lore, e -> {
-                            if (count > 0) {
-                                sellManager.sellCrops(player, mat, count, false, total -> {
-                                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
-                                    lbManager.recordSell(uuid, player.getName(), seasonId, count);
-                                    bountyManager.recordSell(uuid, mat, count);
-                                    TextUtil.sendMessage(player, "&a💰 Sold " + count + "x " + capitalize(mat.name()) + " for &e$" + TextUtil.formatNumber(total) + " &a(1.0×)!");
-                                    open(player);
-                                }, () -> {});
-                            }
-                        });
-                        gui.setItem(offSeasonSlots[offIndex++], btn);
+
+                    // ── Row 2: Separator Bar (slots 18-26) ───────────────────
+                    for (int i = 18; i <= 26; i++) {
+                        gui.setItem(i, GuiButton.filler(Material.GREEN_STAINED_GLASS_PANE));
                     }
-                    
-                    // Daily Bounties
-                    int[] bountySlots = {37, 38, 39};
-                    for (int i = 0; i < Math.min(bounties.size(), bountySlots.length); i++) {
-                        DailyBountyManager.DailyBounty b = bounties.get(i);
-                        List<String> lore = new ArrayList<>();
-                        lore.add("&8&m────────────────────");
-                        lore.add("&7Sell: &f" + b.amountNeeded + "× " + capitalize(b.material.name()));
-                        lore.add("&7Reward: &a$" + TextUtil.formatNumber(b.moneyReward));
-                        lore.add("&8&m────────────────────");
-                        lore.add("&7Progress: &f" + b.amountDone + "/" + b.amountNeeded);
-                        lore.add(progressBar(b.amountDone, b.amountNeeded, 10));
-                        lore.add("&8&m────────────────────");
-                        
-                        boolean canClaim = b.amountDone >= b.amountNeeded && !b.claimed;
-                        if (b.claimed) lore.add("&2✓ Claimed");
-                        else if (canClaim) lore.add("&a▶ Click to CLAIM REWARD!");
-                        else lore.add("&7Farm & sell more to complete!");
-                        
-                        GuiButton btn = GuiButton.of(b.material, "&e📋 Daily Bounty #" + b.slot, lore, e -> {
-                            if (canClaim) {
-                                bountyManager.claimBounty(uuid, b.slot, () -> {
-                                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1, 1);
-                                    TextUtil.sendMessage(player, config.getString("messages.bounty-claimed", "&a✨ Daily bounty claimed! &e+{money}").replace("{money}", "$" + TextUtil.formatNumber(b.moneyReward)));
-                                    open(player);
-                                }, () -> open(player));
-                            }
-                        });
-                        gui.setItem(bountySlots[i], btn);
-                    }
-                    
-                    // Golden Crops direct sell button at slot 41
+                    gui.setItem(22, GuiButton.of(Material.LIME_STAINED_GLASS_PANE, "&a&l✦ VAULT & DAILY BOUNTIES ✦", List.of(), e -> {}));
+
+                    // ── Row 3: Golden Crops Vault, Bounties, Off-Season Button ─
+                    // Slot 28: Golden Crops Vault (ALWAYS GOLD_BLOCK, never transforms)
+                    List<Material> allCrops = new ArrayList<>(basePrices.keySet());
                     int totalGolden = 0;
                     double goldenPayout = 0;
                     for (Material m : allCrops) {
@@ -241,17 +182,30 @@ public class MarketGUI {
                             goldenPayout += gc * basePrices.getOrDefault(m, 10.0) * goldenMult;
                         }
                     }
+
+                    List<String> goldLore = new ArrayList<>();
+                    goldLore.add("&8&m────────────────────");
+                    goldLore.add("&7Rare crop mutations discovered while");
+                    goldLore.add("&7harvesting fully-grown crops.");
+                    goldLore.add("&8&m────────────────────");
+                    goldLore.add("&7Value Multiplier: &6&l" + goldenMult + "× Base Price");
+                    goldLore.add("&7In Your Inventory: &e" + totalGolden + " Golden Crop" + (totalGolden == 1 ? "" : "s"));
+                    goldLore.add("&8&m────────────────────");
+
                     if (totalGolden > 0) {
+                        goldLore.add("&a▶ Click to SELL ALL for &6&l$" + TextUtil.formatNumber(goldenPayout) + "&a!");
                         final double finalPayout = goldenPayout;
                         final int finalCount = totalGolden;
-                        ItemStack goldItem = new ItemStack(Material.RAW_GOLD_BLOCK);
+                        ItemStack goldItem = new ItemStack(Material.GOLD_BLOCK);
                         ItemMeta goldMeta = goldItem.getItemMeta();
                         if (goldMeta != null) {
+                            goldMeta.displayName(TextUtil.colorize("&6&l✨ Cash In Golden Crops"));
                             goldMeta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
                             goldMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                            goldMeta.lore(goldLore.stream().map(TextUtil::colorize).collect(Collectors.toList()));
                             goldItem.setItemMeta(goldMeta);
                         }
-                        gui.setItem(41, new GuiButton(goldItem, e -> {
+                        gui.setItem(28, new GuiButton(goldItem, e -> {
                             for (Material m : allCrops) {
                                 int gc = countItems(player, m, true);
                                 if (gc > 0) {
@@ -263,37 +217,82 @@ public class MarketGUI {
                             open(player);
                         }));
                     } else {
-                        gui.setItem(41, GuiButton.of(Material.GOLD_NUGGET, "&6&l✨ Golden Crops",
-                            List.of(
-                                "&8&m────────────────────",
-                                "&7Break mature crops for rare",
-                                "&6Golden Crop &7drops!",
-                                "&8&m────────────────────",
-                                "&7Golden crops sell for &e" + goldenMult + "×&7 value!",
-                                "&8(You have 0 in your inventory)"
-                            ), e -> {}
-                        ));
+                        goldLore.add("&8(Harvest mature crops to find golden mutations)");
+                        gui.setItem(28, GuiButton.of(Material.GOLD_BLOCK, "&6&l✨ Golden Crop Vault", goldLore, e -> {
+                            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                            TextUtil.sendMessage(player, "&8[&2🌾 Market&8] &cYou don't have any Golden Crops in your inventory yet!");
+                        }));
                     }
-                    
-                    gui.setItem(42, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
-                    
-                    // Leaderboard button at slot 43
-                    List<String> lbLore = new ArrayList<>();
-                    lbLore.add("&8&m────────────────────");
-                    for (int i = 0; i < 3; i++) {
-                        if (i < topSellers.size()) {
-                            HarvestLeaderboardManager.LeaderboardEntry entry = topSellers.get(i);
-                            String color = i == 0 ? "&e" : "&7";
-                            lbLore.add(color + "#" + (i+1) + " &f" + entry.playerName + ": " + (i == 0 ? "&a" : "&7") + TextUtil.formatNumber(entry.totalSold) + " items");
+
+                    // Slots 30, 31, 32: Daily Bounties
+                    int[] bountySlots = {30, 31, 32};
+                    for (int i = 0; i < Math.min(bounties.size(), bountySlots.length); i++) {
+                        DailyBountyManager.DailyBounty b = bounties.get(i);
+                        List<String> bLore = new ArrayList<>();
+                        bLore.add("&8&m────────────────────");
+                        bLore.add("&7Objective: &fSell " + b.amountNeeded + "× " + capitalize(b.material.name()));
+                        bLore.add("&7Reward:    &a$" + TextUtil.formatNumber(b.moneyReward));
+                        bLore.add("&8&m────────────────────");
+                        bLore.add("&7Progress:  &f" + b.amountDone + "/" + b.amountNeeded);
+                        bLore.add(progressBar(b.amountDone, b.amountNeeded, 10));
+                        bLore.add("&8&m────────────────────");
+
+                        boolean canClaim = b.amountDone >= b.amountNeeded && !b.claimed;
+                        if (b.claimed) {
+                            bLore.add("&2✓ Claimed today");
+                        } else if (canClaim) {
+                            bLore.add("&a▶ Click to CLAIM REWARD!");
                         } else {
-                            lbLore.add("&7#" + (i+1) + " &8None");
+                            bLore.add("&7Sell more " + capitalize(b.material.name()) + " to complete");
                         }
+
+                        gui.setItem(bountySlots[i], GuiButton.of(b.material, "&e📋 Daily Bounty #" + b.slot, bLore, e -> {
+                            if (canClaim) {
+                                bountyManager.claimBounty(uuid, b.slot, () -> {
+                                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+                                    TextUtil.sendMessage(player, config.getString("messages.bounty-claimed", "&a✨ Daily bounty claimed! &e+{money}").replace("{money}", "$" + TextUtil.formatNumber(b.moneyReward)));
+                                    open(player);
+                                }, () -> open(player));
+                            }
+                        }));
                     }
-                    lbLore.add("&8&m────────────────────");
-                    lbLore.add("&7Season ends in: &e" + timeLeft);
-                    
-                    gui.setItem(43, GuiButton.of(Material.GOLD_BLOCK, "&6&l🏆 Top Farmers", lbLore, e -> {}));
-                    
+
+                    // Slot 34: Off-Season Crops Button
+                    List<Material> offSeason = allCrops.stream().filter(m -> !inSeason.contains(m)).collect(Collectors.toList());
+                    gui.setItem(34, GuiButton.of(Material.CHEST, "&7📦 Off-Season Crops",
+                        List.of(
+                            "&8&m────────────────────",
+                            "&7View and sell all standard crops",
+                            "&7at their normal base prices.",
+                            "&8&m────────────────────",
+                            "&7Available: &f" + offSeason.size() + " other crops",
+                            "&e▶ Click to browse off-season crops"
+                        ),
+                        e -> {
+                            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                            openOffSeason(player);
+                        }
+                    ));
+
+                    // ── Row 4: Bottom Navigation Bar (slots 36-44) ────────────
+                    gui.setItem(36, GuiButton.of(Material.PAPER, "&7Season Quota",
+                        List.of(
+                            "&8&m────────────────────",
+                            "&7Bonus Quota: &f" + used + " / " + max,
+                            "&7Remaining:   &a" + remainingQuota + " items",
+                            "&8&m────────────────────",
+                            "&7Crops sold beyond quota",
+                            "&7receive standard base price."
+                        ), e -> {}
+                    ));
+
+                    gui.setItem(40, GuiButton.of(Material.BARRIER, "&c&lClose", List.of(), e -> player.closeInventory()));
+
+                    gui.setItem(44, GuiButton.of(Material.CLOCK, "&e⟳ Refresh", List.of("&7Update counts and prices"), e -> {
+                        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                        open(player);
+                    }));
+
                     gui.open(player);
                 });
             });
@@ -301,7 +300,76 @@ public class MarketGUI {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    //  Farming Guide / How It Works Screen
+    //  OFF-SEASON CROPS SCREEN (4 Rows)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    public void openOffSeason(Player player) {
+        Gui gui = new Gui("&8▶ &7📦 Off-Season Crops &8◀", 4);
+        gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
+
+        Season season = seasonManager.getCurrentSeason();
+        List<Material> inSeason = season != null ? season.getInSeasonCrops() : new ArrayList<>();
+        Map<Material, Double> basePrices = sellManager.getBasePrices();
+        List<Material> offSeason = basePrices.keySet().stream().filter(m -> !inSeason.contains(m)).collect(Collectors.toList());
+
+        gui.setItem(4, GuiButton.of(Material.CHEST, "&7📦 Off-Season Crop Market",
+            List.of(
+                "&8&m────────────────────",
+                "&7These crops are currently off-season.",
+                "&7They sell at standard base prices.",
+                "&8&m────────────────────"
+            ), e -> {}
+        ));
+
+        int[] slots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
+        for (int i = 0; i < Math.min(offSeason.size(), slots.length); i++) {
+            Material mat = offSeason.get(i);
+            double price = basePrices.getOrDefault(mat, 10.0);
+            int count = countItems(player, mat, false);
+
+            List<String> lore = new ArrayList<>();
+            lore.add("&8&m────────────────────");
+            lore.add("&7Base Price: &f$" + TextUtil.formatNumber(price) + "/ea");
+            lore.add("&8&m────────────────────");
+            lore.add("&7Your Inventory: &f" + count + " items");
+            lore.add("&8&m────────────────────");
+            if (count > 0) {
+                lore.add("&e▶ Click to sell all for &a$" + TextUtil.formatNumber(count * price) + "&e!");
+            } else {
+                lore.add("&c✗ None in inventory");
+            }
+
+            gui.setItem(slots[i], GuiButton.of(mat, "&7" + capitalize(mat.name()) + " &8[Base Rate]", lore, e -> {
+                if (count > 0) {
+                    sellManager.sellCrops(player, mat, count, false, total -> {
+                        player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
+                        int seasonId = season != null ? season.getId() : -1;
+                        lbManager.recordSell(player.getUniqueId(), player.getName(), seasonId, count);
+                        bountyManager.recordSell(player.getUniqueId(), mat, count);
+                        TextUtil.sendMessage(player, "&a💰 Sold " + count + "x " + capitalize(mat.name()) + " for &e$" + TextUtil.formatNumber(total) + "&a!");
+                        openOffSeason(player);
+                    }, () -> {});
+                } else {
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                    TextUtil.sendMessage(player, "&cYou don't have any " + capitalize(mat.name()) + " to sell!");
+                }
+            }));
+        }
+
+        // Slot 27: Back to Main Market
+        gui.setItem(27, GuiButton.of(Material.SPECTRAL_ARROW, "&7◀ Back to Main Market", List.of(), e -> {
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+            open(player);
+        }));
+
+        // Slot 35: Close
+        gui.setItem(35, GuiButton.of(Material.BARRIER, "&c&lClose", List.of(), e -> player.closeInventory()));
+
+        gui.open(player);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  FARMING GUIDE / HOW IT WORKS SCREEN (4 Rows)
     // ══════════════════════════════════════════════════════════════════════════
 
     public void openHowItWorks(Player player) {
@@ -315,8 +383,8 @@ public class MarketGUI {
         gui.setItem(4, GuiButton.of(Material.WRITTEN_BOOK, "&e&l📖 Harvest Market Guide",
             List.of(
                 "&8&m────────────────────",
-                "&7Welcome to the official farmer's guide!",
-                "&7Everything you need to maximize your profits.",
+                "&7Everything you need to know to",
+                "&7maximize your farming income!",
                 "&8&m────────────────────"
             ), e -> {}
         ));
@@ -325,9 +393,9 @@ public class MarketGUI {
         gui.setItem(10, GuiButton.of(Material.WHEAT, "&a&l1. Crop Seasons",
             List.of(
                 "&8&m────────────────────",
-                "&7Every week, 4 random crops become",
-                "&ain-season &7crops.",
-                "&7In-season crops sell for &e" + bonusMult + "× standard price&7!",
+                "&7Every season, 4 random crops become",
+                "&afeatured in-season &7crops.",
+                "&7Sell them for a huge &e" + bonusMult + "× price multiplier&7!",
                 "&8&m────────────────────"
             ), e -> {}
         ));
@@ -336,21 +404,20 @@ public class MarketGUI {
         gui.setItem(12, GuiButton.of(Material.CHEST, "&e&l2. Quota System",
             List.of(
                 "&8&m────────────────────",
-                "&7To protect the server economy, each player",
-                "&7can sell up to &f" + maxQuota + " crops &7at the",
-                "&7bonus rate each season.",
-                "&7Once full, extra crops sell at standard base price.",
+                "&7Each player can sell up to &f" + maxQuota + " crops",
+                "&7at the bonus rate each season.",
+                "&7Crops beyond that sell at base price.",
                 "&8&m────────────────────"
             ), e -> {}
         ));
 
         // 3. Golden Crops
-        gui.setItem(14, GuiButton.of(Material.RAW_GOLD_BLOCK, "&6&l3. Golden Mutations",
+        gui.setItem(14, GuiButton.of(Material.GOLD_BLOCK, "&6&l3. Golden Mutations",
             List.of(
                 "&8&m────────────────────",
-                "&7When manually harvesting fully-grown crops,",
-                "&7there is a chance to discover a &6Golden Crop&7!",
-                "&7Golden crops sell for an incredible &a" + goldenMult + "× price&7!",
+                "&7Harvesting fully-grown crops has a chance",
+                "&7to yield rare &6Golden Crops&7!",
+                "&7Golden crops sell for &a" + goldenMult + "× base price&7!",
                 "&8&m────────────────────"
             ), e -> {}
         ));
@@ -359,15 +426,14 @@ public class MarketGUI {
         gui.setItem(16, GuiButton.of(Material.EMERALD, "&b&l4. Bounties & Rewards",
             List.of(
                 "&8&m────────────────────",
-                "&7Daily bounties give extra cash when you",
-                "&7meet specific crop harvesting goals.",
-                "&7Top 3 sellers each season receive rare",
-                "&bcrate keys &7and up to &a$75,000 cash&7!",
+                "&7Complete daily harvest bounties for extra cash.",
+                "&7Top 3 sellers each season win rare crate keys",
+                "&7and up to &a$75,000 cash&7!",
                 "&8&m────────────────────"
             ), e -> {}
         ));
 
-        // Back button
+        // Slot 27: Back button
         gui.setItem(27, GuiButton.of(Material.SPECTRAL_ARROW, "&7◀ Back to Market", List.of(), e -> {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
             open(player);
