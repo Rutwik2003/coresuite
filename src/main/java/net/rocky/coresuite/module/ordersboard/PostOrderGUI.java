@@ -107,7 +107,12 @@ public class PostOrderGUI implements Listener {
                 .filter(m -> !ADMIN_ONLY.contains(m.name()))
                 .filter(m -> !m.name().contains("SPAWN_EGG"))
                 .filter(m -> !m.name().contains("HEAD") && !m.name().contains("SKULL"))
-                .sorted(Comparator.comparing(Material::name))
+                .sorted((m1, m2) -> {
+                    ItemCategory c1 = getCategory(m1);
+                    ItemCategory c2 = getCategory(m2);
+                    if (c1 != c2) return Integer.compare(c1.ordinal(), c2.ordinal());
+                    return getCategoryComparator(c1).compare(m1, m2);
+                })
                 .collect(Collectors.toList());
         }
         return cachedAllMats;
@@ -173,33 +178,13 @@ public class PostOrderGUI implements Listener {
             || n.contains("HAMMER") || n.contains("SCYTHE") || n.contains("HALBERD")
             || n.contains("RAPIER") || n.contains("LANCE")
             || n.endsWith("_HELMET") || n.endsWith("_CHESTPLATE") || n.endsWith("_LEGGINGS") || n.endsWith("_BOOTS")
-            || n.contains("SHIELD") || n.contains("BOW") || n.contains("CROSSBOW") || n.contains("ARROW")
+            || n.contains("SHIELD") || n.contains("BOW") || n.contains("CROSSBOW") || n.endsWith("ARROW")
             || n.contains("TRIDENT") || n.contains("MACE") || n.contains("ELYTRA")
-            || n.contains("SHEARS") || n.contains("FISHING_ROD") || n.contains("FLINT_AND_STEEL")
-            || n.contains("HORSE_ARMOR") || n.contains("WOLF_ARMOR")) {
-            return true;
-        }
-        // Redstone & mechanics (aligned with EconomyShopGUI Combat/Mechanics section)
-        if (n.equals("REDSTONE") || n.equals("REDSTONE_TORCH") || n.equals("REDSTONE_BLOCK")
-            || n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("TARGET")
-            || n.equals("LEVER") || n.equals("LIGHTNING_ROD") || n.equals("DAYLIGHT_DETECTOR")
-            || n.equals("TRIPWIRE_HOOK") || n.endsWith("_BUTTON") || n.endsWith("_PRESSURE_PLATE")) {
-            return true;
-        }
-        if (n.contains("PISTON") || n.contains("OBSERVER") || n.contains("DISPENSER")
-            || n.contains("DROPPER") || n.contains("HOPPER") || n.contains("CRAFTER")) {
-            return true;
-        }
-        if (n.contains("RAIL") || n.contains("MINECART")) {
-            return true;
-        }
-        if (n.equals("TNT") || n.equals("NOTE_BLOCK") || n.equals("JUKEBOX")) {
-            return true;
-        }
-        if (n.contains("SCULK_SENSOR") || n.contains("SCULK_SHRIEKER")) {
-            return true;
-        }
-        if (n.equals("REDSTONE_LAMP") || n.contains("COPPER_BULB")) {
+            || n.equals("TOTEM_OF_UNDYING") || n.equals("WIND_CHARGE")
+            || n.equals("SHEARS") || n.equals("FISHING_ROD") || n.equals("FLINT_AND_STEEL")
+            || n.equals("BRUSH") || n.equals("SPYGLASS") || n.equals("LEAD") || n.equals("NAME_TAG")
+            || n.equals("COMPASS") || n.equals("CLOCK") || n.equals("RECOVERY_COMPASS")
+            || n.equals("SADDLE") || n.contains("HORSE_ARMOR") || n.contains("WOLF_ARMOR")) {
             return true;
         }
         return false;
@@ -224,12 +209,6 @@ public class PostOrderGUI implements Listener {
 
     private static boolean isMusicOrMisc(String n) {
         if (n.startsWith("MUSIC_DISC_") || n.equals("DISC_FRAGMENT_5")) return true;
-        if (n.equals("SADDLE") || n.equals("LEAD") || n.equals("NAME_TAG")
-            || n.equals("SPYGLASS") || n.equals("BRUSH") || n.equals("TOTEM_OF_UNDYING")
-            || n.equals("COMPASS") || n.equals("CLOCK") || n.equals("RECOVERY_COMPASS")
-            || n.equals("WIND_CHARGE")) {
-            return true;
-        }
         if (n.endsWith("_BUCKET") || n.equals("BUCKET")) return true;
         if (n.equals("BEACON") || n.equals("CONDUIT") || n.equals("LODESTONE") || n.equals("RESPAWN_ANCHOR")
             || n.equals("FIREWORK_ROCKET") || n.equals("FIREWORK_STAR")) {
@@ -244,13 +223,14 @@ public class PostOrderGUI implements Listener {
         if (n.endsWith("_INGOT") || n.endsWith("_NUGGET")) return true;
         if (n.equals("DIAMOND") || n.equals("EMERALD") || n.equals("LAPIS_LAZULI")
             || n.equals("COAL") || n.equals("CHARCOAL") || n.equals("NETHERITE_SCRAP")
-            || n.equals("ANCIENT_DEBRIS") || n.equals("AMETHYST_SHARD") || n.equals("QUARTZ")) {
+            || n.equals("ANCIENT_DEBRIS") || n.equals("AMETHYST_SHARD") || n.equals("QUARTZ")
+            || n.equals("REDSTONE")) {
             return true;
         }
         if (n.equals("COAL_BLOCK") || n.equals("IRON_BLOCK") || n.equals("GOLD_BLOCK")
             || n.equals("DIAMOND_BLOCK") || n.equals("EMERALD_BLOCK") || n.equals("LAPIS_BLOCK")
-            || n.equals("NETHERITE_BLOCK") || n.equals("COPPER_BLOCK")
-            || n.startsWith("RESIN_")) {
+            || n.equals("NETHERITE_BLOCK") || n.equals("COPPER_BLOCK") || n.equals("REDSTONE_BLOCK")
+            || n.equals("AMETHYST_BLOCK") || n.startsWith("RESIN_")) {
             return true;
         }
         return false;
@@ -334,6 +314,254 @@ public class PostOrderGUI implements Listener {
             return true;
         }
         return false;
+    }
+
+    // ── Category Sorting Logic (Groups related items together) ───────────────
+    public static Comparator<Material> getCategoryComparator(ItemCategory category) {
+        return (m1, m2) -> {
+            String n1 = m1.name();
+            String n2 = m2.name();
+            if (category != null) {
+                switch (category) {
+                    case RESOURCES -> {
+                        int k1 = getResourceScore(n1);
+                        int k2 = getResourceScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case COMBAT -> {
+                        int k1 = getCombatScore(n1);
+                        int k2 = getCombatScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case MAGIC -> {
+                        int k1 = getMagicScore(n1);
+                        int k2 = getMagicScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case STORAGE -> {
+                        int k1 = getStorageScore(n1);
+                        int k2 = getStorageScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case MISC -> {
+                        int k1 = getMiscScore(n1);
+                        int k2 = getMiscScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case DECORATION -> {
+                        int k1 = getDecorationScore(n1);
+                        int k2 = getDecorationScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case FARMING -> {
+                        int k1 = getFarmingScore(n1);
+                        int k2 = getFarmingScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case MOBS -> {
+                        int k1 = getMobsScore(n1);
+                        int k2 = getMobsScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    case BUILDING -> {
+                        int k1 = getBuildingScore(n1);
+                        int k2 = getBuildingScore(n2);
+                        if (k1 != k2) return Integer.compare(k1, k2);
+                    }
+                    default -> {}
+                }
+            }
+            return n1.compareTo(n2);
+        };
+    }
+
+    private static int getResourceScore(String n) {
+        int famRank = 99900;
+        if (n.contains("DIAMOND")) famRank = 1000;
+        else if (n.contains("NETHERITE") || n.contains("ANCIENT_DEBRIS")) famRank = 2000;
+        else if (n.contains("GOLD")) famRank = 3000;
+        else if (n.contains("IRON")) famRank = 4000;
+        else if (n.contains("COPPER")) famRank = 5000;
+        else if (n.contains("EMERALD")) famRank = 6000;
+        else if (n.contains("LAPIS")) famRank = 7000;
+        else if (n.contains("REDSTONE")) famRank = 8000;
+        else if (n.contains("COAL") || n.contains("CHARCOAL")) famRank = 9000;
+        else if (n.contains("AMETHYST")) famRank = 10000;
+        else if (n.contains("QUARTZ")) famRank = 11000;
+        else if (n.contains("RESIN")) famRank = 12000;
+
+        int sub = 50;
+        if (n.equals("DIAMOND") || n.equals("EMERALD") || n.equals("LAPIS_LAZULI")
+            || n.equals("COAL") || n.equals("CHARCOAL") || n.equals("REDSTONE")
+            || n.equals("AMETHYST_SHARD") || n.equals("QUARTZ") || n.equals("RESIN_CLUMP")
+            || n.endsWith("_INGOT")) {
+            sub = 10;
+        } else if (n.endsWith("_BLOCK") && !n.startsWith("RAW_")) {
+            sub = 15;
+        } else if (n.startsWith("RAW_") && !n.endsWith("_BLOCK")) {
+            sub = 20;
+        } else if (n.startsWith("RAW_") && n.endsWith("_BLOCK")) {
+            sub = 25;
+        } else if (n.endsWith("_NUGGET")) {
+            sub = 30;
+        } else if (n.equals("NETHERITE_SCRAP") || n.equals("ANCIENT_DEBRIS")) {
+            sub = 35;
+        } else if (n.endsWith("_ORE") && !n.contains("DEEPSLATE") && !n.contains("NETHER")) {
+            sub = 40;
+        } else if (n.contains("DEEPSLATE") && n.contains("ORE")) {
+            sub = 45;
+        } else if (n.contains("NETHER") && n.contains("ORE")) {
+            sub = 48;
+        }
+        return famRank + sub;
+    }
+
+    private static int getCombatScore(String n) {
+        int group = 99000;
+        if (n.endsWith("_SWORD")) group = 1000;
+        else if (n.contains("SPEAR") || n.contains("DAGGER") || n.contains("KATANA")
+            || n.contains("HAMMER") || n.contains("SCYTHE") || n.contains("HALBERD")
+            || n.contains("RAPIER") || n.contains("LANCE")) group = 2000;
+        else if (n.endsWith("_PICKAXE")) group = 3000;
+        else if (n.endsWith("_AXE")) group = 4000;
+        else if (n.endsWith("_SHOVEL")) group = 5000;
+        else if (n.endsWith("_HOE")) group = 6000;
+        else if (n.endsWith("_HELMET")) group = 7000;
+        else if (n.endsWith("_CHESTPLATE")) group = 8000;
+        else if (n.endsWith("_LEGGINGS")) group = 9000;
+        else if (n.endsWith("_BOOTS")) group = 10000;
+        else if (n.contains("BOW") || n.endsWith("ARROW")) group = 11000;
+        else if (n.equals("SHIELD") || n.equals("TRIDENT") || n.equals("MACE")
+            || n.equals("ELYTRA") || n.equals("TOTEM_OF_UNDYING") || n.equals("WIND_CHARGE")) group = 12000;
+        else if (n.equals("SHEARS") || n.equals("FISHING_ROD") || n.equals("FLINT_AND_STEEL")
+            || n.equals("BRUSH") || n.equals("SPYGLASS") || n.equals("LEAD") || n.equals("NAME_TAG")
+            || n.equals("COMPASS") || n.equals("CLOCK") || n.equals("RECOVERY_COMPASS")) group = 13000;
+        else if (n.contains("HORSE_ARMOR") || n.contains("WOLF_ARMOR") || n.equals("SADDLE")) group = 14000;
+
+        int tier = 50;
+        if (n.startsWith("WOODEN_") || n.startsWith("LEATHER_")) tier = 10;
+        else if (n.startsWith("STONE_") || n.startsWith("CHAINMAIL_")) tier = 20;
+        else if (n.startsWith("GOLDEN_")) tier = 30;
+        else if (n.startsWith("TURTLE_")) tier = 35;
+        else if (n.startsWith("IRON_")) tier = 40;
+        else if (n.startsWith("DIAMOND_")) tier = 50;
+        else if (n.startsWith("NETHERITE_")) tier = 60;
+
+        return group + tier;
+    }
+
+    private static int getMagicScore(String n) {
+        if (n.equals("NETHERITE_UPGRADE_SMITHING_TEMPLATE")) return 1000;
+        if (n.endsWith("_SMITHING_TEMPLATE")) return 1500;
+        if (n.endsWith("_POTTERY_SHERD")) return 2000;
+        if (n.endsWith("_BANNER_PATTERN")) return 3000;
+        if (n.contains("ENCHANT") || n.contains("BOOK") || n.contains("ANVIL") || n.equals("GRINDSTONE")) return 4000;
+        if (n.contains("POTION") || n.equals("BREWING_STAND") || n.equals("CAULDRON")
+            || n.equals("EXPERIENCE_BOTTLE") || n.equals("GLASS_BOTTLE") || n.equals("DRAGON_BREATH")) return 5000;
+        return 9000;
+    }
+
+    private static int getStorageScore(String n) {
+        if (n.equals("CHEST")) return 1010;
+        if (n.equals("TRAPPED_CHEST")) return 1020;
+        if (n.equals("BARREL")) return 1030;
+        if (n.equals("ENDER_CHEST")) return 1040;
+        if (n.contains("BUNDLE")) return 2000;
+        if (n.equals("SHULKER_BOX")) return 3000;
+        if (n.endsWith("SHULKER_BOX")) {
+            if (n.startsWith("WHITE_")) return 3010;
+            if (n.startsWith("LIGHT_GRAY_")) return 3020;
+            if (n.startsWith("GRAY_")) return 3030;
+            if (n.startsWith("BLACK_")) return 3040;
+            if (n.startsWith("BROWN_")) return 3050;
+            if (n.startsWith("RED_")) return 3060;
+            if (n.startsWith("ORANGE_")) return 3070;
+            if (n.startsWith("YELLOW_")) return 3080;
+            if (n.startsWith("LIME_")) return 3090;
+            if (n.startsWith("GREEN_")) return 3100;
+            if (n.startsWith("CYAN_")) return 3110;
+            if (n.startsWith("LIGHT_BLUE_")) return 3120;
+            if (n.startsWith("BLUE_")) return 3130;
+            if (n.startsWith("PURPLE_")) return 3140;
+            if (n.startsWith("MAGENTA_")) return 3150;
+            if (n.startsWith("PINK_")) return 3160;
+            return 3200;
+        }
+        return 9000;
+    }
+
+    private static int getMiscScore(String n) {
+        if (n.startsWith("MUSIC_DISC_") || n.equals("DISC_FRAGMENT_5")) return 1000;
+        if (n.endsWith("_BUCKET") || n.equals("BUCKET")) return 2000;
+        if (n.equals("BEACON") || n.equals("CONDUIT") || n.equals("LODESTONE") || n.equals("RESPAWN_ANCHOR")
+            || n.contains("FIREWORK")) return 3000;
+        return 9000;
+    }
+
+    private static int getDecorationScore(String n) {
+        if (n.endsWith("_DYE")) return 1000;
+        if (n.contains("CANDLE")) return 2000;
+        if (n.endsWith("_BED")) return 3000;
+        if (n.endsWith("_BANNER")) return 4000;
+        if (n.endsWith("_CARPET")) return 5000;
+        if (n.contains("TORCH") || n.contains("LANTERN") || n.contains("CAMPFIRE")
+            || n.contains("FROGLIGHT") || n.equals("SEA_LANTERN") || n.equals("GLOWSTONE")
+            || n.equals("SHROOMLIGHT") || n.equals("END_ROD")) return 6000;
+        if (n.contains("FLOWER") || n.contains("TULIP") || n.contains("ROSE") || n.contains("ORCHID")
+            || n.contains("LILY") || n.contains("PEONY") || n.contains("CORAL") || n.contains("MOSS")) return 7000;
+        if (n.equals("FLOWER_POT") || n.equals("PAINTING") || n.contains("ITEM_FRAME")
+            || n.equals("ARMOR_STAND") || n.equals("BELL") || n.equals("CHAIN")) return 8000;
+        return 9000;
+    }
+
+    private static int getFarmingScore(String n) {
+        if (n.contains("SEED") || n.contains("WHEAT") || n.contains("CARROT") || n.contains("POTATO")
+            || n.contains("BEETROOT") || n.contains("MELON") || n.contains("PUMPKIN")
+            || n.contains("SUGAR") || n.contains("BAMBOO") || n.contains("CACTUS")
+            || n.contains("BERRIES") || n.contains("KELP") || n.contains("WART")) return 1000;
+        if (n.contains("BEEF") || n.contains("PORKCHOP") || n.contains("MUTTON") || n.contains("CHICKEN")
+            || n.contains("RABBIT") || n.contains("COD") || n.contains("SALMON") || n.contains("FISH")) return 2000;
+        if (n.equals("APPLE") || n.contains("GOLDEN_APPLE") || n.equals("BREAD") || n.equals("COOKIE")
+            || n.equals("CAKE") || n.contains("STEW") || n.contains("SOUP") || n.contains("HONEY_BOTTLE")) return 3000;
+        if (n.equals("BONE_MEAL") || n.equals("HAY_BLOCK") || n.contains("HONEYCOMB") || n.contains("BEE_")) return 4000;
+        return 9000;
+    }
+
+    private static int getMobsScore(String n) {
+        if (n.equals("ROTTEN_FLESH") || n.contains("BONE")) return 1000;
+        if (n.equals("STRING") || n.contains("SPIDER_EYE")) return 2000;
+        if (n.equals("GUNPOWDER")) return 3000;
+        if (n.contains("SLIME") || n.contains("MAGMA")) return 4000;
+        if (n.contains("BLAZE") || n.equals("GHAST_TEAR") || n.equals("NETHER_STAR")) return 5000;
+        if (n.contains("ENDER_PEARL") || n.equals("EYE_OF_ENDER") || n.equals("SHULKER_SHELL")) return 6000;
+        if (n.equals("FEATHER") || n.equals("LEATHER") || n.contains("RABBIT_")
+            || n.contains("INK_SAC") || n.equals("NAUTILUS_SHELL") || n.equals("HEART_OF_THE_SEA")
+            || n.contains("PRISMARINE_") || n.contains("SCUTE")) return 7000;
+        if (n.equals("BREEZE_ROD") || n.equals("HEAVY_CORE") || n.contains("TRIAL_KEY") || n.equals("OMINOUS_BOTTLE")) return 8000;
+        if (n.equals("SPAWNER")) return 9000;
+        return 9900;
+    }
+
+    private static int getBuildingScore(String n) {
+        if (n.contains("STONE") || n.contains("COBBLE") || n.contains("GRANITE")
+            || n.contains("DIORITE") || n.contains("ANDESITE")) return 1000;
+        if (n.contains("DEEPSLATE") || n.contains("BLACKSTONE") || n.contains("BASALT")
+            || n.contains("NETHERRACK") || n.contains("END_STONE")) return 2000;
+        if (n.contains("PLANKS") || n.contains("LOG") || n.contains("WOOD") || n.contains("STRIPPED_")) return 3000;
+        if (n.contains("BRICK") || n.contains("MUD")) return 4000;
+        if (n.contains("TERRACOTTA")) return 5000;
+        if (n.contains("CONCRETE") && !n.contains("POWDER")) return 6000;
+        if (n.contains("CONCRETE_POWDER")) return 7000;
+        if (n.contains("GLASS")) return 8000;
+        if (n.contains("WOOL")) return 9000;
+        if (n.contains("REDSTONE") || n.contains("REPEATER") || n.contains("COMPARATOR")
+            || n.contains("PISTON") || n.contains("OBSERVER") || n.contains("DISPENSER")
+            || n.contains("DROPPER") || n.contains("HOPPER") || n.contains("CRAFTER")
+            || n.contains("COPPER_BULB") || n.equals("TARGET") || n.contains("SCULK_")
+            || n.equals("REDSTONE_LAMP") || n.equals("NOTE_BLOCK") || n.equals("JUKEBOX")
+            || n.equals("TNT") || n.contains("RAIL") || n.contains("MINECART")
+            || n.equals("LEVER") || n.endsWith("_BUTTON") || n.endsWith("_PRESSURE_PLATE")) return 10000;
+        return 90000;
     }
 
     // ── Preset amounts and prices ───────────────────────────────────────────
@@ -602,13 +830,14 @@ public class PostOrderGUI implements Listener {
     public void openCategoryBrowser(Player player, ItemCategory category, int page, String query) {
         List<Material> allMats = buildAllMats();
 
-        // 1. Filter by category
+        // 1. Filter by category & sort by intelligent group comparator
         List<Material> inCategory;
         if (category == ItemCategory.ALL) {
             inCategory = allMats;
         } else {
             inCategory = allMats.stream()
                 .filter(m -> getCategory(m) == category)
+                .sorted(getCategoryComparator(category))
                 .collect(Collectors.toList());
         }
 
