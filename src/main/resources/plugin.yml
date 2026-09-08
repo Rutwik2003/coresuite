@@ -190,6 +190,19 @@ commands:
     description: Treasure hunt admin/player command
     usage: /<command> [give|verify|setlocation|resetclaim]
     permission: coresuite.treasurehunt.use
+  link:
+    description: Link your Minecraft account to Discord
+    usage: /<command>
+    permission: coresuite.website.link
+    aliases: [discordlink, verify]
+  rank:
+    description: View server ranks and web store link
+    usage: /<command>
+    aliases: [ranks, buy]
+  website:
+    description: Manage and diagnose Website Integration module
+    usage: /<command> [status|reload|links]
+    permission: coresuite.admin
 
   # ── Custom Modules ─────────────────────────────────────────
   orders:
@@ -347,3 +360,9 @@ permissions:
   coresuite.harvest.admin:
     description: Admin Harvest Market commands
     default: op
+  coresuite.website.link:
+    description: Allow players to generate Discord linking codes
+    default: true
+  coresuite.website.rank:
+    description: Allow players to view rank shop link
+    default: true
