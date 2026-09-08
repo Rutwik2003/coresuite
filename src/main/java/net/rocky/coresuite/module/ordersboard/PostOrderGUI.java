@@ -37,28 +37,31 @@ public class PostOrderGUI implements Listener {
     // ── Item Categories ─────────────────────────────────────────────────────
     public enum ItemCategory {
         BUILDING("Building Blocks", Material.BRICKS, "&e&lBuilding Blocks",
-            List.of("&7Stones, woods, bricks, concrete,", "&7glass, terracotta, slabs, & stairs.", "", "&e▶ Click to browse")),
-
-        DECORATION("Decorations", Material.PEONY, "&d&lDecorations",
-            List.of("&7Flowers, saplings, lights, banners,", "&7pots, carpets, and decorative items.", "", "&e▶ Click to browse")),
+            List.of("&7Stones, woods, bricks, concrete,", "&7glass, terracotta, slabs, & stairs.")),
 
         ORES("Ores & Minerals", Material.DIAMOND, "&b&lOres & Minerals",
-            List.of("&7Raw ores, ingots, diamonds,", "&7coal, netherite, lapis, and gems.", "", "&e▶ Click to browse")),
-
-        FARMING("Farming & Food", Material.GOLDEN_CARROT, "&a&lFarming & Food",
-            List.of("&7Crops, foods, meats, seeds,", "&7berries, mushrooms, and harvest goods.", "", "&e▶ Click to browse")),
-
-        REDSTONE("Redstone & Mechanics", Material.REDSTONE, "&c&lRedstone & Mechanics",
-            List.of("&7Redstone dust, repeaters, pistons,", "&7hoppers, observers, rails, and gadgets.", "", "&e▶ Click to browse")),
+            List.of("&7Raw ores, ingots, diamonds,", "&7coal, netherite, lapis, and gems.")),
 
         COMBAT("Tools & Combat", Material.NETHERITE_SWORD, "&9&lTools & Combat",
-            List.of("&7Weapons, armor, tools, bows,", "&7shields, elytra, and gear.", "", "&e▶ Click to browse")),
+            List.of("&7Weapons, armor, tools, bows,", "&7shields, elytra, and gear.")),
+
+        FARMING("Farming & Food", Material.GOLDEN_CARROT, "&a&lFarming & Food",
+            List.of("&7Crops, foods, meats, seeds,", "&7berries, mushrooms, and harvest goods.")),
+
+        REDSTONE("Redstone & Mechanics", Material.REDSTONE, "&c&lRedstone & Mechanics",
+            List.of("&7Redstone dust, repeaters, pistons,", "&7hoppers, observers, rails, and gadgets.")),
 
         DROPS("Mob Drops & Spawners", Material.BLAZE_ROD, "&6&lMob Drops & Spawners",
-            List.of("&7Bones, gunpowder, pearls, blaze rods,", "&7slime, mob drops, and spawners.", "", "&e▶ Click to browse")),
+            List.of("&7Bones, gunpowder, pearls, blaze rods,", "&7slime, mob drops, and spawners.")),
+
+        MAGIC("Magic & Utilities", Material.ENCHANTED_BOOK, "&5&lMagic & Utilities",
+            List.of("&7Potions, enchanted books, templates,", "&7shulker boxes, anvils, and music discs.")),
+
+        DECORATION("Decorations & Nature", Material.PEONY, "&d&lDecorations & Nature",
+            List.of("&7Flowers, saplings, lights, banners,", "&7pots, carpets, and decorative items.")),
 
         ALL("Browse All Items", Material.CHEST, "&f&lBrowse All Items",
-            List.of("&7Browse every obtainable survival item", "&7in alphabetical order.", "", "&e▶ Click to browse"));
+            List.of("&7Browse every obtainable survival item", "&7in alphabetical order."));
 
         private final String displayName;
         private final Material icon;
@@ -88,7 +91,8 @@ public class PostOrderGUI implements Listener {
         "INFESTED_CRACKED_STONE_BRICKS", "INFESTED_CHISELED_STONE_BRICKS",
         "INFESTED_DEEPSLATE", "REINFORCED_DEEPSLATE", "BUDDING_AMETHYST",
         "FROGSPAWN", "EGG", "TURTLE_EGG", "SNIFFER_EGG", "DRAGON_EGG",
-        "SUSPICIOUS_SAND", "SUSPICIOUS_GRAVEL"
+        "SUSPICIOUS_SAND", "SUSPICIOUS_GRAVEL", "TRIAL_SPAWNER", "VAULT",
+        "END_PORTAL_FRAME", "END_PORTAL", "NETHER_PORTAL"
     );
 
     private static List<Material> cachedAllMats = null;
@@ -99,10 +103,17 @@ public class PostOrderGUI implements Listener {
                 .filter(m -> m.isItem() && !m.isAir() && !m.name().startsWith("LEGACY_"))
                 .filter(m -> !ADMIN_ONLY.contains(m.name()))
                 .filter(m -> !m.name().contains("SPAWN_EGG"))
+                .filter(m -> !m.name().contains("HEAD") && !m.name().contains("SKULL"))
                 .sorted(Comparator.comparing(Material::name))
                 .collect(Collectors.toList());
         }
         return cachedAllMats;
+    }
+
+    public static int getItemCountForCategory(ItemCategory category) {
+        List<Material> mats = buildAllMats();
+        if (category == ItemCategory.ALL) return mats.size();
+        return (int) mats.stream().filter(m -> getCategory(m) == category).count();
     }
 
     public static ItemCategory getCategory(Material m) {
@@ -113,81 +124,191 @@ public class PostOrderGUI implements Listener {
             return ItemCategory.COMBAT;
         }
 
-        // 2. Ores & Minerals
-        if (n.endsWith("_ORE") || n.startsWith("RAW_") || n.endsWith("_INGOT") || n.endsWith("_NUGGET")
-            || n.contains("DIAMOND") || n.contains("EMERALD") || n.contains("NETHERITE")
-            || n.contains("LAPIS") || n.contains("QUARTZ") || n.contains("AMETHYST")
-            || n.equals("COAL") || n.equals("CHARCOAL") || n.equals("COPPER_BLOCK")
-            || n.contains("RAW_COPPER") || n.contains("RAW_IRON") || n.contains("RAW_GOLD")) {
+        // 2. Magic, Potions & Utilities
+        if (isMagicOrUtility(n)) {
+            return ItemCategory.MAGIC;
+        }
+
+        // 3. Ores & Minerals
+        if (isOreOrMineral(n)) {
             return ItemCategory.ORES;
         }
 
-        // 3. Redstone & Mechanics
-        if (n.contains("REDSTONE") || n.contains("REPEATER") || n.contains("COMPARATOR")
-            || n.contains("PISTON") || n.contains("OBSERVER") || n.contains("DISPENSER")
-            || n.contains("DROPPER") || n.contains("HOPPER") || n.contains("TARGET")
-            || n.contains("NOTE_BLOCK") || n.contains("JUKEBOX") || n.contains("LEVER")
-            || n.contains("BUTTON") || n.contains("PRESSURE_PLATE") || n.contains("TRIPWIRE")
-            || n.contains("DAYLIGHT") || n.contains("LIGHTNING_ROD") || n.contains("SCULK")
-            || n.contains("RAIL") || n.contains("MINECART") || n.contains("TNT")) {
+        // 4. Redstone & Mechanics
+        if (isRedstoneOrTech(n)) {
             return ItemCategory.REDSTONE;
         }
 
-        // 4. Mob Drops & Spawners
-        if (n.equals("SPAWNER") || n.contains("BONE") || n.contains("STRING") || n.contains("GUNPOWDER")
-            || n.contains("ROTTEN_FLESH") || n.contains("SPIDER_EYE") || n.contains("ENDER_PEARL")
-            || n.contains("EYE_OF_ENDER") || n.contains("BLAZE_ROD") || n.contains("BLAZE_POWDER")
-            || n.contains("GHAST_TEAR") || n.contains("MAGMA_CREAM") || n.contains("SLIME_BALL")
-            || n.contains("SLIME_BLOCK") || n.contains("FEATHER") || n.contains("LEATHER")
-            || n.contains("RABBIT_FOOT") || n.contains("RABBIT_HIDE") || n.contains("INK_SAC")
-            || n.contains("SHULKER_SHELL") || n.contains("PHANTOM_MEMBRANE") || n.contains("NAUTILUS_SHELL")
-            || n.contains("HEART_OF_THE_SEA") || n.contains("DRAGON_BREATH") || n.contains("WITHER_SKELETON_SKULL")
-            || n.contains("NETHER_STAR") || n.contains("PRISMARINE_SHARD") || n.contains("PRISMARINE_CRYSTALS")
-            || n.contains("SCUTE") || n.contains("SPONGE") || n.contains("HONEYCOMB")) {
+        // 5. Mob Drops & Spawners
+        if (isMobDrop(n)) {
             return ItemCategory.DROPS;
         }
 
-        // 5. Farming & Food
-        if (m.isEdible() || n.contains("WHEAT") || n.contains("CARROT") || n.contains("POTATO")
-            || n.contains("BEETROOT") || n.contains("MELON") || n.contains("PUMPKIN")
-            || n.contains("SUGAR_CANE") || n.contains("BAMBOO") || n.contains("COCOA")
-            || n.contains("APPLE") || n.contains("BERR") || n.contains("BREAD")
-            || n.contains("BEEF") || n.contains("PORKCHOP") || n.contains("MUTTON")
-            || n.contains("CHICKEN") || n.contains("RABBIT") || n.contains("COD")
-            || n.contains("SALMON") || n.contains("COOKIE") || n.contains("PIE")
-            || n.contains("CAKE") || n.contains("HONEY_BOTTLE") || n.contains("MILK_BUCKET")
-            || n.contains("MUSHROOM") || n.contains("STEW") || n.contains("SOUP")
-            || n.contains("SEED") || n.contains("NETHER_WART") || n.contains("CHORUS")
-            || n.contains("KELP")) {
+        // 6. Farming & Food
+        if (isFarmingOrFood(m, n)) {
             return ItemCategory.FARMING;
         }
 
-        // 6. Decorations
-        if (n.contains("FLOWER") || n.contains("TULIP") || n.contains("ORCHID")
-            || n.contains("ROSE") || n.contains("DANDELION") || n.contains("POPPY")
-            || n.contains("LILY") || n.contains("SUNFLOWER") || n.contains("LILAC")
-            || n.contains("PEONY") || n.contains("ALLIUM") || n.contains("AZURE_BLUET")
-            || n.contains("CORNFLOWER") || n.contains("SAPLING") || n.contains("LEAVES")
-            || n.contains("LANTERN") || n.contains("TORCH") || n.contains("CANDLE")
-            || n.contains("CARPET") || n.contains("BANNER") || n.contains("PAINTING")
-            || n.contains("ITEM_FRAME") || n.contains("FLOWER_POT") || n.contains("BELL")
-            || n.contains("CAMPFIRE") || n.contains("CHAIN") || n.contains("HEAD")
-            || n.contains("SKULL") || n.contains("ARMOR_STAND") || n.contains("CORAL")) {
+        // 7. Decorations & Nature
+        if (isDecorationOrNature(n)) {
             return ItemCategory.DECORATION;
         }
 
-        // 7. Default to BUILDING for blocks/materials
+        // 8. Default to Building Blocks
         return ItemCategory.BUILDING;
     }
 
     private static boolean isCombatOrTool(String n) {
         return n.endsWith("_SWORD") || n.endsWith("_PICKAXE") || n.endsWith("_AXE")
             || n.endsWith("_SHOVEL") || n.endsWith("_HOE")
+            || n.contains("SPEAR") || n.contains("DAGGER") || n.contains("KATANA")
+            || n.contains("HAMMER") || n.contains("SCYTHE") || n.contains("HALBERD")
+            || n.contains("RAPIER") || n.contains("LANCE")
             || n.endsWith("_HELMET") || n.endsWith("_CHESTPLATE") || n.endsWith("_LEGGINGS") || n.endsWith("_BOOTS")
             || n.contains("SHIELD") || n.contains("BOW") || n.contains("CROSSBOW") || n.contains("ARROW")
             || n.contains("TRIDENT") || n.contains("MACE") || n.contains("ELYTRA") || n.contains("TOTEM")
             || n.contains("SHEARS") || n.contains("FISHING_ROD") || n.contains("FLINT_AND_STEEL")
-            || n.contains("HORSE_ARMOR") || n.contains("SADDLE");
+            || n.contains("SPYGLASS") || n.contains("BRUSH") || n.contains("LEAD") || n.contains("NAME_TAG")
+            || n.contains("COMPASS") || n.contains("CLOCK")
+            || n.contains("HORSE_ARMOR") || n.contains("WOLF_ARMOR") || n.equals("SADDLE")
+            || n.contains("WIND_CHARGE");
+    }
+
+    private static boolean isMagicOrUtility(String n) {
+        return n.contains("POTION")
+            || n.contains("ENCHANTED_BOOK") || n.equals("BOOK") || n.equals("WRITABLE_BOOK") || n.equals("WRITTEN_BOOK")
+            || n.contains("SMITHING_TEMPLATE")
+            || n.contains("BANNER_PATTERN")
+            || n.contains("POTTERY_SHERD")
+            || n.startsWith("MUSIC_DISC_") || n.equals("DISC_FRAGMENT_5")
+            || n.equals("ENCHANTING_TABLE") || n.contains("ANVIL") || n.equals("GRINDSTONE")
+            || n.equals("BREWING_STAND") || n.equals("CAULDRON") || n.equals("EXPERIENCE_BOTTLE")
+            || n.equals("GLASS_BOTTLE") || n.equals("DRAGON_BREATH")
+            || n.equals("ENDER_CHEST") || n.endsWith("SHULKER_BOX")
+            || n.equals("BEACON") || n.equals("CONDUIT") || n.equals("LODESTONE") || n.equals("RESPAWN_ANCHOR")
+            || n.endsWith("_BUCKET") || n.equals("BUCKET");
+    }
+
+    private static boolean isOreOrMineral(String n) {
+        if (n.endsWith("_ORE")) return true;
+        if (n.startsWith("RAW_")) return true;
+        if (n.endsWith("_INGOT") || n.endsWith("_NUGGET")) return true;
+        if (n.equals("DIAMOND") || n.equals("EMERALD") || n.equals("LAPIS_LAZULI")
+            || n.equals("COAL") || n.equals("CHARCOAL") || n.equals("NETHERITE_SCRAP")
+            || n.equals("ANCIENT_DEBRIS") || n.equals("AMETHYST_SHARD") || n.equals("QUARTZ")) {
+            return true;
+        }
+        if (n.equals("COAL_BLOCK") || n.equals("IRON_BLOCK") || n.equals("GOLD_BLOCK")
+            || n.equals("DIAMOND_BLOCK") || n.equals("EMERALD_BLOCK") || n.equals("LAPIS_BLOCK")
+            || n.equals("NETHERITE_BLOCK") || n.equals("COPPER_BLOCK")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isRedstoneOrTech(String n) {
+        if (n.equals("REDSTONE") || n.equals("REDSTONE_TORCH") || n.equals("REDSTONE_BLOCK")
+            || n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("TARGET")
+            || n.equals("LEVER") || n.equals("LIGHTNING_ROD") || n.equals("DAYLIGHT_DETECTOR")
+            || n.equals("TRIPWIRE_HOOK") || n.endsWith("_BUTTON") || n.endsWith("_PRESSURE_PLATE")) {
+            return true;
+        }
+        if (n.contains("PISTON") || n.contains("OBSERVER") || n.contains("DISPENSER")
+            || n.contains("DROPPER") || n.contains("HOPPER") || n.contains("CRAFTER")) {
+            return true;
+        }
+        if (n.contains("RAIL") || n.contains("MINECART")) {
+            return true;
+        }
+        if (n.equals("TNT") || n.equals("NOTE_BLOCK") || n.equals("JUKEBOX")) {
+            return true;
+        }
+        if (n.contains("SCULK_SENSOR") || n.contains("SCULK_SHRIEKER")) {
+            return true;
+        }
+        if (n.equals("REDSTONE_LAMP") || n.contains("COPPER_BULB")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isMobDrop(String n) {
+        if (n.equals("BONE") || n.equals("STRING") || n.equals("GUNPOWDER")
+            || n.equals("ROTTEN_FLESH") || n.equals("SPIDER_EYE") || n.equals("FERMENTED_SPIDER_EYE")
+            || n.equals("BLAZE_ROD") || n.equals("BLAZE_POWDER") || n.equals("GHAST_TEAR")
+            || n.equals("MAGMA_CREAM") || n.equals("SLIME_BALL")
+            || n.equals("ENDER_PEARL") || n.equals("EYE_OF_ENDER") || n.equals("SHULKER_SHELL")
+            || n.equals("FEATHER") || n.equals("LEATHER") || n.equals("RABBIT_FOOT") || n.equals("RABBIT_HIDE")
+            || n.equals("INK_SAC") || n.equals("GLOW_INK_SAC")
+            || n.equals("PRISMARINE_SHARD") || n.equals("PRISMARINE_CRYSTALS")
+            || n.equals("NAUTILUS_SHELL") || n.equals("HEART_OF_THE_SEA")
+            || n.equals("PHANTOM_MEMBRANE") || n.equals("NETHER_STAR")
+            || n.equals("BREEZE_ROD") || n.equals("HEAVY_CORE")
+            || n.equals("OMINOUS_BOTTLE") || n.equals("SPAWNER")) {
+            return true;
+        }
+        if (n.contains("SCUTE") || n.contains("TRIAL_KEY")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isFarmingOrFood(Material m, String n) {
+        if (m.isEdible()) return true;
+        if (n.contains("WHEAT") || n.contains("CARROT") || n.contains("POTATO")
+            || n.contains("BEETROOT") || n.contains("MELON") || n.contains("PUMPKIN")
+            || n.contains("SUGAR_CANE") || n.contains("BAMBOO") || n.contains("CACTUS")
+            || n.contains("COCOA_BEANS") || n.contains("NETHER_WART") || n.contains("CHORUS")
+            || n.contains("KELP") || n.contains("BERRIES") || n.contains("SEEDS")
+            || n.contains("TORCHFLOWER") || n.contains("PITCHER")) {
+            return true;
+        }
+        if (n.equals("BREAD") || n.equals("COOKIE") || n.equals("CAKE")
+            || n.equals("HONEY_BOTTLE") || n.equals("MILK_BUCKET") || n.equals("EGG")
+            || n.equals("SUGAR") || n.equals("BOWL") || n.equals("APPLE")
+            || n.equals("GOLDEN_APPLE") || n.equals("ENCHANTED_GOLDEN_APPLE")
+            || n.equals("BEEF") || n.equals("COOKED_BEEF") || n.equals("PORKCHOP") || n.equals("COOKED_PORKCHOP")
+            || n.equals("MUTTON") || n.equals("COOKED_MUTTON") || n.equals("CHICKEN") || n.equals("COOKED_CHICKEN")
+            || n.equals("RABBIT") || n.equals("COOKED_RABBIT") || n.equals("COD") || n.equals("COOKED_COD")
+            || n.equals("SALMON") || n.equals("COOKED_SALMON") || n.equals("PUFFERFISH") || n.equals("TROPICAL_FISH")
+            || n.contains("STEW") || n.contains("SOUP") || n.contains("MUSHROOM")) {
+            return true;
+        }
+        if (n.equals("HAY_BLOCK") || n.equals("BONE_MEAL") || n.equals("HONEY_BLOCK")
+            || n.equals("HONEYCOMB") || n.equals("HONEYCOMB_BLOCK")
+            || n.equals("BEE_NEST") || n.equals("BEEHIVE")) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isDecorationOrNature(String n) {
+        if (n.contains("FLOWER") || n.contains("TULIP") || n.contains("ORCHID")
+            || n.contains("ROSE") || n.contains("DANDELION") || n.contains("POPPY")
+            || n.contains("LILY") || n.contains("SUNFLOWER") || n.contains("LILAC")
+            || n.contains("PEONY") || n.contains("ALLIUM") || n.contains("AZURE_BLUET")
+            || n.contains("CORNFLOWER") || n.contains("SAPLING") || n.contains("PROPAGULE")
+            || n.contains("LEAVES") || n.contains("MOSS") || n.contains("AZALEA")
+            || n.contains("SPORE_BLOSSOM") || n.contains("VINE") || n.contains("LICHEN")
+            || n.contains("ROOTS") || n.contains("DRIPLEAF")) {
+            return true;
+        }
+        if (n.contains("LANTERN") || n.contains("TORCH") || n.contains("CANDLE")
+            || n.contains("FROGLIGHT") || n.contains("CAMPFIRE")
+            || n.equals("SEA_LANTERN") || n.equals("GLOWSTONE") || n.equals("SHROOMLIGHT") || n.equals("END_ROD")) {
+            return true;
+        }
+        if (n.equals("FLOWER_POT") || n.equals("PAINTING") || n.contains("ITEM_FRAME")
+            || n.equals("ARMOR_STAND") || n.equals("BELL") || n.equals("CHAIN")) {
+            return true;
+        }
+        if (n.contains("CORAL") || n.equals("SEA_PICKLE") || n.contains("SPONGE") || n.contains("AMETHYST_CLUSTER") || n.contains("AMETHYST_BUD")) {
+            return true;
+        }
+        if (n.endsWith("_BANNER") || n.endsWith("_CARPET")) {
+            return true;
+        }
+        return false;
     }
 
     // ── Preset amounts and prices ───────────────────────────────────────────
@@ -313,8 +434,10 @@ public class PostOrderGUI implements Listener {
     // ══════════════════════════════════════════════════════════════════════════
 
     public void openCategories(Player player) {
-        Gui gui = new Gui("&8▶ &6&lOrder Categories &8◀", 4);
+        Gui gui = new Gui("&8▶ &6&lItem Categories &8◀", 5);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
+
+        int totalMats = buildAllMats().size();
 
         // Header info item at slot 4
         gui.setItem(4, GuiButton.of(Material.PAPER, "&6&lSelect a Category",
@@ -323,38 +446,75 @@ public class PostOrderGUI implements Listener {
                 "&7Choose an item category below to",
                 "&7browse survival obtainable items,",
                 "&7or use search to find an item.",
-                "&8&m────────────────────"
+                "&8&m────────────────────",
+                "&7Total Obtainable Items: &a" + totalMats
             ),
             e -> {}
         ));
 
-        // Row 2: 7 Main Categories (slots 10 to 16)
-        ItemCategory[] mainCats = {
+        // Row 2: 4 Primary Categories (slots 10, 12, 14, 16)
+        ItemCategory[] row1Cats = {
             ItemCategory.BUILDING,
-            ItemCategory.DECORATION,
             ItemCategory.ORES,
-            ItemCategory.FARMING,
-            ItemCategory.REDSTONE,
             ItemCategory.COMBAT,
-            ItemCategory.DROPS
+            ItemCategory.FARMING
         };
+        int[] row1Slots = {10, 12, 14, 16};
 
-        for (int i = 0; i < mainCats.length; i++) {
-            ItemCategory cat = mainCats[i];
-            gui.setItem(10 + i, GuiButton.of(cat.getIcon(), cat.getTitle(), cat.getLore(), e -> {
+        for (int i = 0; i < row1Cats.length; i++) {
+            ItemCategory cat = row1Cats[i];
+            int count = getItemCountForCategory(cat);
+            List<String> lore = new ArrayList<>();
+            lore.add("&8&m────────────────────");
+            lore.add("&7Available: &a" + count + " items");
+            lore.add("&8&m────────────────────");
+            lore.addAll(cat.getLore());
+            lore.add("");
+            lore.add("&e▶ Click to browse");
+
+            gui.setItem(row1Slots[i], GuiButton.of(cat.getIcon(), cat.getTitle(), lore, e -> {
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                 selectedCategory.put(player.getUniqueId(), cat);
                 openCategoryBrowser(player, cat, 0, "");
             }));
         }
 
-        // Row 3: Browse All Items & Search by Name (slots 21 and 23)
-        gui.setItem(21, GuiButton.of(Material.CHEST, "&f&lBrowse All Items",
+        // Row 3: 4 Secondary Categories (slots 19, 21, 23, 25)
+        ItemCategory[] row2Cats = {
+            ItemCategory.REDSTONE,
+            ItemCategory.DROPS,
+            ItemCategory.MAGIC,
+            ItemCategory.DECORATION
+        };
+        int[] row2Slots = {19, 21, 23, 25};
+
+        for (int i = 0; i < row2Cats.length; i++) {
+            ItemCategory cat = row2Cats[i];
+            int count = getItemCountForCategory(cat);
+            List<String> lore = new ArrayList<>();
+            lore.add("&8&m────────────────────");
+            lore.add("&7Available: &a" + count + " items");
+            lore.add("&8&m────────────────────");
+            lore.addAll(cat.getLore());
+            lore.add("");
+            lore.add("&e▶ Click to browse");
+
+            gui.setItem(row2Slots[i], GuiButton.of(cat.getIcon(), cat.getTitle(), lore, e -> {
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                selectedCategory.put(player.getUniqueId(), cat);
+                openCategoryBrowser(player, cat, 0, "");
+            }));
+        }
+
+        // Row 4: Browse All Items (slot 29) & Search by Name (slot 33)
+        gui.setItem(29, GuiButton.of(Material.CHEST, "&f&lBrowse All Items",
             List.of(
+                "&8&m────────────────────",
+                "&7Available: &a" + totalMats + " items",
                 "&8&m────────────────────",
                 "&7Browse every obtainable survival item",
                 "&7in alphabetical order.",
-                "&8&m────────────────────",
+                "",
                 "&e▶ Click to browse all items"
             ),
             e -> {
@@ -364,7 +524,7 @@ public class PostOrderGUI implements Listener {
             }
         ));
 
-        gui.setItem(23, GuiButton.of(Material.SPYGLASS, "&e&l🔍 Search by Name",
+        gui.setItem(33, GuiButton.of(Material.SPYGLASS, "&e&l🔍 Search by Name",
             List.of(
                 "&8&m────────────────────",
                 "&7Know what you are looking for?",
@@ -380,13 +540,13 @@ public class PostOrderGUI implements Listener {
             }
         ));
 
-        // Row 4: Navigation (slot 27 = Back to Type Select, slot 35 = Close)
-        gui.setItem(27, GuiButton.of(Material.ARROW, "&7◀ Back",
+        // Row 5: Navigation (slot 36 = Back, slot 40 = Close)
+        gui.setItem(36, GuiButton.of(Material.ARROW, "&7◀ Back",
             List.of("&7Return to order type selection"),
             e -> openTypeSelect(player)
         ));
 
-        gui.setItem(35, GuiButton.of(Material.BARRIER, "&c&lClose",
+        gui.setItem(40, GuiButton.of(Material.BARRIER, "&c&lClose",
             List.of("&7Close the menu"),
             e -> player.closeInventory()
         ));

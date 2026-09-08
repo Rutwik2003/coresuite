@@ -121,7 +121,13 @@ public class Order {
      * ITEM orders use their actual material; SERVICE orders use WRITABLE_BOOK.
      */
     public Material getDisplayMaterial() {
-        return isItemOrder() ? material : Material.WRITABLE_BOOK;
+        if (!isItemOrder()) {
+            return Material.WRITABLE_BOOK;
+        }
+        if (material == null || material.isAir() || material.name().contains("PLAYER_HEAD")) {
+            return Material.ITEM_FRAME;
+        }
+        return material;
     }
 
     /** Short summary of what's being requested, used in GUI item names. */

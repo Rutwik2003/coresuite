@@ -11,6 +11,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class BoardGUI {
 
@@ -31,6 +35,40 @@ public class BoardGUI {
         }
     }
 
+    public enum CategoryFilter {
+        ALL("All Orders", Material.CHEST, "&f&lAll Orders"),
+        ORES("Ores & Minerals", Material.DIAMOND, "&b&lOres & Minerals"),
+        COMBAT("Tools & Combat", Material.NETHERITE_SWORD, "&9&lTools & Combat"),
+        FARMING("Farming & Food", Material.GOLDEN_CARROT, "&a&lFarming & Food"),
+        REDSTONE("Redstone & Mechanics", Material.REDSTONE, "&c&lRedstone & Mechanics"),
+        DROPS("Mob Drops", Material.BLAZE_ROD, "&6&lMob Drops"),
+        MAGIC("Magic & Utilities", Material.ENCHANTED_BOOK, "&5&lMagic & Utilities"),
+        DECORATION("Decorations", Material.PEONY, "&d&lDecorations"),
+        BUILDING("Building Blocks", Material.BRICKS, "&e&lBuilding Blocks"),
+        SERVICES("Service Orders", Material.WRITABLE_BOOK, "&b&lService Orders");
+
+        private final String displayName;
+        private final Material icon;
+        private final String title;
+
+        CategoryFilter(String displayName, Material icon, String title) {
+            this.displayName = displayName;
+            this.icon = icon;
+            this.title = title;
+        }
+
+        public String getDisplayName() { return displayName; }
+        public Material getIcon() { return icon; }
+        public String getTitle() { return title; }
+
+        public CategoryFilter next() {
+            int nextOrdinal = (this.ordinal() + 1) % values().length;
+            return values()[nextOrdinal];
+        }
+    }
+
+    private final Map<UUID, CategoryFilter> playerFilter = new ConcurrentHashMap<>();
+
     private final CoreSuitePlugin plugin;
     private final OrderManager orderManager;
     private final FileConfiguration config;
@@ -48,10 +86,34 @@ public class BoardGUI {
 
     public void setBidGUI(BidGUI bidGUI) { this.bidGUI = bidGUI; }
 
+    public static boolean matchesFilter(Order order, CategoryFilter filter) {
+        if (filter == CategoryFilter.ALL) return true;
+        if (filter == CategoryFilter.SERVICES) return order.isServiceOrder();
+        if (order.isServiceOrder()) return false;
+        PostOrderGUI.ItemCategory cat = PostOrderGUI.getCategory(order.getMaterial());
+        return switch (filter) {
+            case ORES -> cat == PostOrderGUI.ItemCategory.ORES;
+            case COMBAT -> cat == PostOrderGUI.ItemCategory.COMBAT;
+            case FARMING -> cat == PostOrderGUI.ItemCategory.FARMING;
+            case REDSTONE -> cat == PostOrderGUI.ItemCategory.REDSTONE;
+            case DROPS -> cat == PostOrderGUI.ItemCategory.DROPS;
+            case MAGIC -> cat == PostOrderGUI.ItemCategory.MAGIC;
+            case DECORATION -> cat == PostOrderGUI.ItemCategory.DECORATION;
+            case BUILDING -> cat == PostOrderGUI.ItemCategory.BUILDING;
+            default -> true;
+        };
+    }
+
     public void open(Player player, int page, SortMode sort) {
-        orderManager.loadActiveOrders(orders -> {
-            sortOrders(orders, sort);
+        orderManager.loadActiveOrders(allOrders -> {
+            sortOrders(allOrders, sort);
             
+            CategoryFilter activeFilter = playerFilter.getOrDefault(player.getUniqueId(), CategoryFilter.ALL);
+            int totalUnfiltered = allOrders.size();
+            List<Order> orders = allOrders.stream()
+                .filter(o -> matchesFilter(o, activeFilter))
+                .collect(Collectors.toList());
+
             Gui gui = new Gui("&8▶ &6&l📋 Orders Board &8◀", 6);
             gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
             
@@ -60,7 +122,8 @@ public class BoardGUI {
             int maxOrders = config.getInt("max-orders-per-player", 3);
             
             gui.setItem(4, GuiButton.of(Material.PAPER, "&6&lOrders Board", List.of(
-                    "&7Total Active: &a" + activeCount,
+                    "&7Total Active: &a" + totalUnfiltered,
+                    "&7Filter: &e" + activeFilter.getDisplayName() + " &7(&a" + activeCount + "&7)",
                     "&7Your Orders: &a" + playerActive + "&7/&f" + maxOrders,
                     " ",
                     "&eClick to view your orders"
@@ -269,8 +332,25 @@ public class BoardGUI {
             ), e -> {
                 if (myOrdersGUI != null) myOrdersGUI.open(player, 1);
             }));
+
+            // Slot 48: Dynamic Category Filter button
+            gui.setItem(48, GuiButton.of(activeFilter.getIcon(), "&6&lCategory: &f" + activeFilter.getDisplayName(), List.of(
+                "&8&m────────────────────",
+                "&7Filter: &e" + activeFilter.getDisplayName(),
+                "&7Showing: &a" + activeCount + "&7/&f" + totalUnfiltered + " orders",
+                "&8&m────────────────────",
+                "&e▶ Left-Click to cycle category",
+                "&b▶ Right-Click to pick from menu"
+            ), e -> {
+                if (e.isRightClick()) {
+                    openCategoryFilterPicker(player, page, sort, allOrders);
+                } else {
+                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                    playerFilter.put(player.getUniqueId(), activeFilter.next());
+                    open(player, 1, sort);
+                }
+            }));
             
-            gui.setItem(48, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
             gui.setItem(50, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
             gui.setItem(51, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
             
@@ -482,6 +562,88 @@ public class BoardGUI {
         }));
 
         gui.setItem(22, GuiButton.of(Material.ARROW, "&7◀ Back to Board", List.of(), e -> open(player, previousPage, sort)));
+
+        gui.open(player);
+    }
+
+    public void openCategoryFilterPicker(Player player, int previousPage, SortMode sort, List<Order> allOrders) {
+        Gui gui = new Gui("&8▶ &6&lFilter by Category &8◀", 4);
+        gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
+
+        CategoryFilter currentFilter = playerFilter.getOrDefault(player.getUniqueId(), CategoryFilter.ALL);
+
+        // Header info item at slot 4
+        gui.setItem(4, GuiButton.of(Material.PAPER, "&6&lFilter Orders by Category", List.of(
+            "&8&m────────────────────",
+            "&7Select a category to view only",
+            "&7orders requesting that item type.",
+            "&8&m────────────────────",
+            "&7Active Filter: &e" + currentFilter.getDisplayName(),
+            "&7Total Active:  &a" + allOrders.size() + " orders"
+        ), e -> {}));
+
+        // Row 2 (slots 11 to 15): 5 primary categories
+        CategoryFilter[] row1 = {
+            CategoryFilter.ALL,
+            CategoryFilter.BUILDING,
+            CategoryFilter.ORES,
+            CategoryFilter.COMBAT,
+            CategoryFilter.FARMING
+        };
+        int[] row1Slots = {11, 12, 13, 14, 15};
+
+        for (int i = 0; i < row1.length; i++) {
+            CategoryFilter f = row1[i];
+            long matchCount = allOrders.stream().filter(o -> matchesFilter(o, f)).count();
+            boolean isSelected = (f == currentFilter);
+            List<String> lore = new ArrayList<>();
+            lore.add("&8&m────────────────────");
+            lore.add("&7Matching Orders: &a" + matchCount);
+            if (isSelected) {
+                lore.add("&a✔ CURRENTLY ACTIVE");
+            }
+            lore.add("&8&m────────────────────");
+            lore.add("&e▶ Click to filter board");
+
+            gui.setItem(row1Slots[i], GuiButton.of(f.getIcon(), f.getTitle(), lore, e -> {
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                playerFilter.put(player.getUniqueId(), f);
+                open(player, 1, sort);
+            }));
+        }
+
+        // Row 3 (slots 20 to 24): 5 secondary categories
+        CategoryFilter[] row2 = {
+            CategoryFilter.REDSTONE,
+            CategoryFilter.DROPS,
+            CategoryFilter.MAGIC,
+            CategoryFilter.DECORATION,
+            CategoryFilter.SERVICES
+        };
+        int[] row2Slots = {20, 21, 22, 23, 24};
+
+        for (int i = 0; i < row2.length; i++) {
+            CategoryFilter f = row2[i];
+            long matchCount = allOrders.stream().filter(o -> matchesFilter(o, f)).count();
+            boolean isSelected = (f == currentFilter);
+            List<String> lore = new ArrayList<>();
+            lore.add("&8&m────────────────────");
+            lore.add("&7Matching Orders: &a" + matchCount);
+            if (isSelected) {
+                lore.add("&a✔ CURRENTLY ACTIVE");
+            }
+            lore.add("&8&m────────────────────");
+            lore.add("&e▶ Click to filter board");
+
+            gui.setItem(row2Slots[i], GuiButton.of(f.getIcon(), f.getTitle(), lore, e -> {
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                playerFilter.put(player.getUniqueId(), f);
+                open(player, 1, sort);
+            }));
+        }
+
+        // Back to Board at slot 31
+        gui.setItem(31, GuiButton.of(Material.ARROW, "&7◀ Back to Board", List.of(), e -> open(player, previousPage, sort)));
 
         gui.open(player);
     }
