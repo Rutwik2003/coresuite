@@ -4,6 +4,7 @@ import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.Module;
 import org.bukkit.Bukkit;
+import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -18,6 +19,7 @@ import org.bukkit.util.StringUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class OrdersBoardModule extends Module implements CommandExecutor, Listener, TabCompleter {
 
@@ -112,10 +114,36 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
             return true;
         }
 
+        if (args[0].equalsIgnoreCase("cancel") || args[0].equalsIgnoreCase("remove")) {
+            if (args.length == 1) {
+                myOrdersGUI.open(player, 1);
+                TextUtil.sendMessage(player, prefix + "&eClick any order to cancel it and reclaim your escrow money.");
+                return true;
+            }
+            try {
+                int orderId = Integer.parseInt(args[1].replace("#", ""));
+                boolean isAdmin = player.hasPermission("coresuite.ordersboard.admin");
+                UUID requesterUuid = isAdmin ? null : player.getUniqueId();
+                orderManager.cancelOrder(orderId, requesterUuid, refund -> {
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1f);
+                    String msg = config.getString("messages.cancelled", "&aOrder cancelled. Refunded: &e{refund}&a.")
+                            .replace("{refund}", plugin.getEconomyManager().format(refund));
+                    TextUtil.sendMessage(player, prefix + msg);
+                }, () -> {
+                    TextUtil.sendMessage(player, prefix + "&cCould not cancel order #" + orderId + ". Make sure you are the owner and it is active.");
+                });
+            } catch (NumberFormatException ex) {
+                TextUtil.sendMessage(player, prefix + "&cInvalid order ID: &e" + args[1]);
+            }
+            return true;
+        }
+
         if (args[0].equalsIgnoreCase("help")) {
             TextUtil.sendMessage(player, prefix + "&eOrders Board Help:");
             TextUtil.sendMessage(player, "&7/orders &8- &fOpen the main board");
             TextUtil.sendMessage(player, "&7/orders mine &8- &fView your active orders");
+            TextUtil.sendMessage(player, "&7/orders cancel [id] &8- &fCancel an order & reclaim refund");
+            TextUtil.sendMessage(player, "&7/orders bids &8- &fView incoming bids & offers");
             if (player.hasPermission("coresuite.ordersboard.admin")) {
                 TextUtil.sendMessage(player, "&7/orders admin setnpc &8- &fSet Citizens NPC ID (look at NPC)");
                 TextUtil.sendMessage(player, "&7/orders admin reload &8- &fReload config");
@@ -172,7 +200,7 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
-            List<String> options = new ArrayList<>(Arrays.asList("gui", "mine", "bids", "help"));
+            List<String> options = new ArrayList<>(Arrays.asList("gui", "mine", "bids", "cancel", "help"));
             if (sender.hasPermission("coresuite.ordersboard.admin")) {
                 options.add("admin");
             }

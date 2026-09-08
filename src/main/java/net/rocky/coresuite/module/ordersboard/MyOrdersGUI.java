@@ -87,12 +87,15 @@ public class MyOrdersGUI {
 
                 lore.add("&7Expires:    &e" + order.getTimeLeftString());
                 lore.add("&8&m────────────────────");
-                lore.add("&c▶ Shift+Click to CANCEL order (refund)");
+                if (order.isServiceOrder() && order.getStatus() == Order.Status.ACCEPTED) {
+                    lore.add("&a▶ Left-Click to MARK COMPLETED (Pay contractor)");
+                    lore.add("&c▶ Right-Click or Shift-Click to CANCEL (Refund)");
+                } else {
+                    lore.add("&c▶ Click to CANCEL & REMOVE this order (Full refund)");
+                }
 
                 gui.setItem(ITEM_SLOTS[slotIdx++], GuiButton.of(order.getDisplayMaterial(), "&f" + order.getDisplayTitle(), lore, e -> {
-                    if (e.isShiftClick()) {
-                        openCancelConfirm(player, order, page);
-                    } else if (order.isServiceOrder() && order.getStatus() == Order.Status.ACCEPTED) {
+                    if (order.isServiceOrder() && order.getStatus() == Order.Status.ACCEPTED && !e.isShiftClick() && !e.isRightClick()) {
                         // Complete service order
                         orderManager.completeServiceOrder(order.getId(), player.getUniqueId(), () -> {
                             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
@@ -102,6 +105,8 @@ public class MyOrdersGUI {
                         }, () -> {
                             TextUtil.sendMessage(player, "&cCould not complete order.");
                         });
+                    } else {
+                        openCancelConfirm(player, order, () -> open(player, page));
                     }
                 }));
             }
@@ -139,14 +144,21 @@ public class MyOrdersGUI {
         });
     }
 
-    private void openCancelConfirm(Player player, Order order, int page) {
-        Gui gui = new Gui("&8▶ &c&lCancel Order? &8◀", 3);
+    public void openCancelConfirm(Player player, Order order, Runnable onReturn) {
+        Gui gui = new Gui("&8▶ &c&lCancel Order #" + order.getId() + "? &8◀", 3);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
         double refundAmount = order.getPriceRemaining();
         
-        gui.setItem(11, GuiButton.of(Material.RED_STAINED_GLASS_PANE, "&c&lYes, Cancel", List.of(
-            "&7Refund: &a" + plugin.getEconomyManager().format(refundAmount)
+        gui.setItem(11, GuiButton.of(Material.RED_STAINED_GLASS_PANE, "&c&l✓ Yes, Cancel & Remove", List.of(
+            "&8&m────────────────────",
+            "&7Order ID: &f#" + order.getId(),
+            "&7Refund to you: &a" + plugin.getEconomyManager().format(refundAmount),
+            "&8&m────────────────────",
+            "&7Permanently removes this order",
+            "&7and returns your escrow money.",
+            "&8&m────────────────────",
+            "&c▶ Click to confirm cancellation"
         ), e -> {
             player.closeInventory();
             orderManager.cancelOrder(order.getId(), player.getUniqueId(), refund -> {
@@ -155,16 +167,31 @@ public class MyOrdersGUI {
                 String msg = config.getString("messages.cancelled", "&aOrder cancelled. Refunded: &e{refund}&a.")
                         .replace("{refund}", plugin.getEconomyManager().format(refund));
                 TextUtil.sendMessage(player, prefix + msg);
-                open(player, page);
+                onReturn.run();
             }, () -> {
                 TextUtil.sendMessage(player, "&cCould not cancel order. It might already be cancelled or completed.");
-                open(player, page);
+                onReturn.run();
             });
         }));
 
-        gui.setItem(13, GuiButton.of(order.getDisplayMaterial(), "&f" + order.getDisplayTitle(), List.of("&7Order ID: " + order.getId()), e -> {}));
+        gui.setItem(13, GuiButton.of(order.getDisplayMaterial(), "&f" + order.getDisplayTitle(), List.of(
+            "&8&m────────────────────",
+            "&7Order ID: &f#" + order.getId(),
+            "&7Type:     &f" + (order.isItemOrder() ? "Item Request" : "Service"),
+            "&7Escrow:   &a" + plugin.getEconomyManager().format(order.getPriceTotal()),
+            "&7Expires:  &e" + order.getTimeLeftString(),
+            "&8&m────────────────────"
+        ), e -> {}));
 
-        gui.setItem(15, GuiButton.of(Material.GREEN_STAINED_GLASS_PANE, "&a&lKeep Order", List.of(), e -> open(player, page)));
+        gui.setItem(15, GuiButton.of(Material.GREEN_STAINED_GLASS_PANE, "&a&l✗ Keep Order", List.of(
+            "&8&m────────────────────",
+            "&7Do not cancel this order.",
+            "&7Keep it active on the board.",
+            "&8&m────────────────────",
+            "&e▶ Click to go back"
+        ), e -> onReturn.run()));
+
+        gui.setItem(22, GuiButton.of(Material.ARROW, "&7◀ Back", List.of(), e -> onReturn.run()));
 
         gui.open(player);
     }
