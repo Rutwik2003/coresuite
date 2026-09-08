@@ -1,4 +1,78 @@
-# Gambling Module Configuration
+# ══════════════════════════════════════════════════════════════════════════════
+#                     CORESUITE — ROYAL CASINO MODULE CONFIG
+# ══════════════════════════════════════════════════════════════════════════════
 
-# List of UUIDs that have accepted the Terms of Service
+enabled: true
+
+# ── General Settings ──────────────────────────────────────────────────────────
+# Prefix used in all casino chat messages
+messages:
+  prefix: "&8[&6&lCasino&8] &r"
+
+# Betting limits
+min-bet: 1000
+max-bet: 5000000
+
+# Minimum win payout that triggers a server-wide chat broadcast & celebration
+broadcast-win-threshold: 100000
+
+# Sound effects & celebratory fireworks on big wins
+enable-sounds: true
+enable-fireworks: true
+
+# ── PVP Coinflip ──────────────────────────────────────────────────────────────
+pvp-coinflip:
+  enabled: true
+  # House tax taken from total pot (e.g. 5.0% means $100k + $100k pot = $190k to winner, $10k burned)
+  tax-percent: 5.0
+  # Time in minutes before an unaccepted duel expires and refunds the creator
+  duel-expiry-minutes: 10
+  # Solo Coinflip (against the house) win probability (0.44 = 44% win chance, 12% house edge)
+  solo-win-chance: 0.44
+
+# ── The Crash (Multiplier Rocket) ─────────────────────────────────────────────
+crash:
+  enabled: true
+  # Chance (0.0 to 1.0) that the rocket instantly crashes at 1.00x (0.08 = 8%)
+  instant-crash-chance: 0.08
+  # House edge factor (0.94 = 6% mathematical house edge on non-instant crashes)
+  house-edge-factor: 0.94
+  # Max possible multiplier cap
+  max-multiplier: 50.0
+
+# ── Roulette (CS:GO-Style Red/Black/Gold) ──────────────────────────────────────
+roulette:
+  enabled: true
+  # Multiplier for landing on Red or Black (standard 2x)
+  color-multiplier: 2.0
+  # Multiplier for landing on Gold / Green (standard 14x jackpot)
+  gold-multiplier: 14.0
+
+# ── Vegas Slots ───────────────────────────────────────────────────────────────
+slots:
+  enabled: true
+  # Multipliers for matching 3 symbols
+  multipliers:
+    diamond: 20.0
+    emerald: 8.0
+    gold: 4.0
+    iron: 2.0
+  # Win chances for matching 3 of a kind
+  odds:
+    diamond-percent: 0.5
+    emerald-percent: 2.5
+    gold-percent: 7.0
+    iron-percent: 15.0
+    near-miss-percent: 40.0
+
+# ── Double or Nothing Gamble ──────────────────────────────────────────────────
+double-or-nothing:
+  enabled: true
+  # Win chances per streak tier (diminishing odds the greedier the player gets)
+  streak-1-chance: 0.45
+  streak-2-chance: 0.38
+  streak-3-chance: 0.25
+  streak-4-plus-chance: 0.15
+
+# ── Player Data (Persisted TOS acceptance) ─────────────────────────────────────
 tos-accepted: []

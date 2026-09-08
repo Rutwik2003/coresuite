@@ -173,9 +173,15 @@ commands:
     usage: /<command> approve <player> <packageKey>
     permission: coresuite.store.admin
   gamble:
-    description: Open the gambling GUI
-    usage: /<command>
+    description: Open the Royal Casino GUI
+    usage: /<command> [cf|crash|roulette|slots|top]
     permission: coresuite.gambling.use
+    aliases: [casino]
+  cf:
+    description: Open PVP Coinflip menu or create a duel
+    usage: /<command> [create <amount> <heads|tails>]
+    permission: coresuite.gambling.use
+    aliases: [coinflip]
   creator:
     description: Manage creator features
     usage: /<command> [grant|code|redeem]
