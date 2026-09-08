@@ -89,6 +89,9 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
             command.setExecutor(null);
             command.setTabCompleter(null);
         }
+        if (orderManager != null) {
+            orderManager.clearCache();
+        }
     }
 
     @Override

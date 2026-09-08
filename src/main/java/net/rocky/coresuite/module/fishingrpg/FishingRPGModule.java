@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class FishingRPGModule extends Module {
@@ -93,19 +94,28 @@ public class FishingRPGModule extends Module {
         registerListener(new Listener() {
             @EventHandler
             public void onPlayerJoin(PlayerJoinEvent event) {
-                profileManager.loadPlayer(event.getPlayer().getUniqueId());
+                UUID uuid = event.getPlayer().getUniqueId();
+                profileManager.loadPlayer(uuid);
+                fishBagManager.loadPlayer(uuid);
+                collectionManager.loadPlayer(uuid);
             }
 
             @EventHandler
             public void onPlayerQuit(PlayerQuitEvent event) {
-                profileManager.unloadPlayer(event.getPlayer().getUniqueId());
-                comboTracker.removePlayer(event.getPlayer().getUniqueId());
+                UUID uuid = event.getPlayer().getUniqueId();
+                profileManager.unloadPlayer(uuid);
+                comboTracker.removePlayer(uuid);
+                fishBagManager.unloadPlayer(uuid);
+                collectionManager.unloadPlayer(uuid);
             }
         });
 
         // Load profiles for currently online players (reload support)
         for (Player player : Bukkit.getOnlinePlayers()) {
-            profileManager.loadPlayer(player.getUniqueId());
+            UUID uuid = player.getUniqueId();
+            profileManager.loadPlayer(uuid);
+            fishBagManager.loadPlayer(uuid);
+            collectionManager.loadPlayer(uuid);
         }
 
         FishCommandExecutor commandExecutor = new FishCommandExecutor();
@@ -121,6 +131,24 @@ public class FishingRPGModule extends Module {
     public void onDisable() {
         if (profileManager != null) {
             profileManager.shutdown();
+        }
+        if (ancientAnglerManager != null) {
+            ancientAnglerManager.shutdown();
+        }
+        if (seaMonsterManager != null) {
+            seaMonsterManager.shutdown();
+        }
+        if (fishBagManager != null) {
+            fishBagManager.shutdown();
+        }
+        if (hotspotManager != null) {
+            hotspotManager.shutdown();
+        }
+        if (tournamentManager != null) {
+            tournamentManager.shutdown();
+        }
+        if (dailyBountyManager != null) {
+            dailyBountyManager.shutdown();
         }
         getPlugin().getLogger().info("FishingRPG module disabled.");
     }

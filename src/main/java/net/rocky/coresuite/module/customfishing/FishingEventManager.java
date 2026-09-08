@@ -329,6 +329,10 @@ public class FishingEventManager {
         this.warningTasks.clear();
     }
 
+    public void unloadPlayer(UUID uuid) {
+        this.playersInPond.remove(uuid);
+    }
+
     private void searchWaterAsync(World world, int radius, int attemptsLeft) {
         if (attemptsLeft <= 0) {
             return;

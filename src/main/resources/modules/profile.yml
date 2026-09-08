@@ -1,0 +1,3 @@
+placeholders:
+  claim-blocks: "%griefprevention_remaining_claim_blocks%"
+  vote-points: "%votingplugin_points%"

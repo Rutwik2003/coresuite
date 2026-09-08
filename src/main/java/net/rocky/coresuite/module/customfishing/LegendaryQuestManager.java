@@ -117,6 +117,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 public class LegendaryQuestManager
@@ -133,6 +134,7 @@ implements Listener {
     private final Map<UUID, Long> summonCooldowns = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Long> chatStateTimestamps = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Integer> failCounters = new ConcurrentHashMap<UUID, Integer>();
+    private BukkitTask compassTrackerTask = null;
     private static final String[][] SCENARIO_TEXTS = new String[][]{{"The freezing tide numbs all panic eventually.", "A man burdened by gold sinks without a fight.", "The leviathans below dragged him down too fast.", "He simply accepted the peace of the deep.", "Stop the riddles, old man. I need a favor.", "He was counting his treasures when the waves took him.", "The abyss itself reached up and pulled him under.", "He clawed at the water, trading everything for one more breath.", "A bolt from the heavens split the sea, and he simply... fell in.", "The fool? He jumped in thinking he could command the tide."}, {"The endless need to fight against the current.", "The shimmer of sunken empires buried in the muck.", "The pure adrenaline when the line snaps taut.", "The absolute silence when the surface breaks.", "You are. Now give me what I'm owed.", "The promise of fortune hidden beneath every wave.", "The pull of something ancient lurking far below.", "The fear that drives a man to risk everything.", "The crack of thunder before the heavens weep.", "I command the sea, old man. It bows to me."}, {"Endurance. He kept swimming long after hope had drowned.", "The weight of his purse pulled him to the bottom.", "Something in the dark water wanted him more than the surface did.", "He made peace with the silence and let it take him.", "Enough with your games. Just tell me what I need.", "He was too busy admiring his reflection in golden coins.", "The deep has teeth, and it was hungry that night.", "He traded his last breath for a chance, and lost.", "The sky cracked open and the sea swallowed the light.", "He believed the ocean owed him something. It didn't."}, {"The cold numbed his fear until surrender felt like warmth.", "He drowned clutching gold bars, refusing to let go.", "A hunter became the hunted in the blackwater.", "In the end, the quiet was all he ever wanted.", "Your riddles bore me. Give me what I came for.", "Fortune smiled, then pushed him overboard.", "Whatever lives in the trench claimed him without ceremony.", "He begged the waves for mercy. They don't speak mortal.", "Lightning kissed the water and something ancient stirred.", "He shouted orders at the tide. The tide did not listen."}, {"The freezing water taught him that survival is the only instinct.", "His pockets were heavy with treasure, his lungs empty of air.", "The predator's jaws closed before he could even scream.", "He chose the stillness. The deep embraced him willingly.", "Spare me the philosophy, I have things to do.", "He spent his life chasing riches and the sea collected the debt.", "From the bottomless dark, something whispered his name.", "Desperation made him foolish. The ocean made him vanish.", "The storm broke him before the water ever could.", "Arrogance is the heaviest anchor a fool can carry."}};
     private static final String[] SCENARIO_PROMPTS = new String[]{"*Cough*... I watched a man surrender to the water 'ere yesterday. Didn't thrash. Didn't scream. Just sank like a stone. Why d'ye think he stayed so quiet?", "Look at 'em... Every fish bites the iron thinkin' it's a blessin'. Tell me, youngster, what's the iron hook that caught your soul?", "I once watched a ship's captain throw his compass into the sea. His crew wept, but he smiled. Why d'ye think he destroyed his only guide?", "There's a fish that swallows its own young to protect them from the storm. Tell me, mortal \u2014 what would ye swallow to keep what matters safe?", "The deepest trench holds no light, no warmth, no mercy. Yet something lives there still. What drives a creature to thrive where everything says it should perish?"};
 
@@ -142,8 +144,7 @@ implements Listener {
         this.compassKey = new NamespacedKey((Plugin)plugin, "legendary_compass");
         this.trackerKey = new NamespacedKey((Plugin)plugin, "legendary_tracker");
         this.initDatabase();
-        plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
-        Bukkit.getScheduler().runTaskTimerAsynchronously((Plugin)plugin, () -> {
+        this.compassTrackerTask = Bukkit.getScheduler().runTaskTimer((Plugin)plugin, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 World w;
                 String wName;
@@ -240,6 +241,21 @@ implements Listener {
         this.summonCooldowns.remove(uuid);
         this.chatStateTimestamps.remove(uuid);
         this.failCounters.remove(uuid);
+    }
+
+    public void shutdown() {
+        if (this.compassTrackerTask != null) {
+            this.compassTrackerTask.cancel();
+            this.compassTrackerTask = null;
+        }
+        this.questStages.clear();
+        this.chatState.clear();
+        this.introOptions.clear();
+        this.inDialogueSequence.clear();
+        this.pearlCooldowns.clear();
+        this.summonCooldowns.clear();
+        this.chatStateTimestamps.clear();
+        this.failCounters.clear();
     }
 
     public int getStage(UUID uuid) {

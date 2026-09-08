@@ -173,6 +173,10 @@ public class RouletteGUI {
         return true;
     }
 
+    public void cleanup(UUID uuid) {
+        awaitingCustomBetColor.remove(uuid);
+    }
+
     private void startSpin(Player player, RouletteColor chosenColor, double bet) {
         double minBet = config.getDouble("min-bet", 1000);
         double maxBet = config.getDouble("max-bet", 5000000);

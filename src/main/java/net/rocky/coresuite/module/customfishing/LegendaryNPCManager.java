@@ -69,7 +69,6 @@ implements Listener {
         this.plugin = plugin;
         this.module = module;
         this.legendaryKey = new NamespacedKey((Plugin)plugin, "legendaryFisherman");
-        plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
         Bukkit.getScheduler().runTaskLater((Plugin)plugin, () -> {
             if (CitizensAPI.hasImplementation()) {
                 for (NPC npc : CitizensAPI.getNPCRegistry()) {

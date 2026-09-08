@@ -77,6 +77,7 @@ public class VulcanPunishModule extends Module implements Listener, CommandExecu
                 plugin.getCommand(cmd).setTabCompleter(null);
             }
         }
+        bypassCache.clear();
     }
 
     private void initDatabase() {

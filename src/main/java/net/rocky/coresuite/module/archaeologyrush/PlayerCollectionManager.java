@@ -48,6 +48,14 @@ public class PlayerCollectionManager {
         });
     }
 
+    public void unloadPlayer(UUID uuid) {
+        cache.remove(uuid);
+    }
+
+    public void clearCache() {
+        cache.clear();
+    }
+
     public Set<Integer> getOwnedFragments(UUID uuid, String setId) {
         return cache.getOrDefault(uuid, Map.of()).getOrDefault(setId, Set.of());
     }

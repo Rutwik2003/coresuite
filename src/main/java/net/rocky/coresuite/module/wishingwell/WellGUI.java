@@ -358,4 +358,8 @@ public class WellGUI {
         }
         return true;
     }
+
+    public void cleanup(UUID uuid) {
+        awaitingInput.remove(uuid);
+    }
 }

@@ -43,7 +43,7 @@ public class TreasureHuntModule extends Module implements Listener, CommandExecu
             return;
         }
         
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        registerListener(this);
         
         var cmd = plugin.getCommand("treasurehunt");
         if (cmd != null) {

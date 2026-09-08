@@ -8,6 +8,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -107,6 +108,19 @@ public class HarvestMarketModule extends Module implements CommandExecutor, List
     public void onDisable() {
         if (timerTask != null) timerTask.cancel();
         if (broadcastTask != null) broadcastTask.cancel();
+        if (sellManager != null) sellManager.clearCache();
+        PluginCommand cmd = plugin.getCommand("harvest");
+        if (cmd != null && cmd.getExecutor() == this) {
+            cmd.setExecutor(null);
+            cmd.setTabCompleter(null);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent e) {
+        if (sellManager != null) {
+            sellManager.unloadPlayer(e.getPlayer().getUniqueId());
+        }
     }
 
     @Override

@@ -50,7 +50,6 @@ public class BaitManager implements Listener {
     public BaitManager(CoreSuitePlugin plugin) {
         this.plugin = plugin;
         this.baitKey = new NamespacedKey(plugin, "bait_id");
-        Bukkit.getPluginManager().registerEvents(this, plugin);
         initDatabase();
     }
 

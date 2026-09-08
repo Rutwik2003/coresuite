@@ -281,6 +281,10 @@ public class CoinflipListGUI {
         return true;
     }
 
+    public void cleanup(UUID uuid) {
+        awaitingCustomBetSide.remove(uuid);
+    }
+
     // ── Solo vs House Coinflip ──────────────────────────────────────────────
 
     public void openSoloCoinflip(Player player) {

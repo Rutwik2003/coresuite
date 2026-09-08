@@ -48,7 +48,7 @@ public class AutoMessengerModule extends Module implements CommandExecutor, TabC
         int intervalSeconds = config.getInt("interval", 600);
         if (intervalSeconds <= 0) intervalSeconds = 600;
 
-        broadcastTask = Bukkit.getScheduler().runTaskTimer(plugin, this::broadcastNext, 200L, intervalSeconds * 20L);
+        broadcastTask = registerTask(Bukkit.getScheduler().runTaskTimer(plugin, this::broadcastNext, 200L, intervalSeconds * 20L));
     }
 
     private void stopBroadcastTask() {

@@ -86,10 +86,20 @@ public class ArchaeologyRushModule extends Module implements CommandExecutor, Li
 
     @Override
     public void onDisable() {
+        if (collectionManager != null) {
+            collectionManager.clearCache();
+        }
         PluginCommand cmd = plugin.getCommand("artifacts");
         if (cmd != null && cmd.getExecutor() == this) {
             cmd.setExecutor(null);
             cmd.setTabCompleter(null);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent e) {
+        if (collectionManager != null) {
+            collectionManager.unloadPlayer(e.getPlayer().getUniqueId());
         }
     }
 

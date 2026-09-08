@@ -58,6 +58,14 @@ public class CasinoStatsManager {
         );
     }
 
+    public void unloadPlayer(UUID uuid) {
+        statsCache.remove(uuid);
+    }
+
+    public void clearCache() {
+        statsCache.clear();
+    }
+
     public void loadPlayer(UUID uuid, String name, Runnable onLoaded) {
         plugin.getDatabaseManager().executeAsync(() -> {
             String sql = "SELECT * FROM coresuite_casino_stats WHERE uuid = ?";

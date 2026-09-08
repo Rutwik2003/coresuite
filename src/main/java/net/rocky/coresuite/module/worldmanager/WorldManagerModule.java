@@ -142,7 +142,10 @@ public class WorldManagerModule extends Module implements Listener, CommandExecu
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         savePlayerLocation(event.getPlayer());
-        hubTasks.remove(event.getPlayer().getUniqueId());
+        BukkitTask task = hubTasks.remove(event.getPlayer().getUniqueId());
+        if (task != null) {
+            task.cancel();
+        }
     }
 
     @EventHandler

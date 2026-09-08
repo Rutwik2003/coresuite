@@ -63,6 +63,9 @@ public class WishingWellModule extends Module implements CommandExecutor, Listen
 
     @Override
     public void onDisable() {
+        if (wellManager != null) {
+            wellManager.clearCache();
+        }
         PluginCommand cmd = plugin.getCommand("well");
         if (cmd != null && cmd.getExecutor() == this) {
             cmd.setExecutor(null);
@@ -183,6 +186,13 @@ public class WishingWellModule extends Module implements CommandExecutor, Listen
     public void onChat(AsyncPlayerChatEvent e) {
         if (wellGUI.handleChat(e.getPlayer(), e.getMessage())) {
             e.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent e) {
+        if (wellGUI != null) {
+            wellGUI.cleanup(e.getPlayer().getUniqueId());
         }
     }
 

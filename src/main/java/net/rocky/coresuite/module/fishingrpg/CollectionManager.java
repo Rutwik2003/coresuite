@@ -26,7 +26,6 @@ public class CollectionManager implements Listener {
         this.plugin = plugin;
         this.speciesRegistry = speciesRegistry;
         initDatabase();
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public void initDatabase() {

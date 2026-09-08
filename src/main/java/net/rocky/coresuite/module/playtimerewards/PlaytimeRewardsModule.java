@@ -41,7 +41,6 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
     private final Map<UUID, Integer> adjustSecondsCache = new ConcurrentHashMap<>();
     
     private int afkTimeout;
-    private int timerTaskId = -1;
 
     public PlaytimeRewardsModule(CoreSuitePlugin plugin) {
         super(plugin, "PlaytimeRewards", "playtime-rewards");
@@ -70,9 +69,6 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
 
     @Override
     public void onDisable() {
-        if (timerTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(timerTaskId);
-        }
         for (Player p : Bukkit.getOnlinePlayers()) {
             saveData(p.getUniqueId());
         }
@@ -108,21 +104,19 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
     }
 
     private void startAfkTask() {
-        timerTaskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+        registerTask(Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID uuid = player.getUniqueId();
                 long last = lastActivity.getOrDefault(uuid, now);
                 if (now - last > afkTimeout * 1000L) {
                     afkSecondsCache.put(uuid, afkSecondsCache.getOrDefault(uuid, 0) + 1);
-                    // batch update db periodically? Let's just update on quit or periodically.
-                    // For performance, we'll update DB when player quits or every 5 mins.
                 }
             }
-        }, 20L, 20L); // 1 second loop
+        }, 20L, 20L)); // 1 second loop
         
         // Save task every 5 minutes
-        Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+        registerTask(Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             List<UUID> uuids = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {
                 uuids.add(p.getUniqueId());
@@ -132,7 +126,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     saveData(uuid);
                 }
             });
-        }, 6000L, 6000L);
+        }, 6000L, 6000L));
     }
 
     private void saveData(UUID uuid) {

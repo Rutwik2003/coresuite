@@ -21,8 +21,6 @@ import org.bukkit.command.TabCompleter;
 
 public class KillPodiumModule extends Module implements CommandExecutor, TabCompleter {
 
-    private int taskId = -1;
-
     public KillPodiumModule(CoreSuitePlugin plugin) {
         super(plugin, "KillPodium", "kill-podium");
     }
@@ -43,15 +41,11 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
         }
 
         int interval = config.getInt("update-interval", 300);
-        taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, this::runPodiumUpdate, interval * 20L, interval * 20L);
+        registerTask(Bukkit.getScheduler().runTaskTimer(plugin, this::runPodiumUpdate, interval * 20L, interval * 20L));
     }
 
     @Override
     public void onDisable() {
-        if (taskId != -1) {
-            Bukkit.getScheduler().cancelTask(taskId);
-            taskId = -1;
-        }
         PluginCommand command = plugin.getCommand("podiumupdate");
         if (command != null && command.getExecutor() == this) {
             command.setExecutor(null);

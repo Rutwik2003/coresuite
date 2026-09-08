@@ -110,7 +110,6 @@ implements Listener {
         this.fish2Key = new NamespacedKey((Plugin)plugin, "wa_fish_2");
         this.fish3Key = new NamespacedKey((Plugin)plugin, "wa_fish_3");
         this.spawnTimeKey = new NamespacedKey((Plugin)plugin, "wa_spawn_time");
-        plugin.getServer().getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
         this.checkExistingAnglers();
         this.startSpawningTask();
     }

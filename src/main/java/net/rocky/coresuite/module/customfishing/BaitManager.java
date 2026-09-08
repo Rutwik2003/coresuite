@@ -70,7 +70,6 @@ implements Listener {
         this.plugin = plugin;
         this.module = module;
         this.baitIdKey = new NamespacedKey((Plugin)plugin, "bait_id");
-        Bukkit.getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
         for (Player p : Bukkit.getOnlinePlayers()) {
             this.loadPlayerBait(p.getUniqueId());
         }

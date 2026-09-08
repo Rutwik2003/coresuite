@@ -71,6 +71,14 @@ public class SellManager {
         });
     }
 
+    public void unloadPlayer(UUID uuid) {
+        quotaCache.remove(uuid);
+    }
+
+    public void clearCache() {
+        quotaCache.clear();
+    }
+
     public int getQuotaUsed(UUID uuid) {
         return quotaCache.getOrDefault(uuid, 0);
     }

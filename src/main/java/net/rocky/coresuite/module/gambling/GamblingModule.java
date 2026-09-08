@@ -110,6 +110,10 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         if (cfCmd != null && cfCmd.getExecutor() == this) {
             cfCmd.setExecutor(null);
         }
+
+        if (statsManager != null) {
+            statsManager.clearCache();
+        }
     }
 
     public boolean hasAcceptedTOS(UUID uuid) {
@@ -274,5 +278,15 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
             || slotsGUI.handleChatBet(player, msg)) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        if (statsManager != null) statsManager.unloadPlayer(uuid);
+        if (coinflipListGUI != null) coinflipListGUI.cleanup(uuid);
+        if (crashGUI != null) crashGUI.cleanup(uuid);
+        if (rouletteGUI != null) rouletteGUI.cleanup(uuid);
+        if (slotsGUI != null) slotsGUI.cleanup(uuid);
     }
 }

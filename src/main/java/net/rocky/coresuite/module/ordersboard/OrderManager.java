@@ -114,6 +114,20 @@ public class OrderManager {
         });
     }
 
+    public void clearCache() {
+        activeOrderCache.clear();
+    }
+
+    private void incrementOrderCount(UUID uuid) {
+        if (uuid == null) return;
+        activeOrderCache.compute(uuid, (k, v) -> (v == null) ? 1 : v + 1);
+    }
+
+    private void decrementOrderCount(UUID uuid) {
+        if (uuid == null) return;
+        activeOrderCache.compute(uuid, (k, v) -> (v == null || v <= 1) ? null : v - 1);
+    }
+
     public void loadActiveOrders(Consumer<List<Order>> callback) {
         plugin.getDatabaseManager().executeAsync(() -> {
             List<Order> orders = new ArrayList<>();
@@ -178,7 +192,7 @@ public class OrderManager {
                             pricePerItem, priceTotal, postedAt, expiresAt, true,
                             Order.Status.OPEN, null, null);
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            activeOrderCache.put(posterUuid, activeOrderCache.getOrDefault(posterUuid, 0) + 1);
+                            incrementOrderCount(posterUuid);
                             onSuccess.accept(order);
                             // Announce to all players
                             String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
@@ -222,7 +236,7 @@ public class OrderManager {
                             priceTotal, priceTotal, postedAt, expiresAt, true,
                             Order.Status.OPEN, null, null);
                         Bukkit.getScheduler().runTask(plugin, () -> {
-                            activeOrderCache.put(posterUuid, activeOrderCache.getOrDefault(posterUuid, 0) + 1);
+                            incrementOrderCount(posterUuid);
                             onSuccess.accept(order);
                             // Announce to all players
                             String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
@@ -286,7 +300,7 @@ public class OrderManager {
                 }
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     UUID pUuid = UUID.fromString(finalOrder.getPosterUuid());
-                    activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
+                    decrementOrderCount(pUuid);
                     // Pay acceptor
                     if (finalOrder.getAcceptedByUuid() != null) {
                         UUID aUuid = UUID.fromString(finalOrder.getAcceptedByUuid());
@@ -424,7 +438,7 @@ public class OrderManager {
                             int newFilled = order.getAmountFilled() + actualToFill;
                             if (newFilled >= order.getAmountNeeded()) {
                                 TextUtil.sendMessage(poster, prefix + config.getString("messages.order-complete", "&aYour order is complete!").replace("{item}", formatMaterialName(order.getMaterial())));
-                                activeOrderCache.put(poster.getUniqueId(), Math.max(0, activeOrderCache.getOrDefault(poster.getUniqueId(), 1) - 1));
+                                decrementOrderCount(poster.getUniqueId());
                             } else {
                                 TextUtil.sendMessage(poster, prefix + config.getString("messages.filled-notify", "&aOrder partially filled.")
                                         .replace("{item}", formatMaterialName(order.getMaterial()))
@@ -433,7 +447,7 @@ public class OrderManager {
                             }
                         } else if (order.getAmountFilled() + actualToFill >= order.getAmountNeeded()) {
                             UUID pUuid = UUID.fromString(order.getPosterUuid());
-                            activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
+                            decrementOrderCount(pUuid);
                         }
                         onSuccess.accept(moneyEarned);
                     });
@@ -480,7 +494,7 @@ public class OrderManager {
                             
                             Bukkit.getScheduler().runTask(plugin, () -> {
                                 UUID pUuid = UUID.fromString(order.getPosterUuid());
-                                activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
+                                decrementOrderCount(pUuid);
                                 
                                 double priceRemaining = order.getPriceRemaining();
                                 org.bukkit.entity.Player pOnline = Bukkit.getPlayer(pUuid);
@@ -531,7 +545,7 @@ public class OrderManager {
                     double expiryFeePercent = config.getDouble("expiry-fee-percent", 10.0);
                     for (Order order : expiredOrders) {
                         UUID pUuid = UUID.fromString(order.getPosterUuid());
-                        activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
+                        decrementOrderCount(pUuid);
                         
                         double refund = order.getPriceRemaining() * (1.0 - (expiryFeePercent / 100.0));
                         if (refund > 0) {

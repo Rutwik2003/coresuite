@@ -63,7 +63,7 @@ public class ClearLagModule extends Module implements CommandExecutor, TabComple
         }
 
         countdownSeconds = intervalSeconds;
-        timerTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+        timerTask = registerTask(Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L));
     }
 
     private void tick() {

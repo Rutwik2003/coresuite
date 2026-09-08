@@ -222,7 +222,6 @@ public class PostOrderGUI implements Listener {
         this.plugin       = plugin;
         this.orderManager = orderManager;
         this.config       = config;
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public void setBoardGUI(BoardGUI boardGUI) { this.boardGUI = boardGUI; }

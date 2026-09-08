@@ -40,7 +40,6 @@ public class SeaMonsterManager implements Listener {
         this.plugin = plugin;
         this.config = config;
         this.bossKey = new NamespacedKey(plugin, "fishing_boss");
-        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
     public boolean rollCorrupted(boolean isThundering) {

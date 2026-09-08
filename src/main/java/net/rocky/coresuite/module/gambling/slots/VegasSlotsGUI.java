@@ -116,6 +116,10 @@ public class VegasSlotsGUI {
         return true;
     }
 
+    public void cleanup(UUID uuid) {
+        awaitingCustomBet.remove(uuid);
+    }
+
     private void startSpin(Player player, double bet) {
         double minBet = config.getDouble("min-bet", 1000);
         double maxBet = config.getDouble("max-bet", 5000000);

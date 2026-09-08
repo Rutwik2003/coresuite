@@ -138,6 +138,7 @@ TabCompleter {
     private BaitManager baitManager;
     private LegendaryNPCManager legendaryNPCManager;
     private LegendaryQuestManager legendaryQuestManager;
+    private FishingCollectionManager collectionManager;
     private NamespacedKey speciesKey;
     private NamespacedKey weightKey;
     private NamespacedKey priceKey;
@@ -193,28 +194,34 @@ TabCompleter {
         this.baitManager = new BaitManager(this.plugin, this);
         this.legendaryNPCManager = new LegendaryNPCManager(this.plugin, this);
         this.legendaryQuestManager = new LegendaryQuestManager(this.plugin, this);
+        this.collectionManager = new FishingCollectionManager(this.plugin, this);
         this.registerListener(this);
+        this.registerListener(this.wanderingAnglerManager);
+        this.registerListener(this.baitManager);
+        this.registerListener(this.legendaryNPCManager);
+        this.registerListener(this.legendaryQuestManager);
+        this.registerListener(this.collectionManager);
         PluginCommand command = this.plugin.getCommand("fish");
         if (command != null) {
             command.setExecutor((CommandExecutor)this);
             command.setTabCompleter((TabCompleter)this);
         }
-        Bukkit.getScheduler().runTaskTimerAsynchronously((Plugin)this.plugin, () -> {
+        this.registerTask(Bukkit.getScheduler().runTaskTimerAsynchronously((Plugin)this.plugin, () -> {
             for (Map<Long, AtomicInteger> worldMap : this.chunkCatches.values()) {
                 for (Map.Entry<Long, AtomicInteger> entry : worldMap.entrySet()) {
                     if (entry.getValue().decrementAndGet() > 0) continue;
                     worldMap.remove(entry.getKey());
                 }
             }
-        }, 1200L, 1200L);
-        Bukkit.getScheduler().runTaskTimer((Plugin)this.plugin, () -> {
+        }, 1200L, 1200L));
+        this.registerTask(Bukkit.getScheduler().runTaskTimer((Plugin)this.plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 ItemStack mainHand = player.getInventory().getItemInMainHand();
                 ItemStack offHand = player.getInventory().getItemInOffHand();
                 if ((mainHand == null || mainHand.getType() != Material.FISHING_ROD) && (offHand == null || offHand.getType() != Material.FISHING_ROD)) continue;
                 this.sendFishingActionBar(player);
             }
-        }, 20L, 20L);
+        }, 20L, 20L));
         for (Player p : Bukkit.getOnlinePlayers()) {
             this.loadData(p);
             this.fishBagManager.loadBag(p.getUniqueId());
@@ -256,6 +263,9 @@ TabCompleter {
         }
         if (this.baitManager != null) {
             this.baitManager.shutdown();
+        }
+        if (this.legendaryQuestManager != null) {
+            this.legendaryQuestManager.shutdown();
         }
         if ((command = this.plugin.getCommand("fish")) != null && command.getExecutor() == this) {
             command.setExecutor(null);
@@ -454,7 +464,17 @@ TabCompleter {
         this.playerData.remove(event.getPlayer().getUniqueId());
         this.lastFishTime.remove(event.getPlayer().getUniqueId());
         this.fishStreak.remove(event.getPlayer().getUniqueId());
+        this.actionbarOverride.remove(event.getPlayer().getUniqueId());
         this.chunkCatches.remove(event.getPlayer().getUniqueId());
+        if (this.collectionManager != null) {
+            this.collectionManager.unloadPlayer(event.getPlayer().getUniqueId());
+        }
+        if (this.legendaryNPCManager != null) {
+            this.legendaryNPCManager.removeNPC(event.getPlayer().getUniqueId());
+        }
+        if (this.eventManager != null) {
+            this.eventManager.unloadPlayer(event.getPlayer().getUniqueId());
+        }
     }
 
     private void saveCurrentBagPage(Player player, Inventory inv, int page) {
@@ -1160,11 +1180,11 @@ TabCompleter {
                     return true;
                 }
                 if (args[0].equalsIgnoreCase("info")) {
-                    new FishingCollectionManager(this.plugin, this).openCollectionGUI(player);
+                    this.collectionManager.openCollectionGUI(player);
                     return true;
                 }
                 if (args[0].equalsIgnoreCase("log")) {
-                    new FishingCollectionManager(this.plugin, this).openCollectionGUI(player);
+                    this.collectionManager.openCollectionGUI(player);
                     return true;
                 }
                 if (args[0].equalsIgnoreCase("shop")) {
@@ -1821,13 +1841,21 @@ TabCompleter {
             player.closeInventory();
             this.sendDetailedStats(player, data);
         }));
-        String[] stringArray = new String[4];
-        stringArray[0] = "&7Click to open your fish bag.";
-        stringArray[1] = "";
-        stringArray[2] = data.bagPages < 10 ? "&eClick to open bag &8(or &b/fish buybag&8)" : "&aMax Pages Reached!";
-        stringArray[3] = data.bagPages < 10 ? "&7Cost: &a$" + (this.config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0) == -1.0 ? 10000.0 + (double)(data.bagPages + 1) * 15000.0 : this.config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0)) + " &8| &7Req Level: &b" + (this.config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1) == -1 ? (data.bagPages + 1) * 5 : this.config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1)) : "";
-        gui.setItem(28, GuiButton.of(Material.CHEST, "&a&lFish Bag", Arrays.asList(stringArray), e -> {
-            if (e.isRightClick() && data.bagPages < 10) {
+        List<String> bagLore = new ArrayList<String>();
+        bagLore.add("&7Click to open your fish bag.");
+        if (data.bagPages <= 0) {
+            bagLore.add("");
+            bagLore.add("&eClick to purchase your bag!");
+        } else if (data.bagPages < 10) {
+            bagLore.add("");
+            bagLore.add("&aPages: &f" + data.bagPages + "/10");
+            bagLore.add("&7(Upgrade inside bag with bottle button)");
+        } else {
+            bagLore.add("");
+            bagLore.add("&aMax Pages Reached! (10/10)");
+        }
+        gui.setItem(28, GuiButton.of(Material.CHEST, "&a&lFish Bag", bagLore, e -> {
+            if (data.bagPages <= 0) {
                 player.performCommand("fish buybag");
             } else {
                 player.performCommand("fish bag");

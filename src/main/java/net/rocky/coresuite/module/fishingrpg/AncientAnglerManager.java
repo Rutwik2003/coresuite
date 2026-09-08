@@ -73,7 +73,6 @@ public class AncientAnglerManager implements Listener {
         this.fishSpeciesKey = new NamespacedKey(plugin, "fish_species");
 
         initDatabase();
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     private void initDatabase() {

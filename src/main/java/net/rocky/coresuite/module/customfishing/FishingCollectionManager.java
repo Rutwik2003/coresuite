@@ -60,7 +60,11 @@ implements Listener {
     public FishingCollectionManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;
         this.module = module;
-        Bukkit.getPluginManager().registerEvents((Listener)this, (Plugin)plugin);
+    }
+
+    public void unloadPlayer(UUID uuid) {
+        this.pendingSearch.remove(uuid);
+        this.currentCategory.remove(uuid);
     }
 
     public void openCollectionGUI(Player player) {
