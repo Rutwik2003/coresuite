@@ -303,6 +303,23 @@ public class FishBagManager {
         sortWeightMeta.lore(Arrays.asList(TextUtil.colorize("&7Click to sort all fish by weight.")));
         sortWeightBtn.setItemMeta(sortWeightMeta);
         bagInv.setItem(51, sortWeightBtn);
+
+        if (totalPages < 10) {
+            ItemStack upgradeBtn = new ItemStack(Material.EXPERIENCE_BOTTLE);
+            ItemMeta upMeta = upgradeBtn.getItemMeta();
+            if (upMeta != null) {
+                upMeta.displayName(TextUtil.colorize("&e&lUpgrade Bag Pages"));
+                upMeta.lore(Arrays.asList(
+                    TextUtil.colorize("&8&m────────────────────"),
+                    TextUtil.colorize("&7Current Pages: &a" + totalPages + "&7/&f10"),
+                    TextUtil.colorize("&8&m────────────────────"),
+                    TextUtil.colorize("&e▶ Click to purchase next page")
+                ));
+                upgradeBtn.setItemMeta(upMeta);
+            }
+            bagInv.setItem(48, upgradeBtn);
+        }
+
         player.openInventory(bagInv);
     }
 }

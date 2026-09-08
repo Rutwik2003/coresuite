@@ -552,6 +552,8 @@ TabCompleter {
                         this.saveCurrentBagPage(player, event.getView().getTopInventory(), page);
                         this.fishBagManager.sortBag(player.getUniqueId(), this, false);
                         this.fishBagManager.openBag(player, totalPages, page);
+                    } else if (event.getRawSlot() == 48 && event.getCurrentItem().getType() == Material.EXPERIENCE_BOTTLE) {
+                        player.performCommand("fish buybag");
                     } else if (event.getRawSlot() == 49 && event.getCurrentItem().getType() == Material.BARRIER) {
                         player.performCommand("fish");
                     }
@@ -1822,7 +1824,7 @@ TabCompleter {
         String[] stringArray = new String[4];
         stringArray[0] = "&7Click to open your fish bag.";
         stringArray[1] = "";
-        String string = stringArray[2] = data.bagPages < 10 ? "&eRight-Click to upgrade pages!" : "&aMax Pages Reached!";
+        stringArray[2] = data.bagPages < 10 ? "&eClick to open bag &8(or &b/fish buybag&8)" : "&aMax Pages Reached!";
         stringArray[3] = data.bagPages < 10 ? "&7Cost: &a$" + (this.config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0) == -1.0 ? 10000.0 + (double)(data.bagPages + 1) * 15000.0 : this.config.getDouble("bag-pages." + (data.bagPages + 1) + ".price", -1.0)) + " &8| &7Req Level: &b" + (this.config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1) == -1 ? (data.bagPages + 1) * 5 : this.config.getInt("bag-pages." + (data.bagPages + 1) + ".level-required", -1)) : "";
         gui.setItem(28, GuiButton.of(Material.CHEST, "&a&lFish Bag", Arrays.asList(stringArray), e -> {
             if (e.isRightClick() && data.bagPages < 10) {

@@ -100,11 +100,8 @@ public class BoardGUI {
                             String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
                             lore.add("&a✓ Deal Accepted by: &f" + acceptor);
                             lore.add("&7Waiting for delivery of items.");
-                            lore.add("&c▶ Click to CANCEL & REMOVE (Full refund)");
-                        } else {
-                            lore.add("&c▶ Left-Click to CANCEL & REMOVE (Full refund)");
-                            lore.add("&6▶ Right-Click to VIEW INCOMING BIDS");
                         }
+                        lore.add("&e▶ Click to MANAGE order");
                     } else if (isAccepted) {
                         String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
                         lore.add("&a✓ Deal Accepted by: &f" + acceptor);
@@ -130,11 +127,8 @@ public class BoardGUI {
                             lore.add("&c✗ You have none of this item");
                         } else {
                             lore.add("&aYou have: &f" + playerHas + " &7in inventory");
-                            lore.add(playerHas >= order.getAmountRemaining()
-                                ? "&a▶ Click to fill COMPLETELY (" + plugin.getEconomyManager().format(order.getPriceRemaining()) + ")"
-                                : "&e▶ Click to partially fill (+&a" + plugin.getEconomyManager().format(playerHas * order.getPricePerItem()) + "&e)");
                         }
-                        lore.add("&6▶ Right-Click to PLACE BID / BARGAIN");
+                        lore.add("&e▶ Click to DELIVER or BARGAIN");
                     }
 
                     final int finalPlayerHas = playerHas;
@@ -147,7 +141,7 @@ public class BoardGUI {
                                     return;
                                 }
                                 if (myOrdersGUI != null) {
-                                    myOrdersGUI.openCancelConfirm(player, order, () -> open(player, page, sort));
+                                    myOrdersGUI.openManageOrder(player, order, () -> open(player, page, sort));
                                 }
                                 return;
                             }
@@ -160,17 +154,22 @@ public class BoardGUI {
                                 if (bidGUI != null) bidGUI.openPlaceBid(player, order);
                                 return;
                             }
-                            if (isAccepted && !isContractor) {
-                                String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
-                                TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order deal is reserved for &f" + acceptor + "&c.");
+                            if (isAccepted) {
+                                if (!isContractor) {
+                                    String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+                                    TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order deal is reserved for &f" + acceptor + "&c.");
+                                    return;
+                                }
+                                if (finalPlayerHas == 0) {
+                                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                                    TextUtil.sendMessage(player, "&cYou don't have any " + order.getDisplayTitle() + " to deliver!");
+                                } else {
+                                    openFulfillConfirm(player, order, finalPlayerHas, page, sort);
+                                }
                                 return;
                             }
-                            if (finalPlayerHas == 0) {
-                                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
-                                TextUtil.sendMessage(player, "&cYou don't have any " + order.getDisplayTitle() + "!");
-                            } else {
-                                openFulfillConfirm(player, order, finalPlayerHas, page, sort);
-                            }
+                            // Open item action menu for touch-friendly deliver or bargain
+                            openItemAction(player, order, finalPlayerHas, page, sort);
                         }
                     ));
                 } else {
@@ -188,44 +187,26 @@ public class BoardGUI {
                         if (isAccepted) {
                             String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "Contractor";
                             lore.add("&a✓ Accepted by: &f" + acceptor);
-                            lore.add("&a▶ Click to MARK COMPLETED (Pay contractor)");
-                            lore.add("&c▶ Shift-Click to CANCEL & REMOVE (Refund)");
-                        } else {
-                            lore.add("&c▶ Left-Click to CANCEL & REMOVE (Full Refund)");
-                            lore.add("&6▶ Right-Click to VIEW INCOMING BIDS");
                         }
+                        lore.add("&e▶ Click to MANAGE order");
                     } else if (isAccepted && order.getAcceptedByName() != null) {
                         lore.add("&a✓ Accepted by: &f" + order.getAcceptedByName());
                         lore.add("&8(Deal locked — awaiting completion)");
                     } else {
-                        lore.add("&a▶ Left-Click to VIEW / ACCEPT / BARGAIN");
-                        lore.add("&6▶ Right-Click to BARGAIN directly");
-                        lore.add("&7You'll earn &a" + plugin.getEconomyManager().format(order.getPriceTotal()) + " &7on completion");
+                        lore.add("&e▶ Click to ACCEPT or BARGAIN");
+                        lore.add("&7Reward: &a" + plugin.getEconomyManager().format(order.getPriceTotal()) + " &7on completion");
                     }
 
                     gui.setItem(ITEM_SLOTS[slotIdx++], GuiButton.of(order.getDisplayMaterial(),
                         "&b" + order.getDisplayTitle(), lore,
                         e -> {
                             if (isPoster) {
-                                if (isAccepted) {
-                                    if (e.isShiftClick() || e.isRightClick()) {
-                                        if (myOrdersGUI != null) myOrdersGUI.openCancelConfirm(player, order, () -> open(player, page, sort));
-                                    } else {
-                                        orderManager.completeServiceOrder(order.getId(), player.getUniqueId(), () -> {
-                                            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                                            String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
-                                            TextUtil.sendMessage(player, prefix + "&aService marked completed! Escrow paid to &e" + order.getAcceptedByName() + "&a.");
-                                            open(player, page, sort);
-                                        }, () -> {
-                                            TextUtil.sendMessage(player, "&cCould not complete order.");
-                                        });
-                                    }
-                                } else {
-                                    if (e.isRightClick()) {
-                                        if (bidGUI != null) bidGUI.openMyBids(player);
-                                        return;
-                                    }
-                                    if (myOrdersGUI != null) myOrdersGUI.openCancelConfirm(player, order, () -> open(player, page, sort));
+                                if (e.isRightClick()) {
+                                    if (bidGUI != null) bidGUI.openMyBids(player);
+                                    return;
+                                }
+                                if (myOrdersGUI != null) {
+                                    myOrdersGUI.openManageOrder(player, order, () -> open(player, page, sort));
                                 }
                                 return;
                             }
@@ -377,6 +358,72 @@ public class BoardGUI {
         gui.setItem(13, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
         gui.setItem(15, GuiButton.of(Material.RED_STAINED_GLASS_PANE, "&c&l✗ Cancel", List.of(), e -> open(player, previousPage, sort)));
         
+        gui.open(player);
+    }
+
+    private void openItemAction(Player player, Order order, int playerHas, int previousPage, SortMode sort) {
+        Gui gui = new Gui("&8▶ &e&lItem Order #" + order.getId() + " &8◀", 3);
+        gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
+
+        int amountRemaining = order.getAmountRemaining();
+        gui.setItem(4, GuiButton.of(order.getMaterial(), "&f" + order.getDisplayTitle(), List.of(
+            "&8&m────────────────────",
+            "&7Order ID:   &f#" + order.getId(),
+            "&7Posted by:  &f" + order.getPosterName(),
+            "&7Needs:      &a" + amountRemaining + "x &7" + order.getDisplayTitle(),
+            "&7Pay / item: &a" + plugin.getEconomyManager().format(order.getPricePerItem()),
+            "&7Remaining:  &a" + plugin.getEconomyManager().format(order.getPriceRemaining()),
+            "&7Expires:    &e" + order.getTimeLeftString(),
+            "&8&m────────────────────",
+            "&aYou have:   &f" + playerHas + " &7in inventory"
+        ), e -> {}));
+
+        // Deliver Button (Slot 11)
+        if (playerHas > 0) {
+            int deliverAmt = Math.min(playerHas, amountRemaining);
+            double deliverEarn = deliverAmt * order.getPricePerItem();
+            gui.setItem(11, GuiButton.of(Material.GREEN_STAINED_GLASS_PANE, "&a&l✓ Deliver Items", List.of(
+                "&8&m────────────────────",
+                "&7You will deliver: &f" + deliverAmt + "x &7" + order.getDisplayTitle(),
+                "&7You will earn:    &a" + plugin.getEconomyManager().format(deliverEarn),
+                "&8&m────────────────────",
+                deliverAmt >= amountRemaining
+                    ? "&a▶ Click to fulfill COMPLETELY"
+                    : "&e▶ Click to deliver partial amount"
+            ), e -> openFulfillConfirm(player, order, playerHas, previousPage, sort)));
+        } else {
+            gui.setItem(11, GuiButton.of(Material.BARRIER, "&c&l✗ No Items in Inventory", List.of(
+                "&8&m────────────────────",
+                "&7You have &c0x &7" + order.getDisplayTitle() + " in your inventory.",
+                "&7You cannot deliver right now.",
+                "&8&m────────────────────",
+                "&e(You can still Bargain / Place a Bid below!)"
+            ), e -> {
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                TextUtil.sendMessage(player, "&cYou do not have any " + order.getDisplayTitle() + " to deliver! Use Bargain to propose a price.");
+            }));
+        }
+
+        // Bargain / Bid Button (Slot 15)
+        gui.setItem(15, GuiButton.of(Material.GOLD_BLOCK, "&6&l✎ Bargain / Place Bid", List.of(
+            "&8&m────────────────────",
+            "&7Current Price / item: &a" + plugin.getEconomyManager().format(order.getPricePerItem()),
+            "&7Total Needed:        &f" + amountRemaining + " items",
+            "&8&m────────────────────",
+            "&7Propose your own price or total",
+            "&7payout to &e" + order.getPosterName() + "&7.",
+            "&8&m────────────────────",
+            "&6▶ Click to place a BID / COUNTER-OFFER"
+        ), e -> {
+            if (bidGUI != null) {
+                bidGUI.openPlaceBid(player, order);
+            } else {
+                TextUtil.sendMessage(player, "&cBidding system is currently unavailable.");
+            }
+        }));
+
+        gui.setItem(22, GuiButton.of(Material.ARROW, "&7◀ Back to Board", List.of(), e -> open(player, previousPage, sort)));
+
         gui.open(player);
     }
 
