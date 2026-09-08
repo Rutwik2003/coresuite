@@ -325,4 +325,10 @@ public class BidGUI {
         }
         return true;
     }
+
+    public void cleanup(UUID uuid) {
+        awaitingCtx.remove(uuid);
+        awaitingOrder.remove(uuid);
+        awaitingBid.remove(uuid);
+    }
 }

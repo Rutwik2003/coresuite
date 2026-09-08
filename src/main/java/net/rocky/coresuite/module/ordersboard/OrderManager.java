@@ -73,6 +73,29 @@ public class OrderManager {
                 "amount INTEGER NOT NULL" +
                 ")"
         );
+
+        // Run automatic column migrations for existing databases
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 Statement stmt = conn.createStatement()) {
+                String[] migrations = {
+                    "ALTER TABLE coresuite_orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'ITEM'",
+                    "ALTER TABLE coresuite_orders ADD COLUMN description TEXT",
+                    "ALTER TABLE coresuite_orders ADD COLUMN status TEXT NOT NULL DEFAULT 'OPEN'",
+                    "ALTER TABLE coresuite_orders ADD COLUMN accepted_by_uuid TEXT",
+                    "ALTER TABLE coresuite_orders ADD COLUMN accepted_by_name TEXT"
+                };
+                for (String migration : migrations) {
+                    try {
+                        stmt.execute(migration);
+                    } catch (SQLException ignored) {
+                        // Column already exists or already migrated
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to run column migrations for coresuite_orders", e);
+            }
+        });
     }
 
     private void loadCache() {

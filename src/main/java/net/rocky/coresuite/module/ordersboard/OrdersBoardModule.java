@@ -51,6 +51,7 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
         boardGUI.setBidGUI(bidGUI);
 
         registerListener(this);
+        registerListener(postOrderGUI);
 
         PluginCommand command = plugin.getCommand("orders");
         if (command != null) {
@@ -71,6 +72,13 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
     public void onPlayerJoin(PlayerJoinEvent event) {
         if (orderManager != null) {
             orderManager.deliverPendingItems(event.getPlayer());
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        if (bidGUI != null) {
+            bidGUI.cleanup(event.getPlayer().getUniqueId());
         }
     }
 

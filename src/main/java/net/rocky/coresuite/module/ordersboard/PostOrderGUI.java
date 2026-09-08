@@ -958,6 +958,11 @@ public class PostOrderGUI implements Listener {
 
     // ── Cleanup on order posted / cancelled ───────────────────────────────
 
+    @EventHandler
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        cleanup(event.getPlayer().getUniqueId());
+    }
+
     private void cleanup(UUID uuid) {
         selectedMaterial.remove(uuid);
         selectedCategory.remove(uuid);
