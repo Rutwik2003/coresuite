@@ -37,14 +37,15 @@ public class BoardGUI {
 
     public enum CategoryFilter {
         ALL("All Orders", Material.CHEST, "&f&lAll Orders"),
-        ORES("Ores & Minerals", Material.DIAMOND, "&b&lOres & Minerals"),
-        COMBAT("Tools & Combat", Material.NETHERITE_SWORD, "&9&lTools & Combat"),
-        FARMING("Farming & Food", Material.GOLDEN_CARROT, "&a&lFarming & Food"),
-        REDSTONE("Redstone & Mechanics", Material.REDSTONE, "&c&lRedstone & Mechanics"),
-        DROPS("Mob Drops", Material.BLAZE_ROD, "&6&lMob Drops"),
-        MAGIC("Magic & Utilities", Material.ENCHANTED_BOOK, "&5&lMagic & Utilities"),
-        DECORATION("Decorations", Material.PEONY, "&d&lDecorations"),
-        BUILDING("Building Blocks", Material.BRICKS, "&e&lBuilding Blocks"),
+        BUILDING("Blocks & Building", Material.GRASS_BLOCK, "&6&lBlocks &8& &6&lBuilding"),
+        RESOURCES("Resources & Ores", Material.IRON_INGOT, "&b&lResources &8& &b&lOres"),
+        COMBAT("Tools & Combat", Material.DIAMOND_SWORD, "&c&lTools &8& &c&lCombat"),
+        FARMING("Farming & Food", Material.WHEAT, "&a&lFarming &8& &6&lFood"),
+        MOBS("Mob Drops & Spawners", Material.GUNPOWDER, "&2&lMob Drops &8& &4&lSpawners"),
+        DECORATION("Decoration & Dyes", Material.TUBE_CORAL, "&9&lDecoration &8& &d&lDyes"),
+        MAGIC("Enchants & Potions", Material.ENCHANTING_TABLE, "&5&lEnchants &8& &d&lPotions"),
+        STORAGE("Storage & Boxes", Material.CHEST, "&6&lStorage &8& &e&lBoxes"),
+        MISC("Music & Misc", Material.MUSIC_DISC_CAT, "&d&lMusic &8& &e&lMisc"),
         SERVICES("Service Orders", Material.WRITABLE_BOOK, "&b&lService Orders");
 
         private final String displayName;
@@ -92,14 +93,15 @@ public class BoardGUI {
         if (order.isServiceOrder()) return false;
         PostOrderGUI.ItemCategory cat = PostOrderGUI.getCategory(order.getMaterial());
         return switch (filter) {
-            case ORES -> cat == PostOrderGUI.ItemCategory.ORES;
+            case BUILDING -> cat == PostOrderGUI.ItemCategory.BUILDING;
+            case RESOURCES -> cat == PostOrderGUI.ItemCategory.RESOURCES;
             case COMBAT -> cat == PostOrderGUI.ItemCategory.COMBAT;
             case FARMING -> cat == PostOrderGUI.ItemCategory.FARMING;
-            case REDSTONE -> cat == PostOrderGUI.ItemCategory.REDSTONE;
-            case DROPS -> cat == PostOrderGUI.ItemCategory.DROPS;
-            case MAGIC -> cat == PostOrderGUI.ItemCategory.MAGIC;
+            case MOBS -> cat == PostOrderGUI.ItemCategory.MOBS;
             case DECORATION -> cat == PostOrderGUI.ItemCategory.DECORATION;
-            case BUILDING -> cat == PostOrderGUI.ItemCategory.BUILDING;
+            case MAGIC -> cat == PostOrderGUI.ItemCategory.MAGIC;
+            case STORAGE -> cat == PostOrderGUI.ItemCategory.STORAGE;
+            case MISC -> cat == PostOrderGUI.ItemCategory.MISC;
             default -> true;
         };
     }
@@ -199,22 +201,9 @@ public class BoardGUI {
                         "&f" + order.getDisplayTitle(), lore,
                         e -> {
                             if (isPoster) {
-                                if (e.isRightClick()) {
-                                    if (bidGUI != null) bidGUI.openMyBids(player);
-                                    return;
-                                }
                                 if (myOrdersGUI != null) {
                                     myOrdersGUI.openManageOrder(player, order, () -> open(player, page, sort));
                                 }
-                                return;
-                            }
-                            if (e.isRightClick()) {
-                                if (order.getStatus() == Order.Status.ACCEPTED) {
-                                    String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
-                                    TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order has already been accepted by &f" + acceptor + "&c.");
-                                    return;
-                                }
-                                if (bidGUI != null) bidGUI.openPlaceBid(player, order);
                                 return;
                             }
                             if (isAccepted) {
@@ -231,7 +220,7 @@ public class BoardGUI {
                                 }
                                 return;
                             }
-                            // Open item action menu for touch-friendly deliver or bargain
+                            // Single-click opens item action menu with touch-friendly deliver or bargain buttons
                             openItemAction(player, order, finalPlayerHas, page, sort);
                         }
                     ));
@@ -264,32 +253,19 @@ public class BoardGUI {
                         "&b" + order.getDisplayTitle(), lore,
                         e -> {
                             if (isPoster) {
-                                if (e.isRightClick()) {
-                                    if (bidGUI != null) bidGUI.openMyBids(player);
-                                    return;
-                                }
                                 if (myOrdersGUI != null) {
                                     myOrdersGUI.openManageOrder(player, order, () -> open(player, page, sort));
                                 }
                                 return;
                             }
 
-                            if (e.isRightClick()) {
-                                if (order.getStatus() == Order.Status.ACCEPTED) {
-                                    String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
-                                    TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis order has already been accepted by &f" + acceptor + "&c.");
-                                    return;
-                                }
-                                if (bidGUI != null) bidGUI.openPlaceBid(player, order);
-                                return;
-                            }
-
                             if (order.getStatus() != Order.Status.OPEN) {
-                                TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis service has already been accepted.");
+                                String acceptor = order.getAcceptedByName() != null ? order.getAcceptedByName() : "another player";
+                                TextUtil.sendMessage(player, "&8[&6Orders&8] &cThis service has already been accepted by &f" + acceptor + "&c.");
                                 return;
                             }
 
-                            // Left click opens the Service Action menu (Accept at listed price OR Bargain)
+                            // Single click opens the Service Action menu (Accept at listed price OR Bargain)
                             openServiceAction(player, order, page, sort);
                         }
                     ));
@@ -333,22 +309,16 @@ public class BoardGUI {
                 if (myOrdersGUI != null) myOrdersGUI.open(player, 1);
             }));
 
-            // Slot 48: Dynamic Category Filter button
+            // Slot 48: Dynamic Category Filter button (100% single-click touch friendly)
             gui.setItem(48, GuiButton.of(activeFilter.getIcon(), "&6&lCategory: &f" + activeFilter.getDisplayName(), List.of(
                 "&8&m────────────────────",
                 "&7Filter: &e" + activeFilter.getDisplayName(),
                 "&7Showing: &a" + activeCount + "&7/&f" + totalUnfiltered + " orders",
                 "&8&m────────────────────",
-                "&e▶ Left-Click to cycle category",
-                "&b▶ Right-Click to pick from menu"
+                "&e▶ Click to filter by category"
             ), e -> {
-                if (e.isRightClick()) {
-                    openCategoryFilterPicker(player, page, sort, allOrders);
-                } else {
-                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
-                    playerFilter.put(player.getUniqueId(), activeFilter.next());
-                    open(player, 1, sort);
-                }
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+                openCategoryFilterPicker(player, page, sort, allOrders);
             }));
             
             gui.setItem(50, GuiButton.filler(Material.GRAY_STAINED_GLASS_PANE));
@@ -567,7 +537,7 @@ public class BoardGUI {
     }
 
     public void openCategoryFilterPicker(Player player, int previousPage, SortMode sort, List<Order> allOrders) {
-        Gui gui = new Gui("&8▶ &6&lFilter by Category &8◀", 4);
+        Gui gui = new Gui("&8▶ &6&lFilter by Category &8◀", 5);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
         CategoryFilter currentFilter = playerFilter.getOrDefault(player.getUniqueId(), CategoryFilter.ALL);
@@ -586,7 +556,7 @@ public class BoardGUI {
         CategoryFilter[] row1 = {
             CategoryFilter.ALL,
             CategoryFilter.BUILDING,
-            CategoryFilter.ORES,
+            CategoryFilter.RESOURCES,
             CategoryFilter.COMBAT,
             CategoryFilter.FARMING
         };
@@ -614,11 +584,11 @@ public class BoardGUI {
 
         // Row 3 (slots 20 to 24): 5 secondary categories
         CategoryFilter[] row2 = {
-            CategoryFilter.REDSTONE,
-            CategoryFilter.DROPS,
-            CategoryFilter.MAGIC,
+            CategoryFilter.MOBS,
             CategoryFilter.DECORATION,
-            CategoryFilter.SERVICES
+            CategoryFilter.MAGIC,
+            CategoryFilter.STORAGE,
+            CategoryFilter.MISC
         };
         int[] row2Slots = {20, 21, 22, 23, 24};
 
@@ -642,8 +612,28 @@ public class BoardGUI {
             }));
         }
 
-        // Back to Board at slot 31
-        gui.setItem(31, GuiButton.of(Material.ARROW, "&7◀ Back to Board", List.of(), e -> open(player, previousPage, sort)));
+        // Row 4: Service Orders at slot 31
+        CategoryFilter servFilter = CategoryFilter.SERVICES;
+        long servCount = allOrders.stream().filter(o -> matchesFilter(o, servFilter)).count();
+        boolean isServSelected = (servFilter == currentFilter);
+        List<String> servLore = new ArrayList<>();
+        servLore.add("&8&m────────────────────");
+        servLore.add("&7Matching Orders: &a" + servCount);
+        if (isServSelected) {
+            servLore.add("&a✔ CURRENTLY ACTIVE");
+        }
+        servLore.add("&8&m────────────────────");
+        servLore.add("&e▶ Click to filter board");
+
+        gui.setItem(31, GuiButton.of(servFilter.getIcon(), servFilter.getTitle(), servLore, e -> {
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
+            playerFilter.put(player.getUniqueId(), servFilter);
+            open(player, 1, sort);
+        }));
+
+        // Row 5: Back to Board at slot 36, Close at slot 40
+        gui.setItem(36, GuiButton.of(Material.ARROW, "&7◀ Back to Board", List.of(), e -> open(player, previousPage, sort)));
+        gui.setItem(40, GuiButton.of(Material.BARRIER, "&c&lClose", List.of("&7Close the menu"), e -> player.closeInventory()));
 
         gui.open(player);
     }
