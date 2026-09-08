@@ -645,20 +645,25 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
     // ── Database & Link Management ────────────────────────────────
 
     private void initDatabase() {
-        plugin.getDatabaseManager().execute(
-                "CREATE TABLE IF NOT EXISTS coresuite_discord_links (" +
-                        "uuid TEXT PRIMARY KEY, " +
-                        "discord_id TEXT UNIQUE, " +
-                        "username TEXT, " +
-                        "linked_at BIGINT);"
-        );
-        plugin.getDatabaseManager().execute(
-                "CREATE TABLE IF NOT EXISTS coresuite_website_donators (" +
-                        "username TEXT PRIMARY KEY, " +
-                        "tier TEXT, " +
-                        "amount REAL DEFAULT 0, " +
-                        "updated_at BIGINT);"
-        );
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             java.sql.Statement s = conn.createStatement()) {
+            s.execute(
+                    "CREATE TABLE IF NOT EXISTS coresuite_discord_links (" +
+                            "uuid TEXT PRIMARY KEY, " +
+                            "discord_id TEXT UNIQUE, " +
+                            "username TEXT, " +
+                            "linked_at BIGINT);"
+            );
+            s.execute(
+                    "CREATE TABLE IF NOT EXISTS coresuite_website_donators (" +
+                            "username TEXT PRIMARY KEY, " +
+                            "tier TEXT, " +
+                            "amount REAL DEFAULT 0, " +
+                            "updated_at BIGINT);"
+            );
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to initialize website integration database tables", e);
+        }
     }
 
     private void loadCachedLinks() {
