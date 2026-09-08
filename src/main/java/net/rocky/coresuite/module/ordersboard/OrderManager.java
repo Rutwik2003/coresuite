@@ -266,11 +266,10 @@ public class OrderManager {
                     activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
                     // Pay acceptor
                     if (finalOrder.getAcceptedByUuid() != null) {
-                        plugin.getEconomyManager().deposit(
-                            Bukkit.getOfflinePlayer(UUID.fromString(finalOrder.getAcceptedByUuid())),
-                            finalOrder.getPriceTotal()
-                        );
-                        Player acceptor = Bukkit.getPlayer(UUID.fromString(finalOrder.getAcceptedByUuid()));
+                        UUID aUuid = UUID.fromString(finalOrder.getAcceptedByUuid());
+                        Player acceptor = Bukkit.getPlayer(aUuid);
+                        org.bukkit.OfflinePlayer aTarget = (acceptor != null) ? acceptor : Bukkit.getOfflinePlayer(aUuid);
+                        plugin.getEconomyManager().deposit(aTarget, finalOrder.getPriceTotal());
                         if (acceptor != null) {
                             String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
                             TextUtil.sendMessage(acceptor, prefix + "&aYour service for &f" + finalOrder.getPosterName()
