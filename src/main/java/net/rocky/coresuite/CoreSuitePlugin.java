@@ -186,7 +186,6 @@ public final class CoreSuitePlugin extends JavaPlugin {
         // Phase 10 — Website Integration & System
         moduleManager.registerModule(new net.rocky.coresuite.module.treasurehunt.TreasureHuntModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.website.WebsiteModule(this));
-        moduleManager.registerModule(new net.rocky.coresuite.module.autorestarter.AutoRestarterModule(this));
         
         // Phase 11 — Creator
         moduleManager.registerModule(new net.rocky.coresuite.module.creator.CreatorModule(this));

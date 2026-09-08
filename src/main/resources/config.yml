@@ -33,7 +33,6 @@ modules:
   gambling: true
   profile: true
   website: true
-  autorestarter: true
 
 # Storage settings
 storage:

@@ -186,10 +186,6 @@ commands:
     description: Manage creator features
     usage: /<command> [grant|code|redeem]
     permission: coresuite.creator.use
-  autorestart:
-    description: Manage server auto restarts
-    usage: /<command> [now|cancel|set|time]
-    permission: coresuite.admin
   treasurehunt:
     description: Treasure hunt admin/player command
     usage: /<command> [give|verify|setlocation|resetclaim]
