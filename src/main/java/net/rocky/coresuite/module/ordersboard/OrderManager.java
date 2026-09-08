@@ -317,128 +317,115 @@ public class OrderManager {
     }
 
     public void fillOrder(int orderId, Player filler, int amountToFill, Consumer<Double> onSuccess, Runnable onFail) {
-        plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-                conn.setAutoCommit(false);
-                try (PreparedStatement lockStmt = conn.prepareStatement("SELECT * FROM coresuite_orders WHERE id = ? AND active = 1")) {
-                    lockStmt.setInt(1, orderId);
-                    try (ResultSet rs = lockStmt.executeQuery()) {
-                        if (rs.next()) {
-                            Order order = mapResultSetToOrder(rs);
-                            
-                            if (!order.isActive() || order.isExpired()) {
-                                conn.rollback();
-                                Bukkit.getScheduler().runTask(plugin, onFail);
-                                return;
-                            }
-
-                            if (order.getStatus() == Order.Status.ACCEPTED && order.getAcceptedByUuid() != null) {
-                                if (!order.getAcceptedByUuid().equals(filler.getUniqueId().toString())) {
-                                    conn.rollback();
-                                    Bukkit.getScheduler().runTask(plugin, () -> {
-                                        String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
-                                        TextUtil.sendMessage(filler, prefix + "&cThis order deal is reserved for &f" + order.getAcceptedByName() + "&c.");
-                                        onFail.run();
-                                    });
-                                    return;
-                                }
-                            }
-                            
-                            int actualToFill = Math.min(amountToFill, order.getAmountRemaining());
-                            
-                            // Return to main thread to verify inventory and modify it safely
-                            Bukkit.getScheduler().runTask(plugin, () -> {
-                                int playerHas = getAmountInInventory(filler, order.getMaterial());
-                                if (playerHas < actualToFill) {
-                                    onFail.run();
-                                    return;
-                                }
-                                
-                                removeItems(filler, order.getMaterial(), actualToFill);
-                                double moneyEarned = actualToFill * order.getPricePerItem();
-                                plugin.getEconomyManager().deposit(filler, moneyEarned);
-                                
-                                plugin.getDatabaseManager().executeAsync(() -> {
-                                    try {
-                                        boolean fullyFilled = (order.getAmountFilled() + actualToFill >= order.getAmountNeeded());
-                                        String updateSql = fullyFilled
-                                            ? "UPDATE coresuite_orders SET amount_filled = amount_filled + ?, active = 0, status = 'COMPLETED' WHERE id = ?"
-                                            : "UPDATE coresuite_orders SET amount_filled = amount_filled + ? WHERE id = ?";
-                                        try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
-                                            updateStmt.setInt(1, actualToFill);
-                                            updateStmt.setInt(2, orderId);
-                                            updateStmt.executeUpdate();
-                                        }
-                                        
-                                        try (PreparedStatement insertFill = conn.prepareStatement("INSERT INTO coresuite_orders_fills (order_id, filler_uuid, filler_name, amount, money_earned, filled_at) VALUES (?, ?, ?, ?, ?, ?)")) {
-                                            insertFill.setInt(1, orderId);
-                                            insertFill.setString(2, filler.getUniqueId().toString());
-                                            insertFill.setString(3, filler.getName());
-                                            insertFill.setInt(4, actualToFill);
-                                            insertFill.setDouble(5, moneyEarned);
-                                            insertFill.setLong(6, System.currentTimeMillis());
-                                            insertFill.executeUpdate();
-                                        }
-
-                                        // If poster is offline, queue pending items
-                                        Player posterCheck = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
-                                        if (posterCheck == null) {
-                                            try (PreparedStatement pendingStmt = conn.prepareStatement(
-                                                    "INSERT INTO coresuite_orders_pending_items (player_uuid, material, amount) VALUES (?, ?, ?)")) {
-                                                pendingStmt.setString(1, order.getPosterUuid());
-                                                pendingStmt.setString(2, order.getMaterial().name());
-                                                pendingStmt.setInt(3, actualToFill);
-                                                pendingStmt.executeUpdate();
-                                            }
-                                        }
-                                        
-                                        conn.commit();
-                                        
-                                        Bukkit.getScheduler().runTask(plugin, () -> {
-                                            // Notify poster and deliver items if online
-                                            Player poster = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
-                                            if (poster != null) {
-                                                Map<Integer, ItemStack> overflow = poster.getInventory().addItem(new ItemStack(order.getMaterial(), actualToFill));
-                                                if (!overflow.isEmpty()) {
-                                                    overflow.values().forEach(it -> poster.getWorld().dropItemNaturally(poster.getLocation(), it));
-                                                }
-                                                String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
-                                                int newFilled = order.getAmountFilled() + actualToFill;
-                                                if (newFilled >= order.getAmountNeeded()) {
-                                                    TextUtil.sendMessage(poster, prefix + config.getString("messages.order-complete", "&aYour order is complete!").replace("{item}", formatMaterialName(order.getMaterial())));
-                                                    activeOrderCache.put(poster.getUniqueId(), Math.max(0, activeOrderCache.getOrDefault(poster.getUniqueId(), 1) - 1));
-                                                } else {
-                                                    TextUtil.sendMessage(poster, prefix + config.getString("messages.filled-notify", "&aOrder partially filled.")
-                                                            .replace("{item}", formatMaterialName(order.getMaterial()))
-                                                            .replace("{filled}", String.valueOf(newFilled))
-                                                            .replace("{total}", String.valueOf(order.getAmountNeeded())));
-                                                }
-                                            } else if (order.getAmountFilled() + actualToFill >= order.getAmountNeeded()) {
-                                                UUID pUuid = UUID.fromString(order.getPosterUuid());
-                                                activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
-                                            }
-                                            onSuccess.accept(moneyEarned);
-                                        });
-                                        
-                                    } catch (SQLException ex) {
-                                        plugin.getLogger().log(Level.SEVERE, "Failed inner fill transaction", ex);
-                                        try { conn.rollback(); } catch (SQLException e) {}
-                                        Bukkit.getScheduler().runTask(plugin, onFail);
-                                    } finally {
-                                        try { conn.setAutoCommit(true); } catch (SQLException e) {}
-                                    }
-                                });
-                            });
-                            return;
-                        } else {
-                             conn.rollback();
-                        }
-                    }
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "Failed outer fill transaction", e);
+        getOrderById(orderId, order -> {
+            if (order == null || !order.isActive() || order.isExpired()) {
+                onFail.run();
+                return;
             }
-            Bukkit.getScheduler().runTask(plugin, onFail);
+
+            if (order.getStatus() == Order.Status.ACCEPTED && order.getAcceptedByUuid() != null) {
+                if (!order.getAcceptedByUuid().equals(filler.getUniqueId().toString())) {
+                    String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                    TextUtil.sendMessage(filler, prefix + "&cThis order deal is reserved for &f" + order.getAcceptedByName() + "&c.");
+                    onFail.run();
+                    return;
+                }
+            }
+
+            int actualToFill = Math.min(amountToFill, order.getAmountRemaining());
+            int playerHas = getAmountInInventory(filler, order.getMaterial());
+            if (playerHas < actualToFill || actualToFill <= 0) {
+                onFail.run();
+                return;
+            }
+
+            // Remove items and deposit payout on main thread
+            removeItems(filler, order.getMaterial(), actualToFill);
+            double moneyEarned = actualToFill * order.getPricePerItem();
+            plugin.getEconomyManager().deposit(filler, moneyEarned);
+
+            // Execute DB update in a single self-contained async transaction
+            plugin.getDatabaseManager().executeAsync(() -> {
+                try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                    conn.setAutoCommit(false);
+                    try {
+                        boolean fullyFilled = (order.getAmountFilled() + actualToFill >= order.getAmountNeeded());
+                        String updateSql = fullyFilled
+                            ? "UPDATE coresuite_orders SET amount_filled = amount_filled + ?, active = 0, status = 'COMPLETED' WHERE id = ?"
+                            : "UPDATE coresuite_orders SET amount_filled = amount_filled + ? WHERE id = ?";
+                        try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                            updateStmt.setInt(1, actualToFill);
+                            updateStmt.setInt(2, orderId);
+                            updateStmt.executeUpdate();
+                        }
+
+                        try (PreparedStatement insertFill = conn.prepareStatement(
+                                "INSERT INTO coresuite_orders_fills (order_id, filler_uuid, filler_name, amount, money_earned, filled_at) VALUES (?, ?, ?, ?, ?, ?)")) {
+                            insertFill.setInt(1, orderId);
+                            insertFill.setString(2, filler.getUniqueId().toString());
+                            insertFill.setString(3, filler.getName());
+                            insertFill.setInt(4, actualToFill);
+                            insertFill.setDouble(5, moneyEarned);
+                            insertFill.setLong(6, System.currentTimeMillis());
+                            insertFill.executeUpdate();
+                        }
+
+                        // If poster is offline, queue pending items for when they join
+                        Player posterCheck = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
+                        if (posterCheck == null) {
+                            try (PreparedStatement pendingStmt = conn.prepareStatement(
+                                    "INSERT INTO coresuite_orders_pending_items (player_uuid, material, amount) VALUES (?, ?, ?)")) {
+                                pendingStmt.setString(1, order.getPosterUuid());
+                                pendingStmt.setString(2, order.getMaterial().name());
+                                pendingStmt.setInt(3, actualToFill);
+                                pendingStmt.executeUpdate();
+                            }
+                        }
+
+                        conn.commit();
+                    } catch (SQLException ex) {
+                        conn.rollback();
+                        throw ex;
+                    } finally {
+                        conn.setAutoCommit(true);
+                    }
+
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        // Deliver items to poster if online
+                        Player poster = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
+                        if (poster != null) {
+                            Map<Integer, ItemStack> overflow = poster.getInventory().addItem(new ItemStack(order.getMaterial(), actualToFill));
+                            if (!overflow.isEmpty()) {
+                                overflow.values().forEach(it -> poster.getWorld().dropItemNaturally(poster.getLocation(), it));
+                            }
+                            String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                            int newFilled = order.getAmountFilled() + actualToFill;
+                            if (newFilled >= order.getAmountNeeded()) {
+                                TextUtil.sendMessage(poster, prefix + config.getString("messages.order-complete", "&aYour order is complete!").replace("{item}", formatMaterialName(order.getMaterial())));
+                                activeOrderCache.put(poster.getUniqueId(), Math.max(0, activeOrderCache.getOrDefault(poster.getUniqueId(), 1) - 1));
+                            } else {
+                                TextUtil.sendMessage(poster, prefix + config.getString("messages.filled-notify", "&aOrder partially filled.")
+                                        .replace("{item}", formatMaterialName(order.getMaterial()))
+                                        .replace("{filled}", String.valueOf(newFilled))
+                                        .replace("{total}", String.valueOf(order.getAmountNeeded())));
+                            }
+                        } else if (order.getAmountFilled() + actualToFill >= order.getAmountNeeded()) {
+                            UUID pUuid = UUID.fromString(order.getPosterUuid());
+                            activeOrderCache.put(pUuid, Math.max(0, activeOrderCache.getOrDefault(pUuid, 1) - 1));
+                        }
+                        onSuccess.accept(moneyEarned);
+                    });
+
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Failed fill transaction", e);
+                    // Roll back inventory and economy changes on main thread
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        plugin.getEconomyManager().withdraw(filler, moneyEarned);
+                        filler.getInventory().addItem(new ItemStack(order.getMaterial(), actualToFill));
+                        onFail.run();
+                    });
+                }
+            });
         });
     }
 
