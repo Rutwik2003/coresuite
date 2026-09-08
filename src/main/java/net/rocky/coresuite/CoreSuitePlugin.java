@@ -164,7 +164,6 @@ public final class CoreSuitePlugin extends JavaPlugin {
         // Phase 4 — Gameplay
         moduleManager.registerModule(new net.rocky.coresuite.module.combattag.CombatTagModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.customfishing.CustomFishingModule(this));
-        moduleManager.registerModule(new net.rocky.coresuite.module.fishingrpg.FishingRPGModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.profile.ProfileModule(this));
 
         // Phase 5 — Content-heavy
