@@ -176,15 +176,44 @@ commands:
     description: Open the gambling GUI
     usage: /<command>
     permission: coresuite.gambling.use
+  creator:
+    description: Manage creator features
+    usage: /<command> [grant|code|redeem]
+    permission: coresuite.creator.use
   autorestart:
     description: Manage server auto restarts
     usage: /<command> [now|cancel|set|time]
     permission: coresuite.admin
-
   treasurehunt:
     description: Treasure hunt admin/player command
     usage: /<command> [give|verify|setlocation|resetclaim]
     permission: coresuite.treasurehunt.use
+
+  # ── Custom Modules ─────────────────────────────────────────
+  orders:
+    description: Open the Orders Board — post item requests or fulfill others
+    usage: /<command> [post|mine|help|admin]
+    permission: coresuite.orders.use
+    aliases: [orderboard, ob]
+
+  well:
+    description: Open the Wishing Well — throw money in for a chance to win the pot
+    usage: /<command> [throw <amount>|top|history|admin]
+    permission: coresuite.well.use
+    aliases: [wishingwell]
+
+  artifacts:
+    description: View your artifact collection and turn in complete sets
+    usage: /<command> [sets|curator|admin]
+    permission: coresuite.artifacts.use
+    aliases: [archaeology, artefacts]
+
+  harvest:
+    description: Open the Harvest Market — sell crops for bonus seasonal prices
+    usage: /<command> [season|top|admin]
+    permission: coresuite.harvest.use
+    aliases: [harvestmarket, market]
+
 permissions:
   coresuite.admin:
     description: Access to /coresuite admin commands
@@ -278,4 +307,41 @@ permissions:
     default: true
   coresuite.treasurehunt.admin:
     description: Admin treasure hunt commands
+    default: op
+  coresuite.creator.use:
+    description: Use creator redeem and code commands
+    default: true
+  coresuite.creator.admin:
+    description: Grant creator rank and perks
+    default: op
+  # Orders Board
+  coresuite.orders.use:
+    description: Open and browse the Orders Board
+    default: true
+  coresuite.orders.post:
+    description: Post new orders on the board
+    default: true
+  coresuite.orders.admin:
+    description: Admin management of the Orders Board
+    default: op
+  # Wishing Well
+  coresuite.well.use:
+    description: Open the Wishing Well and throw money
+    default: true
+  coresuite.well.admin:
+    description: Admin Wishing Well commands (force draw etc.)
+    default: op
+  # Archaeology Rush
+  coresuite.artifacts.use:
+    description: View artifact collection and turn in sets
+    default: true
+  coresuite.artifacts.admin:
+    description: Admin artifact commands (give fragments etc.)
+    default: op
+  # Harvest Market
+  coresuite.harvest.use:
+    description: Open the Harvest Market and sell crops
+    default: true
+  coresuite.harvest.admin:
+    description: Admin Harvest Market commands
     default: op

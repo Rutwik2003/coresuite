@@ -1,0 +1,18 @@
+enabled: true
+npc-id: -1
+min-throw: 100
+max-throw-per-day: 1000000
+announce-draw: true
+draw-fireworks: true
+# How many real-world hours between draws. Default 24 (once per day).
+# Immune to Minecraft sleep — counts actual server uptime hours.
+draw-interval-hours: 24
+
+messages:
+  prefix: "&8[&b✨ Well&8] &r"
+  threw: "&aTossed &e{amount}&a into the well! Your odds: &b{odds}%"
+  winner-broadcast: "&6✨ &e{player} &6won the Wishing Well pot of &a{amount}&6! &7Congratulations!"
+  no-pot: "&cThe well is empty! Be the first to throw money in!"
+  no-balance: "&cYou don't have enough money!"
+  min-throw: "&cMinimum throw amount is &e{min}&c."
+  already-winner: "&aYou won the last Wishing Well! Start contributing for next round."

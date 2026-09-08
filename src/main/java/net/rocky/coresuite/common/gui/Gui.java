@@ -147,6 +147,20 @@ public class Gui implements InventoryHolder {
         return inventory;
     }
 
+    /**
+     * Gets the number of rows in this GUI (1-6).
+     */
+    public int getRows() {
+        return inventory.getSize() / 9;
+    }
+
+    /**
+     * Gets the total slot size of this GUI.
+     */
+    public int getSize() {
+        return inventory.getSize();
+    }
+
     // --- Internal: called by GuiManager ---
 
     /**

@@ -185,9 +185,18 @@ public final class CoreSuitePlugin extends JavaPlugin {
         moduleManager.registerModule(new net.rocky.coresuite.module.gambling.GamblingModule(this));
 
         // Phase 10 — Website Integration & System
-                moduleManager.registerModule(new net.rocky.coresuite.module.treasurehunt.TreasureHuntModule(this));
-moduleManager.registerModule(new net.rocky.coresuite.module.website.WebsiteModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.treasurehunt.TreasureHuntModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.website.WebsiteModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.autorestarter.AutoRestarterModule(this));
+        
+        // Phase 11 — Creator
+        moduleManager.registerModule(new net.rocky.coresuite.module.creator.CreatorModule(this));
+
+        // Phase 12 — Custom Economy & Gameplay Modules
+        moduleManager.registerModule(new net.rocky.coresuite.module.ordersboard.OrdersBoardModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.wishingwell.WishingWellModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.archaeologyrush.ArchaeologyRushModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.harvestmarket.HarvestMarketModule(this));
     }
 
     // ── Static accessor ──

@@ -1,0 +1,89 @@
+enabled: true
+npc-id: -1
+fragment-drop-chance: 0.20
+duplicate-protection: true
+
+sets:
+  ancient_captain:
+    name: "&6The Ancient Captain's Cache"
+    description: "Relics of a seafaring captain lost to time."
+    display-item: GOLDEN_HELMET
+    rewards:
+      money: 80000
+      commands:
+        - "crate key give {player} rare 1"
+    fragments:
+      1:
+        name: "&6Fragment I &8— &7Worn Captain's Compass"
+        material: COMPASS
+      2:
+        name: "&6Fragment II &8— &7Salt-Stained Logbook"
+        material: WRITTEN_BOOK
+      3:
+        name: "&6Fragment III &8— &7Rusted Anchor Clasp"
+        material: IRON_INGOT
+      4:
+        name: "&6Fragment IV &8— &7Captain's Sealed Chest"
+        material: CHEST
+
+  forgotten_farmer:
+    name: "&aThe Forgotten Farmer's Relics"
+    description: "Simple tools of a farmer who built this land."
+    display-item: DIAMOND_HOE
+    rewards:
+      money: 120000
+      commands:
+        - "crate key give {player} rare 1"
+        - "minecraft:give {player} bone_meal 64"
+    fragments:
+      1:
+        name: "&aFragment I &8— &7Worn Seed Pouch"
+        material: WHEAT_SEEDS
+      2:
+        name: "&aFragment II &8— &7Rusted Iron Hoe"
+        material: IRON_HOE
+      3:
+        name: "&aFragment III &8— &7Old Watering Pail"
+        material: BUCKET
+      4:
+        name: "&aFragment IV &8— &7Faded Farm Journal"
+        material: BOOK
+      5:
+        name: "&aFragment V &8— &7Ancient Harvest Token"
+        material: GOLD_NUGGET
+
+  explorer_kit:
+    name: "&bThe Explorer's Lost Kit"
+    description: "Gear left behind by a brave adventurer."
+    display-item: SPYGLASS
+    rewards:
+      money: 200000
+      commands:
+        - "crate key give {player} epic 1"
+    fragments:
+      1:
+        name: "&bFragment I &8— &7Cracked Spyglass"
+        material: SPYGLASS
+      2:
+        name: "&bFragment II &8— &7Tattered Map"
+        material: MAP
+      3:
+        name: "&bFragment III &8— &7Worn Compass"
+        material: COMPASS
+      4:
+        name: "&bFragment IV &8— &7Explorer's Worn Boots"
+        material: LEATHER_BOOTS
+      5:
+        name: "&bFragment V &8— &7Chipped Grappling Hook"
+        material: FISHING_ROD
+      6:
+        name: "&bFragment VI &8— &7Sealed Explorer's Journal"
+        material: WRITTEN_BOOK
+
+messages:
+  prefix: "&8[&6🏺 Curator&8] &r"
+  fragment-found: "&6✨ You unearthed &l{fragmentName}&6! &8[{index}/{total} for {setName}]"
+  set-complete: "&a&l✨ {setName} is COMPLETE! Visit the Curator to claim your reward!"
+  no-complete-sets: "&7You have no complete sets to turn in yet."
+  reward-claimed: "&a✨ Reward claimed for &f{setName}&a!"
+  broadcast: "&6🏺 &e{player}&6 completed the &f{setName}&6 artifact set!"

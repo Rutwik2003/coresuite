@@ -1,0 +1,20 @@
+enabled: true
+npc-id: -1
+posting-fee-percent: 5
+expiry-fee-percent: 10
+max-orders-per-player: 3
+max-order-value: 500000
+min-order-value: 1000
+expiry-hours: 72
+
+messages:
+  prefix: "&8[&6Orders&8] &r"
+  posted: "&aOrder posted! &7A &e{fee}% &7posting fee has been held."
+  filled: "&aYou fulfilled {amount}x {item} and earned &e{money}&a!"
+  filled-notify: "&aYour order for {item} has been partially filled! ({filled}/{total})"
+  order-complete: "&a&lYour order for {item} is now COMPLETE!"
+  expired: "&cYour order for {amount}x {item} expired. Refunded: &e{refund}&c."
+  cancelled: "&aOrder cancelled. Refunded: &e{refund}&a."
+  no-permission: "&cYou don't have permission to do that."
+  no-balance: "&cYou don't have enough money to post this order."
+  order-limit: "&cYou have reached your maximum of {max} active orders."

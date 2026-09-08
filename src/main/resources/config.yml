@@ -21,6 +21,13 @@ modules:
   chat-games: true
   kill-podium: false
   vulcan-punish: true
+  creator: true
+
+  # Custom Economy & Gameplay Modules
+  orders-board: true
+  wishing-well: true
+  archaeology-rush: true
+  harvest-market: true
   store: true
   announce: true
   gambling: true

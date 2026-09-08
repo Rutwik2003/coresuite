@@ -1,0 +1,48 @@
+enabled: true
+npc-id: -1
+season-duration-hours: 168
+crops-per-season: 4
+max-quota-per-season: 5000
+bonus-multiplier: 2.5
+golden-mutation-chance: 0.04
+golden-multiplier: 25.0
+
+crop-prices:
+  WHEAT: 10
+  CARROT: 10
+  POTATO: 10
+  BEETROOT: 10
+  MELON: 25
+  PUMPKIN: 25
+  SUGAR_CANE: 15
+  COCOA_BEANS: 15
+  SWEET_BERRIES: 5
+  BAMBOO: 5
+
+leaderboard-rewards:
+  1:
+    money: 75000
+    commands:
+      - "crate key give {player} epic 1"
+    broadcast: "&6🌾 &e{player} &6won the Harvest Market season! They sold &f{amount} &6items and earned &a$75,000&6!"
+  2:
+    money: 40000
+    commands:
+      - "crate key give {player} rare 1"
+    broadcast: ""
+  3:
+    money: 20000
+    commands:
+      - "crate key give {player} rare 1"
+    broadcast: ""
+
+messages:
+  prefix: "&8[&2🌾 Market&8] &r"
+  season-start-line1: "&2🌾 &aA new Harvest Season has begun!"
+  season-start-line2: "&7This week's crops: {crops}"
+  season-start-line3: "&7Sell them at the Market for &e{multiplier}× &7price!"
+  golden-found: "&6✨ Golden {crop} found! Sell it at the Harvest Market for ${price}!"
+  sold-bonus: "&a💰 Sold {amount}x {crop} for &e{money} &a({rate}×)!"
+  sold-split: "&a💰 Sold {amount}x {crop} for &e{money} &a(quota split — some at bonus, some at base)."
+  quota-full: "&eYour season quota is full! Crops now sell at base rate only."
+  bounty-claimed: "&a✨ Daily bounty claimed! &e+{money}"
