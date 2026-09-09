@@ -105,5 +105,8 @@ discord-to-minecraft:
   channel-id: ""
   # In-game chat format when a Discord user speaks
   format: "&9[Discord] &b{user}&8: &f{message}"
+  # Maximum character length for Discord messages displayed in Minecraft (longer messages are truncated with ...)
+  # Set to 0 or -1 to disable truncation
+  max-message-length: 120
   # Ignore messages from bots and other webhooks
   filter-bots: true

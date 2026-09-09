@@ -3,6 +3,7 @@ package net.rocky.coresuite.module.discord;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.kyori.adventure.text.Component;
 import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
 import org.bukkit.Bukkit;
@@ -314,14 +315,31 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
                 ? d.getAsJsonArray("mentions") : null;
 
         String cleanContent = DiscordSanitizer.toMinecraft(content, mentions);
+        String fullContent = cleanContent;
+        boolean isTruncated = false;
+
+        int maxLength = config.getInt("discord-to-minecraft.max-message-length", 120);
+        if (maxLength > 0 && cleanContent.length() > maxLength) {
+            cleanContent = cleanContent.substring(0, maxLength).trim() + "...";
+            isTruncated = true;
+        }
+
         String format = config.getString("discord-to-minecraft.format", "&9[Discord] &b{user}&8: &f{message}");
         String finalMsg = format.replace("{user}", globalName).replace("{message}", cleanContent);
 
-        plugin.getLogger().info("[Discord Chat] " + globalName + ": " + cleanContent);
+        plugin.getLogger().info("[Discord Chat] " + globalName + ": " + (isTruncated ? fullContent : cleanContent));
 
+        final boolean truncated = isTruncated;
+        final String hoverContent = fullContent;
         // Broadcast to Minecraft on the server main thread
         Bukkit.getScheduler().runTask(plugin, () -> {
-            Bukkit.broadcast(TextUtil.colorize(finalMsg));
+            Component comp = TextUtil.colorize(finalMsg);
+            if (truncated) {
+                comp = comp.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
+                        TextUtil.colorize("&7Full Discord Message:\n&f" + hoverContent)
+                ));
+            }
+            Bukkit.broadcast(comp);
         });
     }
 
