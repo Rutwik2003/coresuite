@@ -306,6 +306,13 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
             return; // Abort broadcasting so the command isn't sent to Minecraft
         }
 
+        // 4. Auto IP reply trigger (e.g. typing "ip", "IP", "what is the ip")
+        if (commandHandler != null && commandHandler.isIpTrigger(content)) {
+            plugin.getLogger().info("[Discord] Intercepted auto-IP query: '" + content + "' from @" + globalName);
+            commandHandler.handleIpTrigger(messageChannel, globalName);
+            return; // Don't spam Minecraft chat with standalone "ip"
+        }
+
         // If message was sent in commands channel only (not chat channel), don't broadcast regular chat to Minecraft
         if (!isTargetChannel) {
             return;

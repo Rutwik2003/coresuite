@@ -95,6 +95,8 @@ commands:
   prefix: "m!"
   # Optional dedicated channel ID for bot commands (leave empty to use the chat channel)
   channel-id: ""
+  # Automatically reply with the server connection embed when a user types "ip", "IP", or "what is the ip"
+  auto-ip-reply: true
 
 # Two-Way Chat (Discord -> Minecraft)
 discord-to-minecraft:

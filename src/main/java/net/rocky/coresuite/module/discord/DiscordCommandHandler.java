@@ -11,13 +11,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Handles in-Discord bot commands (e.g. m!playerlist, m!status, m!ip, m!help).
+ * Handles in-Discord bot commands (e.g. m!playerlist, m!status, m!ip, m!help)
+ * and automatic triggers (e.g. typing "ip" or "what is the ip").
  * Delivers sleek responses directly to the Discord channel without spamming Minecraft chat.
  */
 public final class DiscordCommandHandler {
+
+    private static final Pattern IP_TRIGGER_PATTERN = Pattern.compile("(?i)^\\s*(what('?s| is) (the )?)?(server )?ip\\??\\s*$");
 
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
@@ -44,6 +48,25 @@ public final class DiscordCommandHandler {
 
         String prefix = getPrefix();
         return message.trim().toLowerCase().startsWith(prefix.toLowerCase());
+    }
+
+    /**
+     * Checks if a message is asking for the server IP without prefix (e.g. "ip", "IP", "what is the ip").
+     */
+    public boolean isIpTrigger(String message) {
+        if (message == null) return false;
+        if (!config.getBoolean("commands.auto-ip-reply", true)) return false;
+
+        return IP_TRIGGER_PATTERN.matcher(message.trim()).matches();
+    }
+
+    /**
+     * Handles automatic IP query without prefix.
+     */
+    public void handleIpTrigger(String channelId, String authorName) {
+        plugin.getLogger().info("[Discord Command] Auto IP reply triggered by @" + authorName + " in channel " + channelId);
+        String botToken = config.getString("discord-to-minecraft.bot-token", "").trim();
+        sendServerIp(channelId, botToken);
     }
 
     /**
