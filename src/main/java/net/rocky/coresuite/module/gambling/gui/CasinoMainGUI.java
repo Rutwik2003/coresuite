@@ -5,6 +5,7 @@ import net.rocky.coresuite.common.gui.Gui;
 import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.gambling.CasinoStatsManager;
+import net.rocky.coresuite.module.gambling.PlayerCasinoStats;
 import net.rocky.coresuite.module.gambling.crash.CrashGUI;
 import net.rocky.coresuite.module.gambling.pvpcoinflip.CoinflipListGUI;
 import net.rocky.coresuite.module.gambling.roulette.RouletteGUI;
@@ -53,7 +54,7 @@ public class CasinoMainGUI {
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
         double balance = plugin.getEconomyManager().getBalance(player);
-        CasinoStatsManager.PlayerCasinoStats stats = statsManager.getStats(player.getUniqueId(), player.getName());
+        PlayerCasinoStats stats = statsManager.getStats(player.getUniqueId(), player.getName());
 
         // Header Nether Star at slot 4
         gui.setItem(4, GuiButton.of(Material.NETHER_STAR, "&6&l👑 ROYAL CASINO 👑",

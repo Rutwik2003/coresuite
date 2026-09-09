@@ -63,11 +63,6 @@ tasks {
         relocate("com.zaxxer.hikari", "net.rocky.coresuite.libs.hikari")
         
         archiveFileName.set("CoreSuite-${project.version}.jar")
-        
-        // Minimize the fat jar — exclude HikariCP (uses reflection for driver loading)
-        minimize {
-            exclude(dependency("com.zaxxer:HikariCP:.*"))
-        }
     }
 
     // Ensure build depends on shadowJar

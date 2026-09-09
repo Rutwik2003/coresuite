@@ -16,20 +16,6 @@ import java.util.function.Consumer;
  */
 public class CasinoStatsManager {
 
-    public record PlayerCasinoStats(
-        UUID uuid,
-        String playerName,
-        double totalWagered,
-        double totalWon,
-        int gamesPlayed,
-        double biggestWin,
-        long lastPlayed
-    ) {
-        public double getNetProfit() {
-            return totalWon - totalWagered;
-        }
-    }
-
     private final CoreSuitePlugin plugin;
     private final Map<UUID, PlayerCasinoStats> statsCache = new ConcurrentHashMap<>();
 
@@ -99,10 +85,10 @@ public class CasinoStatsManager {
 
     public void recordGame(UUID uuid, String name, double wagered, double won) {
         PlayerCasinoStats current = getStats(uuid, name);
-        double newWagered = current.totalWagered + wagered;
-        double newWon = current.totalWon + won;
-        int newPlayed = current.gamesPlayed + 1;
-        double newBiggest = Math.max(current.biggestWin, won);
+        double newWagered = current.totalWagered() + wagered;
+        double newWon = current.totalWon() + won;
+        int newPlayed = current.gamesPlayed() + 1;
+        double newBiggest = Math.max(current.biggestWin(), won);
         long now = System.currentTimeMillis();
 
         PlayerCasinoStats updated = new PlayerCasinoStats(

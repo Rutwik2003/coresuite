@@ -5,6 +5,7 @@ import net.rocky.coresuite.common.gui.Gui;
 import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.gambling.CasinoStatsManager;
+import net.rocky.coresuite.module.gambling.PlayerCasinoStats;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -38,7 +39,7 @@ public class CasinoLeaderboardGUI {
             ));
 
             for (int i = 0; i < Math.min(topList.size(), LEADERBOARD_SLOTS.length); i++) {
-                CasinoStatsManager.PlayerCasinoStats stat = topList.get(i);
+                PlayerCasinoStats stat = topList.get(i);
                 int rank = i + 1;
                 String medal = rank == 1 ? "&6&l🥇 " : (rank == 2 ? "&f&l🥈 " : (rank == 3 ? "&c&l🥉 " : "&7#" + rank + " "));
 
