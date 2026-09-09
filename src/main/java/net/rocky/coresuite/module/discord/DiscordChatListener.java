@@ -128,6 +128,7 @@ public final class DiscordChatListener implements Listener {
         }
 
         webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
+        plugin.getLogger().info("[Discord] Dispatched " + style + " join notification for " + playerName);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -173,6 +174,7 @@ public final class DiscordChatListener implements Listener {
                 }
 
                 webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
+                plugin.getLogger().info("[Discord] Dispatched " + style + " quit notification for " + playerName);
             }
         }
 
