@@ -1,5 +1,7 @@
 package net.rocky.coresuite.module.discord;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -65,20 +67,18 @@ public final class DiscordChatListener implements Listener {
         String avatarUrl = skinResolver.getAvatarUrl(player);
         String username = skinResolver.getFormattedName(player);
 
-        String payload;
+        JsonObject payload = new JsonObject();
         if (webhookClient.isWebhookUrl(destination)) {
             // Webhook mode: dynamic username + skin avatar
-            payload = "{" +
-                    "\"username\": \"" + DiscordSanitizer.escapeJson(username) + "\"," +
-                    "\"avatar_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"," +
-                    "\"content\": \"" + DiscordSanitizer.escapeJson(sanitizedText) + "\"" +
-                    "}";
+            payload.addProperty("username", username);
+            payload.addProperty("avatar_url", avatarUrl);
+            payload.addProperty("content", sanitizedText);
         } else {
-            // Bot mode: prefix with player name
-            payload = "{\"content\": \"**" + DiscordSanitizer.escapeJson(username) + ":** " + DiscordSanitizer.escapeJson(sanitizedText) + "\"}";
+            // Bot REST API mode: prefix with bold player name
+            payload.addProperty("content", "**" + username + ":** " + sanitizedText);
         }
 
-        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -99,27 +99,32 @@ public final class DiscordChatListener implements Listener {
         int online = Bukkit.getOnlinePlayers().size();
         int max = Bukkit.getMaxPlayers();
 
-        String payload;
+        JsonObject payload = new JsonObject();
         if ("EMBED".equals(style)) {
-            int color = config.getInt("events.join-color", 3066993); // Emerald Green
+            int color = config.getInt("events.join.color", config.getInt("events.join-color", 3066993)); // Emerald Green
             String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-            payload = "{\"embeds\": [{" +
-                    "\"color\": " + color + "," +
-                    "\"author\": {" +
-                    "\"name\": \"" + DiscordSanitizer.escapeJson(playerName) + " joined the server\"," +
-                    "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
-                    "}," +
-                    "\"description\": \"Online: `\" + online + \" / \" + max + \"`\"," +
-                    "\"timestamp\": \"" + timestamp + "\"" +
-                    "}]}";
+            JsonObject embed = new JsonObject();
+            embed.addProperty("color", color);
+
+            JsonObject author = new JsonObject();
+            author.addProperty("name", playerName + " joined the server");
+            author.addProperty("icon_url", avatarUrl);
+            embed.add("author", author);
+
+            embed.addProperty("description", "Online: `" + online + " / " + max + "`");
+            embed.addProperty("timestamp", timestamp);
+
+            JsonArray embeds = new JsonArray();
+            embeds.add(embed);
+            payload.add("embeds", embeds);
         } else {
             String format = config.getString("events.join.format", "📥 **{player}** joined the server");
             String message = format.replace("{player}", playerName);
-            payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+            payload.addProperty("content", message);
         }
 
-        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -139,27 +144,32 @@ public final class DiscordChatListener implements Listener {
                 int online = Math.max(0, Bukkit.getOnlinePlayers().size() - 1);
                 int max = Bukkit.getMaxPlayers();
 
-                String payload;
+                JsonObject payload = new JsonObject();
                 if ("EMBED".equals(style)) {
-                    int color = config.getInt("events.quit-color", 15158332); // Coral Red
+                    int color = config.getInt("events.quit.color", config.getInt("events.quit-color", 15158332)); // Coral Red
                     String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-                    payload = "{\"embeds\": [{" +
-                            "\"color\": " + color + "," +
-                            "\"author\": {" +
-                            "\"name\": \"" + DiscordSanitizer.escapeJson(playerName) + " left the server\"," +
-                            "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
-                            "}," +
-                            "\"description\": \"Online: `\" + online + \" / \" + max + \"`\"," +
-                            "\"timestamp\": \"" + timestamp + "\"" +
-                            "}]}";
+                    JsonObject embed = new JsonObject();
+                    embed.addProperty("color", color);
+
+                    JsonObject author = new JsonObject();
+                    author.addProperty("name", playerName + " left the server");
+                    author.addProperty("icon_url", avatarUrl);
+                    embed.add("author", author);
+
+                    embed.addProperty("description", "Online: `" + online + " / " + max + "`");
+                    embed.addProperty("timestamp", timestamp);
+
+                    JsonArray embeds = new JsonArray();
+                    embeds.add(embed);
+                    payload.add("embeds", embeds);
                 } else {
                     String format = config.getString("events.quit.format", "📤 **{player}** left the server");
                     String message = format.replace("{player}", playerName);
-                    payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+                    payload.addProperty("content", message);
                 }
 
-                webhookClient.sendHybridAsync(destination, getBotToken(), payload);
+                webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
             }
         }
 
@@ -182,25 +192,30 @@ public final class DiscordChatListener implements Listener {
         String style = config.getString("events.style", "EMBED").toUpperCase();
         String avatarUrl = skinResolver.getAvatarUrl(player);
 
-        String payload;
+        JsonObject payload = new JsonObject();
         if ("EMBED".equals(style)) {
-            int color = config.getInt("events.death-color", 10038562); // Dark Red
+            int color = config.getInt("events.death.color", config.getInt("events.death-color", 10038562)); // Dark Red
             String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-            payload = "{\"embeds\": [{" +
-                    "\"color\": " + color + "," +
-                    "\"author\": {" +
-                    "\"name\": \"" + DiscordSanitizer.escapeJson(sanitizedDeath) + "\"," +
-                    "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
-                    "}," +
-                    "\"timestamp\": \"" + timestamp + "\"" +
-                    "}]}";
+            JsonObject embed = new JsonObject();
+            embed.addProperty("color", color);
+
+            JsonObject author = new JsonObject();
+            author.addProperty("name", sanitizedDeath);
+            author.addProperty("icon_url", avatarUrl);
+            embed.add("author", author);
+
+            embed.addProperty("timestamp", timestamp);
+
+            JsonArray embeds = new JsonArray();
+            embeds.add(embed);
+            payload.add("embeds", embeds);
         } else {
             String format = config.getString("events.death.format", "☠ {message}");
             String message = format.replace("{message}", sanitizedDeath);
-            payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+            payload.addProperty("content", message);
         }
 
-        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
     }
 }

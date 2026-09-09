@@ -44,8 +44,8 @@ server-status:
     show-tps: true
     show-uptime: true
     # Connection details displayed on the embed
-    java-ip: "play.meermc.com"
-    bedrock-ip: "bedrock.meermc.com:19132"
+    java-ip: "meermc.rutwikdev.com:25569"
+    bedrock-ip: "meermc.rutwikdev.com:25569"
     thumbnail-url: "" # Optional server logo URL for embed thumbnail
 
 # In-Game Event Notifications sent to Discord
@@ -69,11 +69,25 @@ events:
   server-start:
     enabled: true
     title: "🟢 Server is Online!"
-    description: "The Minecraft server has started and is ready for players!\n\n**Java IP:** `play.meermc.com`\n**Bedrock IP:** `bedrock.meermc.com:19132`"
+    description: "The Minecraft server has started and is ready for players!\n\n**IP:** `meermc.rutwikdev.com:25569` (Java & Bedrock)"
   server-stop:
     enabled: true
     title: "🔴 Server Shutdown"
     description: "The Minecraft server has been stopped or is restarting.\nWe will be back online shortly!"
+
+# Discord Channel Topic Auto-Updater
+channel-topic:
+  enabled: true
+  # Update frequency in minutes (Discord allows max 2 edits per 10 mins; minimum 5m recommended)
+  update-interval-minutes: 5
+  format-online: "🟢 Online: {online}/{max} | TPS: {tps} | IP: {ip}"
+  format-offline: "🔴 Server Offline | IP: {ip}"
+
+# In-Discord Bot Commands (e.g. m!playerlist, m!status, m!ip, m!help)
+commands:
+  enabled: true
+  # Command prefix in Discord
+  prefix: "m!"
 
 # Two-Way Chat (Discord -> Minecraft)
 discord-to-minecraft:

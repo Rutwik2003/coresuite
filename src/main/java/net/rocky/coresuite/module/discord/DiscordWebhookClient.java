@@ -1,5 +1,6 @@
 package net.rocky.coresuite.module.discord;
 
+import com.google.gson.JsonObject;
 import net.rocky.coresuite.CoreSuitePlugin;
 
 import java.net.URI;
@@ -130,6 +131,73 @@ public final class DiscordWebhookClient {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * Updates the Discord channel topic asynchronously.
+     */
+    public CompletableFuture<Void> updateChannelTopicAsync(String channelId, String botToken, String topic) {
+        String cleanChannel = LightweightDiscordGateway.cleanChannelId(channelId);
+        String token = LightweightDiscordGateway.cleanToken(botToken);
+        if (cleanChannel.isEmpty() || token.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        JsonObject body = new JsonObject();
+        body.addProperty("topic", topic);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://discord.com/api/v10/channels/" + cleanChannel))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Authorization", "Bot " + token)
+                    .header("Content-Type", "application/json; charset=utf-8")
+                    .header("User-Agent", "CoreSuite-DiscordBridge/1.0 (Minecraft Paper)")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> {
+                        if (response.statusCode() == 403) {
+                            plugin.getLogger().warning("[Discord] Cannot update channel topic (403 Forbidden). Ensure the bot has 'Manage Channels' permission in Discord.");
+                        } else if (response.statusCode() == 429) {
+                            plugin.getLogger().warning("[Discord] Channel topic update rate-limited (429).");
+                        } else if (response.statusCode() >= 400) {
+                            plugin.getLogger().warning("[Discord] Channel topic update failed (HTTP " + response.statusCode() + "): " + response.body());
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        plugin.getLogger().log(Level.FINE, "[Discord] Topic update network exception", ex);
+                        return null;
+                    });
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Updates the Discord channel topic synchronously during plugin shutdown.
+     */
+    public void updateChannelTopicSync(String channelId, String botToken, String topic) {
+        String cleanChannel = LightweightDiscordGateway.cleanChannelId(channelId);
+        String token = LightweightDiscordGateway.cleanToken(botToken);
+        if (cleanChannel.isEmpty() || token.isEmpty()) return;
+
+        JsonObject body = new JsonObject();
+        body.addProperty("topic", topic);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://discord.com/api/v10/channels/" + cleanChannel))
+                    .timeout(Duration.ofSeconds(3))
+                    .header("Authorization", "Bot " + token)
+                    .header("Content-Type", "application/json; charset=utf-8")
+                    .header("User-Agent", "CoreSuite-DiscordBridge/1.0 (Minecraft Paper)")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+
+            httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+        } catch (Exception ignored) {}
+    }
+
     // ── Internal Webhook Methods ──
 
     private CompletableFuture<Void> sendWebhookAsync(String webhookUrl, String jsonPayload) {
@@ -142,12 +210,12 @@ public final class DiscordWebhookClient {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
-            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(response -> {
                         if (response.statusCode() == 429) {
                             plugin.getLogger().warning("[Discord] Webhook rate-limited (HTTP 429).");
                         } else if (response.statusCode() >= 400) {
-                            plugin.getLogger().warning("[Discord] Webhook returned status code: " + response.statusCode());
+                            plugin.getLogger().warning("[Discord] Webhook returned status code: " + response.statusCode() + " | Body: " + response.body());
                         }
                     })
                     .exceptionally(ex -> {
@@ -175,6 +243,7 @@ public final class DiscordWebhookClient {
                         if (response.statusCode() >= 200 && response.statusCode() < 300) {
                             return response.body();
                         }
+                        plugin.getLogger().warning("[Discord Webhook Wait] HTTP " + response.statusCode() + ": " + response.body());
                         return null;
                     })
                     .exceptionally(ex -> null);

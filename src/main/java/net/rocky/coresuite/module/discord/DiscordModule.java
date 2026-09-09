@@ -1,5 +1,7 @@
 package net.rocky.coresuite.module.discord;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -30,11 +32,14 @@ import java.util.stream.Collectors;
  */
 public class DiscordModule extends Module implements CommandExecutor, TabCompleter {
 
+    private final Instant startTime = Instant.now();
     private DiscordSkinResolver skinResolver;
     private DiscordWebhookClient webhookClient;
     private ServerStatusEmbedManager statusManager;
     private LightweightDiscordGateway gateway;
     private DiscordChatListener chatListener;
+    private DiscordCommandHandler commandHandler;
+    private DiscordTopicManager topicManager;
     private boolean isReloading = false;
 
     public DiscordModule(CoreSuitePlugin plugin) {
@@ -46,12 +51,16 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         skinResolver = new DiscordSkinResolver(plugin, config);
         webhookClient = new DiscordWebhookClient(plugin);
         statusManager = new ServerStatusEmbedManager(plugin, this, config, webhookClient, skinResolver);
+        commandHandler = new DiscordCommandHandler(plugin, config, webhookClient, skinResolver, startTime);
         gateway = new LightweightDiscordGateway(plugin, config);
+        gateway.setCommandHandler(commandHandler);
         chatListener = new DiscordChatListener(plugin, config, webhookClient, skinResolver, statusManager);
+        topicManager = new DiscordTopicManager(plugin, config, webhookClient, startTime);
 
         registerListener(chatListener);
         statusManager.start();
         gateway.start();
+        topicManager.start();
 
         // Send Server Start notification (only on real startup, not on /discord reload)
         if (!isReloading && config.getBoolean("events.server-start.enabled", true)) {
@@ -99,6 +108,10 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
             }
         }
 
+        if (topicManager != null) {
+            topicManager.shutdown();
+        }
+
         if (statusManager != null) {
             statusManager.shutdown();
         }
@@ -135,35 +148,55 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
     }
 
     private String buildStartEmbedJson() {
-        String title = DiscordSanitizer.escapeJson(config.getString("events.server-start.title", "🟢 Server is Online!"));
-        String desc = DiscordSanitizer.escapeJson(config.getString("events.server-start.description",
-                "The Minecraft server is online and ready for players!\\n\\n" +
-                "**Java IP:** `" + config.getString("server-status.embed.java-ip", "play.meermc.com") + "`\\n" +
-                "**Bedrock IP:** `" + config.getString("server-status.embed.bedrock-ip", "bedrock.meermc.com:19132") + "`"));
+        String title = config.getString("events.server-start.title", "🟢 Server is Online!");
+        String javaIp = config.getString("server-status.embed.java-ip", "meermc.rutwikdev.com:25569");
+        String bedrockIp = config.getString("server-status.embed.bedrock-ip", "meermc.rutwikdev.com:25569");
+        String desc = config.getString("events.server-start.description",
+                "The Minecraft server is online and ready for players!\n\n" +
+                "**Java IP:** `" + javaIp + "`\n" +
+                "**Bedrock IP:** `" + bedrockIp + "`");
         String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-        return "{\"embeds\": [{" +
-                "\"title\": \"" + title + "\"," +
-                "\"color\": 3066993," +
-                "\"description\": \"" + desc + "\"," +
-                "\"footer\": {\"text\": \"CoreSuite Discord Bridge\"}," +
-                "\"timestamp\": \"" + timestamp + "\"" +
-                "}]}";
+        JsonObject embed = new JsonObject();
+        embed.addProperty("title", title);
+        embed.addProperty("color", 3066993);
+        embed.addProperty("description", desc);
+
+        JsonObject footer = new JsonObject();
+        footer.addProperty("text", "CoreSuite Discord Bridge");
+        embed.add("footer", footer);
+        embed.addProperty("timestamp", timestamp);
+
+        JsonArray embeds = new JsonArray();
+        embeds.add(embed);
+        JsonObject payload = new JsonObject();
+        payload.add("embeds", embeds);
+
+        return payload.toString();
     }
 
     private String buildStopEmbedJson() {
-        String title = DiscordSanitizer.escapeJson(config.getString("events.server-stop.title", "🔴 Server Shutdown"));
-        String desc = DiscordSanitizer.escapeJson(config.getString("events.server-stop.description",
-                "The Minecraft server has been shut down or is restarting.\\nWe will be back online shortly!"));
+        String title = config.getString("events.server-stop.title", "🔴 Server Shutdown");
+        String desc = config.getString("events.server-stop.description",
+                "The Minecraft server has been shut down or is restarting.\nWe will be back online shortly!");
         String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-        return "{\"embeds\": [{" +
-                "\"title\": \"" + title + "\"," +
-                "\"color\": 15158332," +
-                "\"description\": \"" + desc + "\"," +
-                "\"footer\": {\"text\": \"CoreSuite Discord Bridge\"}," +
-                "\"timestamp\": \"" + timestamp + "\"" +
-                "}]}";
+        JsonObject embed = new JsonObject();
+        embed.addProperty("title", title);
+        embed.addProperty("color", 15158332);
+        embed.addProperty("description", desc);
+
+        JsonObject footer = new JsonObject();
+        footer.addProperty("text", "CoreSuite Discord Bridge");
+        embed.add("footer", footer);
+        embed.addProperty("timestamp", timestamp);
+
+        JsonArray embeds = new JsonArray();
+        embeds.add(embed);
+        JsonObject payload = new JsonObject();
+        payload.add("embeds", embeds);
+
+        return payload.toString();
     }
 
     public void saveModuleConfig() {

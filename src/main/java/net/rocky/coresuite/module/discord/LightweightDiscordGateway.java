@@ -36,6 +36,7 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
 
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
+    private DiscordCommandHandler commandHandler;
 
     private WebSocket webSocket;
     private ScheduledExecutorService heartbeatExecutor;
@@ -55,6 +56,10 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
     public LightweightDiscordGateway(CoreSuitePlugin plugin, FileConfiguration config) {
         this.plugin = plugin;
         this.config = config;
+    }
+
+    public void setCommandHandler(DiscordCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public GatewayState getState() {
@@ -289,7 +294,16 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
             return;
         }
 
-        String cleanContent = DiscordSanitizer.toMinecraft(content);
+        // 3. Intercept in-Discord bot commands (e.g. m!playerlist, m!status, m!ip)
+        if (commandHandler != null && commandHandler.isCommand(content)) {
+            commandHandler.handleCommand(messageChannel, globalName, content);
+            return; // Abort broadcasting so the command isn't sent to Minecraft
+        }
+
+        JsonArray mentions = d.has("mentions") && d.get("mentions").isJsonArray()
+                ? d.getAsJsonArray("mentions") : null;
+
+        String cleanContent = DiscordSanitizer.toMinecraft(content, mentions);
         String format = config.getString("discord-to-minecraft.format", "&9[Discord] &b{user}&8: &f{message}");
         String finalMsg = format.replace("{user}", globalName).replace("{message}", cleanContent);
 

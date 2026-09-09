@@ -146,8 +146,8 @@ public final class ServerStatusEmbedManager {
         int color = online ? config.getInt("server-status.embed.online-color", 3066993)
                            : config.getInt("server-status.embed.offline-color", 15158332);
 
-        String javaIp = config.getString("server-status.embed.java-ip", "play.meermc.com");
-        String bedrockIp = config.getString("server-status.embed.bedrock-ip", "bedrock.meermc.com:19132");
+        String javaIp = config.getString("server-status.embed.java-ip", "meermc.rutwikdev.com:25569");
+        String bedrockIp = config.getString("server-status.embed.bedrock-ip", "meermc.rutwikdev.com:25569");
 
         // Calculate player fill percentage
         int pct = maxPlayers > 0 ? (int) Math.round(((double) currentPlayers / maxPlayers) * 100) : 0;
