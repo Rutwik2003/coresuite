@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * Manages the live Discord server status & player list embed.
- * Periodically and reactively updates via Webhook in-place message patching (PATCH).
+ * Periodically and reactively updates via Webhook or Bot REST in-place message patching (PATCH).
  */
 public final class ServerStatusEmbedManager {
 
@@ -44,9 +44,6 @@ public final class ServerStatusEmbedManager {
         this.messageId = config.getString("server-status.message-id", "").trim();
     }
 
-    /**
-     * Starts the periodic update task and triggers an initial status refresh.
-     */
     public void start() {
         if (!config.getBoolean("server-status.enabled", true)) return;
 
@@ -59,10 +56,6 @@ public final class ServerStatusEmbedManager {
         recurringTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updateStatus, interval * 20L, interval * 20L);
     }
 
-    /**
-     * Debounced update triggered on player join/quit.
-     * Coalesces rapid joins/quits into a single update after 3 seconds.
-     */
     public void scheduleDebouncedUpdate() {
         if (!config.getBoolean("server-status.enabled", true)) return;
 
@@ -73,19 +66,15 @@ public final class ServerStatusEmbedManager {
         debounceTask = Bukkit.getScheduler().runTaskLater(plugin, this::updateStatus, 60L); // 3-second debounce
     }
 
-    /**
-     * Performs the asynchronous embed update.
-     */
     public void updateStatus() {
         if (!config.getBoolean("server-status.enabled", true)) return;
-        String webhookUrl = getStatusWebhookUrl();
-        if (webhookUrl.isEmpty()) return;
+        String destination = getStatusDestination();
+        if (destination.isEmpty()) return;
 
         if (!isUpdating.compareAndSet(false, true)) {
-            return; // Previous update still processing
+            return;
         }
 
-        // Collect server stats on main thread safely
         int onlineCount = Bukkit.getOnlinePlayers().size();
         int maxPlayers = Bukkit.getMaxPlayers();
         double tps = getRecentTps();
@@ -103,14 +92,14 @@ public final class ServerStatusEmbedManager {
             }
         }
 
-        // Generate JSON asynchronously and dispatch HTTP request
+        String botToken = config.getString("discord-to-minecraft.bot-token", "");
+
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 String payload = buildEmbedJson(true, onlineCount, maxPlayers, tps, uptime, playerNames);
 
                 if (messageId == null || messageId.isEmpty()) {
-                    // Send initial message and capture ID
-                    webhookClient.sendWaitAsync(webhookUrl, payload).thenAccept(responseBody -> {
+                    webhookClient.sendWaitHybridAsync(destination, botToken, payload).thenAccept(responseBody -> {
                         if (responseBody != null) {
                             Matcher m = ID_PATTERN.matcher(responseBody);
                             if (m.find()) {
@@ -123,10 +112,8 @@ public final class ServerStatusEmbedManager {
                         isUpdating.set(false);
                     });
                 } else {
-                    // Patch existing message
-                    webhookClient.patchAsync(webhookUrl, messageId, payload).thenAccept(success -> {
+                    webhookClient.patchHybridAsync(destination, messageId, botToken, payload).thenAccept(success -> {
                         if (!success) {
-                            // Message was deleted or invalid; clear so next tick creates a new one
                             this.messageId = "";
                         }
                         isUpdating.set(false);
@@ -138,66 +125,121 @@ public final class ServerStatusEmbedManager {
         });
     }
 
-    /**
-     * Dispatched synchronously on server shutdown to mark the embed as Offline.
-     */
     public void shutdown() {
         if (recurringTask != null) recurringTask.cancel();
         if (debounceTask != null) debounceTask.cancel();
 
-        String webhookUrl = getStatusWebhookUrl();
-        if (webhookUrl.isEmpty() || messageId == null || messageId.isEmpty()) return;
+        String destination = getStatusDestination();
+        if (destination.isEmpty() || messageId == null || messageId.isEmpty()) return;
+
+        String botToken = config.getString("discord-to-minecraft.bot-token", "");
 
         try {
             int maxPlayers = Bukkit.getMaxPlayers();
             String offlinePayload = buildEmbedJson(false, 0, maxPlayers, 0.0, "", List.of());
-            webhookClient.patchSync(webhookUrl, messageId, offlinePayload);
+            webhookClient.patchHybridSync(destination, messageId, botToken, offlinePayload);
         } catch (Exception ignored) {}
     }
 
     private String buildEmbedJson(boolean online, int currentPlayers, int maxPlayers, double tps, String uptime, List<String> playerNames) {
-        String title = DiscordSanitizer.escapeJson(config.getString("server-status.embed.title", "🎮 Server Status & Player List"));
+        String title = DiscordSanitizer.escapeJson(config.getString("server-status.embed.title", "🎮 MeerMC Network • Live Status"));
         int color = online ? config.getInt("server-status.embed.online-color", 3066993)
                            : config.getInt("server-status.embed.offline-color", 15158332);
 
-        String statusText = online ? "🟢 **Online**" : "🔴 **Offline**";
-        StringBuilder desc = new StringBuilder();
-        desc.append("**Status:** ").append(statusText).append("\\n");
-        desc.append("**Players:** `").append(currentPlayers).append(" / ").append(maxPlayers).append("`");
+        String javaIp = config.getString("server-status.embed.java-ip", "play.meermc.com");
+        String bedrockIp = config.getString("server-status.embed.bedrock-ip", "bedrock.meermc.com:19132");
 
-        if (online) {
-            if (config.getBoolean("server-status.embed.show-tps", true)) {
-                desc.append("  •  **TPS:** `").append(String.format("%.1f", Math.min(20.0, tps))).append("`");
-            }
-            if (config.getBoolean("server-status.embed.show-uptime", true) && !uptime.isEmpty()) {
-                desc.append("\\n**Uptime:** `").append(uptime).append("`");
-            }
-        } else {
-            desc.append("\\n*Server is currently offline or restarting.*");
-        }
+        // Calculate player fill percentage
+        int pct = maxPlayers > 0 ? (int) Math.round(((double) currentPlayers / maxPlayers) * 100) : 0;
 
         StringBuilder fields = new StringBuilder();
-        if (online && config.getBoolean("server-status.embed.show-playerlist", true)) {
-            fields.append("[{");
-            fields.append("\"name\": \"👥 Online Players (").append(currentPlayers).append(")\",");
-            StringBuilder roster = new StringBuilder();
-            if (playerNames.isEmpty()) {
-                roster.append("*No players currently online.*");
-            } else {
-                for (int i = 0; i < playerNames.size(); i++) {
-                    roster.append("• ").append(DiscordSanitizer.escapeJson(playerNames.get(i)));
-                    if (i < playerNames.size() - 1) roster.append("\\n");
+        fields.append("[");
+
+        // Field 1: State
+        fields.append("{")
+              .append("\"name\": \"📡 Status\",")
+              .append("\"value\": \"").append(online ? "🟢 **Online**" : "🔴 **Offline**").append("\",")
+              .append("\"inline\": true")
+              .append("},");
+
+        // Field 2: Player count
+        fields.append("{")
+              .append("\"name\": \"👥 Players\",")
+              .append("\"value\": \"`").append(currentPlayers).append(" / ").append(maxPlayers).append("` (").append(pct).append("%)\",")
+              .append("\"inline\": true")
+              .append("},");
+
+        if (online) {
+            // Field 3: TPS
+            if (config.getBoolean("server-status.embed.show-tps", true)) {
+                String tpsColor = tps >= 19.0 ? "🟢" : (tps >= 15.0 ? "🟡" : "🔴");
+                fields.append("{")
+                      .append("\"name\": \"⚡ Performance\",")
+                      .append("\"value\": \"").append(tpsColor).append(" `").append(String.format("%.1f", Math.min(20.0, tps))).append(" TPS`\",")
+                      .append("\"inline\": true")
+                      .append("},");
+            }
+
+            // Field 4: Uptime
+            if (config.getBoolean("server-status.embed.show-uptime", true) && !uptime.isEmpty()) {
+                fields.append("{")
+                      .append("\"name\": \"⏱ Uptime\",")
+                      .append("\"value\": \"`").append(uptime).append("`\",")
+                      .append("\"inline\": true")
+                      .append("},");
+            }
+
+            // Field 5: Connection info
+            if (!javaIp.isEmpty()) {
+                fields.append("{")
+                      .append("\"name\": \"🖥 Java IP\",")
+                      .append("\"value\": \"`").append(DiscordSanitizer.escapeJson(javaIp)).append("`\",")
+                      .append("\"inline\": true")
+                      .append("},");
+            }
+            if (!bedrockIp.isEmpty()) {
+                fields.append("{")
+                      .append("\"name\": \"📱 Bedrock IP\",")
+                      .append("\"value\": \"`").append(DiscordSanitizer.escapeJson(bedrockIp)).append("`\",")
+                      .append("\"inline\": true")
+                      .append("},");
+            }
+
+            // Field 6: Online Roster (Full row)
+            if (config.getBoolean("server-status.embed.show-playerlist", true)) {
+                fields.append("{")
+                      .append("\"name\": \"🎮 Online Players (").append(currentPlayers).append(")\",");
+                StringBuilder roster = new StringBuilder();
+                if (playerNames.isEmpty()) {
+                    roster.append("*No players currently online. Join now to start playing!*");
+                } else {
+                    for (int i = 0; i < playerNames.size(); i++) {
+                        roster.append("• **").append(DiscordSanitizer.escapeJson(playerNames.get(i))).append("**");
+                        if (i < playerNames.size() - 1) roster.append("\\n");
+                    }
+                    if (currentPlayers > playerNames.size()) {
+                        roster.append("\\n*...and ").append(currentPlayers - playerNames.size()).append(" more*");
+                    }
                 }
-                if (currentPlayers > playerNames.size()) {
-                    roster.append("\\n*...and ").append(currentPlayers - playerNames.size()).append(" more*");
+                fields.append("\"value\": \"").append(roster).append("\",")
+                      .append("\"inline\": false")
+                      .append("}");
+            } else {
+                // Remove trailing comma if present
+                if (fields.charAt(fields.length() - 1) == ',') {
+                    fields.deleteCharAt(fields.length() - 1);
                 }
             }
-            fields.append("\"value\": \"").append(roster).append("\",");
-            fields.append("\"inline\": false");
-            fields.append("}]");
         } else {
-            fields.append("[]");
+            // Offline announcement
+            fields.append("{")
+                  .append("\"name\": \"📢 Notice\",")
+                  .append("\"value\": \"*The server is currently offline or restarting. We will be back online shortly!*\",")
+                  .append("\"inline\": false")
+                  .append("}");
         }
+
+        fields.append("]");
 
         String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
         String thumbnailUrl = config.getString("server-status.embed.thumbnail-url", "");
@@ -206,24 +248,29 @@ public final class ServerStatusEmbedManager {
         json.append("{\"embeds\": [{");
         json.append("\"title\": \"").append(title).append("\",");
         json.append("\"color\": ").append(color).append(",");
-        json.append("\"description\": \"").append(desc).append("\",");
         json.append("\"fields\": ").append(fields).append(",");
         if (!thumbnailUrl.isEmpty()) {
             json.append("\"thumbnail\": {\"url\": \"").append(DiscordSanitizer.escapeJson(thumbnailUrl)).append("\"},");
         }
-        json.append("\"footer\": {\"text\": \"CoreSuite Discord Bridge • ").append(online ? "Live Status" : "Offline").append("\"},");
+        json.append("\"footer\": {\"text\": \"CoreSuite Discord Bridge • Auto-updates live\"},");
         json.append("\"timestamp\": \"").append(timestamp).append("\"");
         json.append("}]}");
 
         return json.toString();
     }
 
-    private String getStatusWebhookUrl() {
+    private String getStatusDestination() {
         String url = config.getString("webhooks.status-url", "").trim();
-        if (url.isEmpty()) {
-            url = config.getString("webhooks.chat-url", "").trim();
-        }
-        return url;
+        if (!url.isEmpty()) return url;
+
+        String chatUrl = config.getString("webhooks.chat-url", "").trim();
+        if (!chatUrl.isEmpty()) return chatUrl;
+
+        // Fallback to bot channel ID if using Bot mode
+        String statusChannel = config.getString("server-status.channel-id", "").trim();
+        if (!statusChannel.isEmpty()) return statusChannel;
+
+        return config.getString("discord-to-minecraft.channel-id", "").trim();
     }
 
     private double getRecentTps() {

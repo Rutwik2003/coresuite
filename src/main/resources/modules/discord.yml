@@ -3,11 +3,13 @@ enabled: true
 # Link shared with players when they type /discord in-game
 invite-link: "https://discord.gg/yourserver"
 
-# Outbound Webhooks (In-Game -> Discord)
+# Outbound Delivery (In-Game -> Discord)
+# If webhooks are provided, messages use player Minecraft skins & names.
+# If webhooks are left empty, the plugin automatically falls back to Bot REST API!
 webhooks:
-  # Webhook URL for in-game chat and event notifications
+  # Webhook URL for in-game chat and event notifications (leave empty to use bot)
   chat-url: ""
-  # Webhook URL for the live server status & player list embed (can be same or different channel)
+  # Webhook URL for the live server status & player list embed (leave empty to use chat-url or bot)
   status-url: ""
 
 # Avatar & Skin Resolution (Cracked & Bedrock Support)
@@ -26,12 +28,14 @@ avatars:
 # Live Server Status & Player List Embed
 server-status:
   enabled: true
+  # Optional channel ID for status embed if not using webhooks (defaults to discord-to-minecraft.channel-id)
+  channel-id: ""
   # Message ID of the status embed. Automatically populated after the first post
   message-id: ""
   # Periodic refresh interval in seconds (embed also refreshes immediately upon join/quit)
   update-interval-seconds: 60
   embed:
-    title: "🎮 Server Status & Player List"
+    title: "🎮 MeerMC Network • Live Status"
     # Hex colors in integer format: Green = 3066993 (0x2ECC71), Red = 15158332 (0xE74C3C)
     online-color: 3066993
     offline-color: 15158332
@@ -39,27 +43,37 @@ server-status:
     max-displayed-players: 50
     show-tps: true
     show-uptime: true
+    # Connection details displayed on the embed
+    java-ip: "play.meermc.com"
+    bedrock-ip: "bedrock.meermc.com:19132"
     thumbnail-url: "" # Optional server logo URL for embed thumbnail
 
-# In-Game Event Notifications sent to Discord chat webhook
+# In-Game Event Notifications sent to Discord
 events:
+  # Notification style: "EMBED" (sleek cards with player heads) or "TEXT"
+  style: "EMBED"
   chat:
     enabled: true
   join:
     enabled: true
+    color: 3066993 # Emerald Green
     format: "📥 **{player}** joined the server"
   quit:
     enabled: true
+    color: 15158332 # Coral Red
     format: "📤 **{player}** left the server"
   death:
     enabled: true
+    color: 10038562 # Dark Red
     format: "☠ {message}"
   server-start:
     enabled: true
-    message: "🟢 **Server is online and ready for players!**"
+    title: "🟢 Server is Online!"
+    description: "The Minecraft server has started and is ready for players!\n\n**Java IP:** `play.meermc.com`\n**Bedrock IP:** `bedrock.meermc.com:19132`"
   server-stop:
     enabled: true
-    message: "🔴 **Server has been shut down.**"
+    title: "🔴 Server Shutdown"
+    description: "The Minecraft server has been stopped or is restarting.\nWe will be back online shortly!"
 
 # Two-Way Chat (Discord -> Minecraft)
 discord-to-minecraft:

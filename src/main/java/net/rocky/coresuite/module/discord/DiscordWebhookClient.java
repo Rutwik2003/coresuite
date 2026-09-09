@@ -11,7 +11,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
 /**
- * Asynchronous, non-blocking HTTP client for Discord Webhooks using Java 21 native HttpClient.
+ * Asynchronous, non-blocking HTTP client for Discord.
+ * Supports both Discord Webhooks AND direct Discord Bot REST API (Hybrid mode).
  * Never blocks the Minecraft server tick loop.
  */
 public final class DiscordWebhookClient {
@@ -28,13 +29,110 @@ public final class DiscordWebhookClient {
     }
 
     /**
-     * Sends a fire-and-forget webhook message asynchronously.
+     * Determines whether the destination is a full Webhook URL or a Discord Channel ID.
      */
-    public CompletableFuture<Void> sendAsync(String webhookUrl, String jsonPayload) {
-        if (webhookUrl == null || webhookUrl.trim().isEmpty() || !webhookUrl.startsWith("http")) {
+    public boolean isWebhookUrl(String target) {
+        return target != null && (target.startsWith("http://") || target.startsWith("https://"));
+    }
+
+    /**
+     * Sends a message to a Webhook URL OR directly to a Discord channel via Bot REST API.
+     */
+    public CompletableFuture<Void> sendHybridAsync(String target, String botToken, String jsonPayload) {
+        if (target == null || target.trim().isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
 
+        if (isWebhookUrl(target)) {
+            return sendWebhookAsync(target, jsonPayload);
+        } else {
+            // Target is a Discord Channel ID; use Bot REST API
+            String channelId = LightweightDiscordGateway.cleanChannelId(target);
+            String token = LightweightDiscordGateway.cleanToken(botToken);
+            if (channelId.isEmpty() || token.isEmpty()) return CompletableFuture.completedFuture(null);
+
+            String url = "https://discord.com/api/v10/channels/" + channelId + "/messages";
+            return sendBotRestAsync(url, token, "POST", jsonPayload).thenAccept(res -> {});
+        }
+    }
+
+    /**
+     * Sends a message and waits for the response body (containing message ID).
+     * Works with both Webhook (?wait=true) and Bot REST API.
+     */
+    public CompletableFuture<String> sendWaitHybridAsync(String target, String botToken, String jsonPayload) {
+        if (target == null || target.trim().isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        if (isWebhookUrl(target)) {
+            return sendWebhookWaitAsync(target, jsonPayload);
+        } else {
+            String channelId = LightweightDiscordGateway.cleanChannelId(target);
+            String token = LightweightDiscordGateway.cleanToken(botToken);
+            if (channelId.isEmpty() || token.isEmpty()) return CompletableFuture.completedFuture(null);
+
+            String url = "https://discord.com/api/v10/channels/" + channelId + "/messages";
+            return sendBotRestAsync(url, token, "POST", jsonPayload);
+        }
+    }
+
+    /**
+     * Edits an existing message (PATCH) via Webhook OR Bot REST API.
+     */
+    public CompletableFuture<Boolean> patchHybridAsync(String target, String messageId, String botToken, String jsonPayload) {
+        if (target == null || target.trim().isEmpty() || messageId == null || messageId.trim().isEmpty()) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        if (isWebhookUrl(target)) {
+            return patchWebhookAsync(target, messageId, jsonPayload);
+        } else {
+            String channelId = LightweightDiscordGateway.cleanChannelId(target);
+            String token = LightweightDiscordGateway.cleanToken(botToken);
+            if (channelId.isEmpty() || token.isEmpty()) return CompletableFuture.completedFuture(false);
+
+            String url = "https://discord.com/api/v10/channels/" + channelId + "/messages/" + messageId;
+            return sendBotRestAsync(url, token, "PATCH", jsonPayload).thenApply(body -> body != null);
+        }
+    }
+
+    /**
+     * Synchronous PATCH used during plugin shutdown onDisable().
+     */
+    public void patchHybridSync(String target, String messageId, String botToken, String jsonPayload) {
+        if (target == null || target.trim().isEmpty() || messageId == null || messageId.trim().isEmpty()) {
+            return;
+        }
+
+        try {
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                    .timeout(Duration.ofSeconds(4))
+                    .header("Content-Type", "application/json; charset=utf-8")
+                    .header("User-Agent", "CoreSuite-DiscordBridge/1.0 (Minecraft Paper)");
+
+            if (isWebhookUrl(target)) {
+                String baseUrl = target.split("\\?")[0];
+                if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+                reqBuilder.uri(URI.create(baseUrl + "/messages/" + messageId))
+                          .method("PATCH", HttpRequest.BodyPublishers.ofString(jsonPayload));
+            } else {
+                String channelId = LightweightDiscordGateway.cleanChannelId(target);
+                String token = LightweightDiscordGateway.cleanToken(botToken);
+                if (channelId.isEmpty() || token.isEmpty()) return;
+
+                reqBuilder.uri(URI.create("https://discord.com/api/v10/channels/" + channelId + "/messages/" + messageId))
+                          .header("Authorization", "Bot " + token)
+                          .method("PATCH", HttpRequest.BodyPublishers.ofString(jsonPayload));
+            }
+
+            httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.discarding());
+        } catch (Exception ignored) {}
+    }
+
+    // ── Internal Webhook Methods ──
+
+    private CompletableFuture<Void> sendWebhookAsync(String webhookUrl, String jsonPayload) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
@@ -47,31 +145,22 @@ public final class DiscordWebhookClient {
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.discarding())
                     .thenAccept(response -> {
                         if (response.statusCode() == 429) {
-                            plugin.getLogger().warning("[Discord] Webhook rate-limited (HTTP 429). Throttling output.");
+                            plugin.getLogger().warning("[Discord] Webhook rate-limited (HTTP 429).");
                         } else if (response.statusCode() >= 400) {
                             plugin.getLogger().warning("[Discord] Webhook returned status code: " + response.statusCode());
                         }
                     })
                     .exceptionally(ex -> {
-                        plugin.getLogger().log(Level.WARNING, "[Discord] Failed to dispatch webhook message: " + ex.getMessage());
+                        plugin.getLogger().log(Level.WARNING, "[Discord] Webhook dispatch error: " + ex.getMessage());
                         return null;
                     });
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "[Discord] Error creating webhook request: " + e.getMessage());
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /**
-     * Sends a webhook message with ?wait=true and returns the response body containing the message ID.
-     */
-    public CompletableFuture<String> sendWaitAsync(String webhookUrl, String jsonPayload) {
-        if (webhookUrl == null || webhookUrl.trim().isEmpty() || !webhookUrl.startsWith("http")) {
-            return CompletableFuture.completedFuture(null);
-        }
-
+    private CompletableFuture<String> sendWebhookWaitAsync(String webhookUrl, String jsonPayload) {
         String targetUrl = webhookUrl.contains("?") ? webhookUrl + "&wait=true" : webhookUrl + "?wait=true";
-
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(targetUrl))
@@ -85,34 +174,18 @@ public final class DiscordWebhookClient {
                     .thenApply(response -> {
                         if (response.statusCode() >= 200 && response.statusCode() < 300) {
                             return response.body();
-                        } else {
-                            plugin.getLogger().warning("[Discord] Wait webhook returned HTTP " + response.statusCode() + ": " + response.body());
-                            return null;
                         }
-                    })
-                    .exceptionally(ex -> {
-                        plugin.getLogger().log(Level.WARNING, "[Discord] Failed to send wait webhook: " + ex.getMessage());
                         return null;
-                    });
+                    })
+                    .exceptionally(ex -> null);
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "[Discord] Error building wait webhook: " + e.getMessage());
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /**
-     * Edits an existing Discord webhook message using HTTP PATCH.
-     */
-    public CompletableFuture<Boolean> patchAsync(String webhookUrl, String messageId, String jsonPayload) {
-        if (webhookUrl == null || webhookUrl.trim().isEmpty() || messageId == null || messageId.trim().isEmpty()) {
-            return CompletableFuture.completedFuture(false);
-        }
-
-        // Clean any query params from base webhook URL
+    private CompletableFuture<Boolean> patchWebhookAsync(String webhookUrl, String messageId, String jsonPayload) {
         String baseUrl = webhookUrl.split("\\?")[0];
-        if (baseUrl.endsWith("/")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-        }
+        if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         String patchUrl = baseUrl + "/messages/" + messageId;
 
         try {
@@ -125,49 +198,46 @@ public final class DiscordWebhookClient {
                     .build();
 
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenApply(response -> {
-                        if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                            return true;
-                        } else if (response.statusCode() == 404) {
-                            plugin.getLogger().warning("[Discord] Status message ID " + messageId + " was not found (deleted?). Re-posting on next tick.");
-                            return false;
-                        } else {
-                            plugin.getLogger().warning("[Discord] PATCH webhook returned HTTP " + response.statusCode() + ": " + response.body());
-                            return false;
-                        }
-                    })
-                    .exceptionally(ex -> {
-                        plugin.getLogger().log(Level.WARNING, "[Discord] Failed to patch webhook message: " + ex.getMessage());
-                        return false;
-                    });
+                    .thenApply(response -> response.statusCode() >= 200 && response.statusCode() < 300)
+                    .exceptionally(ex -> false);
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "[Discord] Error creating PATCH request: " + e.getMessage());
             return CompletableFuture.completedFuture(false);
         }
     }
 
-    /**
-     * Blocking PATCH used during plugin shutdown onDisable() to ensure the offline status is sent.
-     */
-    public void patchSync(String webhookUrl, String messageId, String jsonPayload) {
-        if (webhookUrl == null || webhookUrl.trim().isEmpty() || messageId == null || messageId.trim().isEmpty()) {
-            return;
-        }
+    // ── Internal Bot REST API Methods ──
 
-        String baseUrl = webhookUrl.split("\\?")[0];
-        if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-        String patchUrl = baseUrl + "/messages/" + messageId;
-
+    private CompletableFuture<String> sendBotRestAsync(String url, String botToken, String method, String jsonPayload) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(patchUrl))
-                    .timeout(Duration.ofSeconds(4))
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Authorization", "Bot " + botToken)
                     .header("Content-Type", "application/json; charset=utf-8")
                     .header("User-Agent", "CoreSuite-DiscordBridge/1.0 (Minecraft Paper)")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .method(method, HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
-            httpClient.send(request, HttpResponse.BodyHandlers.discarding());
-        } catch (Exception ignored) {}
+            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenApply(response -> {
+                        if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                            return response.body();
+                        } else {
+                            plugin.getLogger().warning("[Discord Bot REST] HTTP " + response.statusCode() + ": " + response.body());
+                            return null;
+                        }
+                    })
+                    .exceptionally(ex -> {
+                        plugin.getLogger().log(Level.WARNING, "[Discord Bot REST] Error: " + ex.getMessage());
+                        return null;
+                    });
+        } catch (Exception e) {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    // Convenience delegates for backwards compatibility
+    public CompletableFuture<Void> sendAsync(String webhookUrl, String jsonPayload) {
+        return sendWebhookAsync(webhookUrl, jsonPayload);
     }
 }

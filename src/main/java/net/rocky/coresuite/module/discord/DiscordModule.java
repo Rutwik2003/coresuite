@@ -16,6 +16,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,7 +25,8 @@ import java.util.stream.Collectors;
 /**
  * CoreSuite Discord Integration Module.
  * Ultra-lightweight alternative to DiscordSRV with zero lag.
- * Features Webhook chat, cracked/Bedrock skin support, live status embed, and 2-way chat gateway.
+ * Features Hybrid Webhook + Bot REST support, cracked/Bedrock skin resolution,
+ * sleek embeds, and 2-way chat gateway.
  */
 public class DiscordModule extends Module implements CommandExecutor, TabCompleter {
 
@@ -52,11 +55,10 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
 
         // Send Server Start notification (only on real startup, not on /discord reload)
         if (!isReloading && config.getBoolean("events.server-start.enabled", true)) {
-            String chatUrl = config.getString("webhooks.chat-url", "").trim();
-            if (!chatUrl.isEmpty()) {
-                String message = config.getString("events.server-start.message", "🟢 **Server is online and ready for players!**");
-                String payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
-                webhookClient.sendAsync(chatUrl, payload);
+            String destination = getChatDestination();
+            if (!destination.isEmpty()) {
+                String payload = buildStartEmbedJson();
+                webhookClient.sendHybridAsync(destination, getBotToken(), payload);
             }
         }
 
@@ -71,19 +73,26 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
     public void onDisable() {
         // Send Server Stop notification (only on real shutdown, not on /discord reload)
         if (!isReloading && config.getBoolean("events.server-stop.enabled", true) && webhookClient != null) {
-            String chatUrl = config.getString("webhooks.chat-url", "").trim();
-            if (!chatUrl.isEmpty()) {
-                String message = config.getString("events.server-stop.message", "🔴 **Server has been shut down.**");
-                String payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+            String destination = getChatDestination();
+            if (!destination.isEmpty()) {
+                String payload = buildStopEmbedJson();
                 try {
-                    // Quick synchronous post during shutdown
+                    webhookClient.patchHybridSync(destination, "nonexistent", getBotToken(), payload); // or send
+                    // Send synchronous POST
+                    java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
+                            .timeout(java.time.Duration.ofSeconds(3))
+                            .header("Content-Type", "application/json; charset=utf-8")
+                            .header("User-Agent", "CoreSuite-DiscordBridge/1.0 (Minecraft Paper)");
+
+                    if (webhookClient.isWebhookUrl(destination)) {
+                        builder.uri(java.net.URI.create(destination));
+                    } else {
+                        builder.uri(java.net.URI.create("https://discord.com/api/v10/channels/" + destination + "/messages"))
+                               .header("Authorization", "Bot " + getBotToken());
+                    }
+
                     java.net.http.HttpClient.newHttpClient().send(
-                            java.net.http.HttpRequest.newBuilder()
-                                    .uri(java.net.URI.create(chatUrl))
-                                    .header("Content-Type", "application/json; charset=utf-8")
-                                    .timeout(java.time.Duration.ofSeconds(3))
-                                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
-                                    .build(),
+                            builder.POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload)).build(),
                             java.net.http.HttpResponse.BodyHandlers.discarding()
                     );
                 } catch (Exception ignored) {}
@@ -115,9 +124,48 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         }
     }
 
-    /**
-     * Saves the module configuration asynchronously.
-     */
+    private String getChatDestination() {
+        String url = config.getString("webhooks.chat-url", "").trim();
+        if (!url.isEmpty()) return url;
+        return config.getString("discord-to-minecraft.channel-id", "").trim();
+    }
+
+    private String getBotToken() {
+        return config.getString("discord-to-minecraft.bot-token", "").trim();
+    }
+
+    private String buildStartEmbedJson() {
+        String title = DiscordSanitizer.escapeJson(config.getString("events.server-start.title", "🟢 Server is Online!"));
+        String desc = DiscordSanitizer.escapeJson(config.getString("events.server-start.description",
+                "The Minecraft server is online and ready for players!\\n\\n" +
+                "**Java IP:** `" + config.getString("server-status.embed.java-ip", "play.meermc.com") + "`\\n" +
+                "**Bedrock IP:** `" + config.getString("server-status.embed.bedrock-ip", "bedrock.meermc.com:19132") + "`"));
+        String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+
+        return "{\"embeds\": [{" +
+                "\"title\": \"" + title + "\"," +
+                "\"color\": 3066993," +
+                "\"description\": \"" + desc + "\"," +
+                "\"footer\": {\"text\": \"CoreSuite Discord Bridge\"}," +
+                "\"timestamp\": \"" + timestamp + "\"" +
+                "}]}";
+    }
+
+    private String buildStopEmbedJson() {
+        String title = DiscordSanitizer.escapeJson(config.getString("events.server-stop.title", "🔴 Server Shutdown"));
+        String desc = DiscordSanitizer.escapeJson(config.getString("events.server-stop.description",
+                "The Minecraft server has been shut down or is restarting.\\nWe will be back online shortly!"));
+        String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+
+        return "{\"embeds\": [{" +
+                "\"title\": \"" + title + "\"," +
+                "\"color\": 15158332," +
+                "\"description\": \"" + desc + "\"," +
+                "\"footer\": {\"text\": \"CoreSuite Discord Bridge\"}," +
+                "\"timestamp\": \"" + timestamp + "\"" +
+                "}]}";
+    }
+
     public void saveModuleConfig() {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, this::saveConfig);
     }
@@ -150,9 +198,10 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
                 TextUtil.sendMessage(sender, "&9&lCoreSuite Discord Bridge Status");
                 boolean chatWebhook = !config.getString("webhooks.chat-url", "").trim().isEmpty();
                 boolean statusWebhook = !config.getString("webhooks.status-url", "").trim().isEmpty();
+                boolean botToken = !config.getString("discord-to-minecraft.bot-token", "").trim().isEmpty();
 
-                TextUtil.sendMessage(sender, "&7Chat Webhook: " + (chatWebhook ? "&aConfigured" : "&cNot Configured"));
-                TextUtil.sendMessage(sender, "&7Status Webhook: " + (statusWebhook ? "&aConfigured" : "&eUsing Chat Webhook"));
+                TextUtil.sendMessage(sender, "&7Chat Delivery: " + (chatWebhook ? "&aWebhook (Skin Avatars)" : (botToken ? "&bBot REST API" : "&cNot Configured")));
+                TextUtil.sendMessage(sender, "&7Status Embed: " + (statusWebhook ? "&aDedicated Webhook" : (chatWebhook ? "&aChat Webhook" : (botToken ? "&bBot REST API" : "&cNot Configured"))));
                 TextUtil.sendMessage(sender, "&7Two-Way Gateway: " + (gateway != null ? gateway.getStatusFormatted() : "&7Disabled"));
 
                 if (gateway != null) {

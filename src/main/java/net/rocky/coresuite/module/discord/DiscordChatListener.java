@@ -4,6 +4,7 @@ import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.rocky.coresuite.CoreSuitePlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -13,9 +14,12 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+
 /**
  * Listens for Minecraft chat and player lifecycle events,
- * relaying them asynchronously to Discord Webhooks with player avatars.
+ * relaying them asynchronously to Discord with styled embeds or webhooks.
  */
 public final class DiscordChatListener implements Listener {
 
@@ -35,12 +39,22 @@ public final class DiscordChatListener implements Listener {
         this.statusManager = statusManager;
     }
 
+    private String getChatDestination() {
+        String url = config.getString("webhooks.chat-url", "").trim();
+        if (!url.isEmpty()) return url;
+        return config.getString("discord-to-minecraft.channel-id", "").trim();
+    }
+
+    private String getBotToken() {
+        return config.getString("discord-to-minecraft.bot-token", "").trim();
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         if (!config.getBoolean("events.chat.enabled", true)) return;
 
-        String chatUrl = config.getString("webhooks.chat-url", "").trim();
-        if (chatUrl.isEmpty()) return;
+        String destination = getChatDestination();
+        if (destination.isEmpty()) return;
 
         Player player = event.getPlayer();
         String rawText = PlainTextComponentSerializer.plainText().serialize(event.message());
@@ -51,77 +65,142 @@ public final class DiscordChatListener implements Listener {
         String avatarUrl = skinResolver.getAvatarUrl(player);
         String username = skinResolver.getFormattedName(player);
 
-        String payload = "{" +
-                "\"username\": \"" + DiscordSanitizer.escapeJson(username) + "\"," +
-                "\"avatar_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"," +
-                "\"content\": \"" + DiscordSanitizer.escapeJson(sanitizedText) + "\"" +
-                "}";
+        String payload;
+        if (webhookClient.isWebhookUrl(destination)) {
+            // Webhook mode: dynamic username + skin avatar
+            payload = "{" +
+                    "\"username\": \"" + DiscordSanitizer.escapeJson(username) + "\"," +
+                    "\"avatar_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"," +
+                    "\"content\": \"" + DiscordSanitizer.escapeJson(sanitizedText) + "\"" +
+                    "}";
+        } else {
+            // Bot mode: prefix with player name
+            payload = "{\"content\": \"**" + DiscordSanitizer.escapeJson(username) + ":** " + DiscordSanitizer.escapeJson(sanitizedText) + "\"}";
+        }
 
-        webhookClient.sendAsync(chatUrl, payload);
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        // 1. Update live status embed (debounced by 3 seconds)
         if (statusManager != null) {
             statusManager.scheduleDebouncedUpdate();
         }
 
-        // 2. Dispatch join notification to chat webhook
         if (!config.getBoolean("events.join.enabled", true)) return;
-        String chatUrl = config.getString("webhooks.chat-url", "").trim();
-        if (chatUrl.isEmpty()) return;
+        String destination = getChatDestination();
+        if (destination.isEmpty()) return;
 
-        String format = config.getString("events.join.format", "📥 **{player}** joined the server");
-        String message = format.replace("{player}", skinResolver.getFormattedName(player));
+        String style = config.getString("events.style", "EMBED").toUpperCase();
+        String avatarUrl = skinResolver.getAvatarUrl(player);
+        String playerName = skinResolver.getFormattedName(player);
+        int online = Bukkit.getOnlinePlayers().size();
+        int max = Bukkit.getMaxPlayers();
 
-        String payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
-        webhookClient.sendAsync(chatUrl, payload);
+        String payload;
+        if ("EMBED".equals(style)) {
+            int color = config.getInt("events.join-color", 3066993); // Emerald Green
+            String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+
+            payload = "{\"embeds\": [{" +
+                    "\"color\": " + color + "," +
+                    "\"author\": {" +
+                    "\"name\": \"" + DiscordSanitizer.escapeJson(playerName) + " joined the server\"," +
+                    "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
+                    "}," +
+                    "\"description\": \"Online: `\" + online + \" / \" + max + \"`\"," +
+                    "\"timestamp\": \"" + timestamp + "\"" +
+                    "}]}";
+        } else {
+            String format = config.getString("events.join.format", "📥 **{player}** joined the server");
+            String message = format.replace("{player}", playerName);
+            payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+        }
+
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // 1. Update live status embed (debounced by 3 seconds)
         if (statusManager != null) {
             statusManager.scheduleDebouncedUpdate();
         }
 
-        // 2. Dispatch quit notification to chat webhook
         if (config.getBoolean("events.quit.enabled", true)) {
-            String chatUrl = config.getString("webhooks.chat-url", "").trim();
-            if (!chatUrl.isEmpty()) {
-                String format = config.getString("events.quit.format", "📤 **{player}** left the server");
-                String message = format.replace("{player}", skinResolver.getFormattedName(player));
+            String destination = getChatDestination();
+            if (!destination.isEmpty()) {
+                String style = config.getString("events.style", "EMBED").toUpperCase();
+                String avatarUrl = skinResolver.getAvatarUrl(player);
+                String playerName = skinResolver.getFormattedName(player);
+                int online = Math.max(0, Bukkit.getOnlinePlayers().size() - 1);
+                int max = Bukkit.getMaxPlayers();
 
-                String payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
-                webhookClient.sendAsync(chatUrl, payload);
+                String payload;
+                if ("EMBED".equals(style)) {
+                    int color = config.getInt("events.quit-color", 15158332); // Coral Red
+                    String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+
+                    payload = "{\"embeds\": [{" +
+                            "\"color\": " + color + "," +
+                            "\"author\": {" +
+                            "\"name\": \"" + DiscordSanitizer.escapeJson(playerName) + " left the server\"," +
+                            "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
+                            "}," +
+                            "\"description\": \"Online: `\" + online + \" / \" + max + \"`\"," +
+                            "\"timestamp\": \"" + timestamp + "\"" +
+                            "}]}";
+                } else {
+                    String format = config.getString("events.quit.format", "📤 **{player}** left the server");
+                    String message = format.replace("{player}", playerName);
+                    payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+                }
+
+                webhookClient.sendHybridAsync(destination, getBotToken(), payload);
             }
         }
 
-        // 3. Invalidate skin cache
         skinResolver.clearCache(player.getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent event) {
         if (!config.getBoolean("events.death.enabled", true)) return;
-        String chatUrl = config.getString("webhooks.chat-url", "").trim();
-        if (chatUrl.isEmpty()) return;
+        String destination = getChatDestination();
+        if (destination.isEmpty()) return;
 
+        Player player = event.getEntity();
         Component deathMessageComp = event.deathMessage();
         String deathText = deathMessageComp != null
                 ? PlainTextComponentSerializer.plainText().serialize(deathMessageComp)
-                : event.getEntity().getName() + " died";
+                : player.getName() + " died";
 
         String sanitizedDeath = DiscordSanitizer.toDiscord(deathText);
-        String format = config.getString("events.death.format", "☠ {message}");
-        String message = format.replace("{message}", sanitizedDeath);
+        String style = config.getString("events.style", "EMBED").toUpperCase();
+        String avatarUrl = skinResolver.getAvatarUrl(player);
 
-        String payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
-        webhookClient.sendAsync(chatUrl, payload);
+        String payload;
+        if ("EMBED".equals(style)) {
+            int color = config.getInt("events.death-color", 10038562); // Dark Red
+            String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
+
+            payload = "{\"embeds\": [{" +
+                    "\"color\": " + color + "," +
+                    "\"author\": {" +
+                    "\"name\": \"" + DiscordSanitizer.escapeJson(sanitizedDeath) + "\"," +
+                    "\"icon_url\": \"" + DiscordSanitizer.escapeJson(avatarUrl) + "\"" +
+                    "}," +
+                    "\"timestamp\": \"" + timestamp + "\"" +
+                    "}]}";
+        } else {
+            String format = config.getString("events.death.format", "☠ {message}");
+            String message = format.replace("{message}", sanitizedDeath);
+            payload = "{\"content\": \"" + DiscordSanitizer.escapeJson(message) + "\"}";
+        }
+
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload);
     }
 }
