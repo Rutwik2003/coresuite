@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Manages periodic updates of the Discord channel topic.
  * Strictly respects Discord's channel edit rate limit (2 edits per 10 minutes)
- * by running on a safe configurable interval (default: 5 minutes / 300s).
+ * by running on a safe configurable interval (default: 5 minutes / 300s)
+ * and avoiding false offline updates during plugin reloads.
  */
 public final class DiscordTopicManager {
 
@@ -25,6 +26,7 @@ public final class DiscordTopicManager {
 
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> updateTask;
+    private ScheduledFuture<?> retryTask;
 
     public DiscordTopicManager(CoreSuitePlugin plugin, FileConfiguration config,
                                DiscordWebhookClient webhookClient, Instant startTime) {
@@ -37,8 +39,8 @@ public final class DiscordTopicManager {
     public synchronized void start() {
         if (!config.getBoolean("channel-topic.enabled", true)) return;
 
-        String channelId = config.getString("discord-to-minecraft.channel-id", "").trim();
-        String botToken = config.getString("discord-to-minecraft.bot-token", "").trim();
+        String channelId = getTopicChannelId();
+        String botToken = getBotToken();
 
         if (channelId.isEmpty() || botToken.isEmpty()) {
             return;
@@ -53,15 +55,15 @@ public final class DiscordTopicManager {
             return t;
         });
 
-        // Delay first update slightly (10 seconds) so server fully initializes
-        updateTask = executor.scheduleAtFixedRate(this::updateTopic, 10, (long) intervalMinutes * 60, TimeUnit.SECONDS);
+        // Run initial update 3 seconds after server startup, then periodically
+        updateTask = executor.scheduleAtFixedRate(this::updateTopic, 3, (long) intervalMinutes * 60, TimeUnit.SECONDS);
     }
 
     public void updateTopic() {
         if (!config.getBoolean("channel-topic.enabled", true)) return;
 
-        String channelId = config.getString("discord-to-minecraft.channel-id", "").trim();
-        String botToken = config.getString("discord-to-minecraft.bot-token", "").trim();
+        String channelId = getTopicChannelId();
+        String botToken = getBotToken();
         if (channelId.isEmpty() || botToken.isEmpty()) return;
 
         int online = Bukkit.getOnlinePlayers().size();
@@ -78,20 +80,39 @@ public final class DiscordTopicManager {
                 .replace("{uptime}", uptime)
                 .replace("{ip}", ip);
 
-        webhookClient.updateChannelTopicAsync(channelId, botToken, topic);
+        webhookClient.updateChannelTopicAsync(channelId, botToken, topic)
+                .thenAccept(result -> {
+                    if (result != null && result.isRateLimited() && result.retryAfterSeconds() > 0) {
+                        scheduleRetry((long) Math.ceil(result.retryAfterSeconds()) + 1);
+                    }
+                });
     }
 
-    public synchronized void shutdown() {
+    private synchronized void scheduleRetry(long delaySeconds) {
+        if (executor == null || executor.isShutdown()) return;
+        if (retryTask != null && !retryTask.isDone()) {
+            retryTask.cancel(false);
+        }
+        plugin.getLogger().info("[Discord Topic] Scheduling automatic retry in " + delaySeconds + " seconds.");
+        retryTask = executor.schedule(this::updateTopic, delaySeconds, TimeUnit.SECONDS);
+    }
+
+    public synchronized void shutdown(boolean isReloading) {
         if (updateTask != null && !updateTask.isCancelled()) {
             updateTask.cancel(false);
+        }
+        if (retryTask != null && !retryTask.isCancelled()) {
+            retryTask.cancel(false);
         }
         if (executor != null && !executor.isShutdown()) {
             executor.shutdown();
         }
 
-        if (config.getBoolean("channel-topic.enabled", true)) {
-            String channelId = config.getString("discord-to-minecraft.channel-id", "").trim();
-            String botToken = config.getString("discord-to-minecraft.bot-token", "").trim();
+        // Never set offline topic during /discord reload or plugin reloads!
+        // Discord allows only 2 edits per 10 mins. Setting offline on reload burns an edit.
+        if (!isReloading && config.getBoolean("channel-topic.enabled", true)) {
+            String channelId = getTopicChannelId();
+            String botToken = getBotToken();
             if (!channelId.isEmpty() && !botToken.isEmpty()) {
                 String ip = config.getString("server-status.embed.java-ip", "meermc.rutwikdev.com:25569");
                 String format = config.getString("channel-topic.format-offline", "🔴 Server Offline | IP: {ip}");
@@ -99,6 +120,21 @@ public final class DiscordTopicManager {
                 webhookClient.updateChannelTopicSync(channelId, botToken, offlineTopic);
             }
         }
+    }
+
+    public String getTopicChannelId() {
+        String channelId = config.getString("channel-topic.channel-id", "").trim();
+        if (channelId.isEmpty()) {
+            channelId = config.getString("discord-to-minecraft.channel-id", "").trim();
+        }
+        if (channelId.isEmpty()) {
+            channelId = config.getString("server-status.channel-id", "").trim();
+        }
+        return channelId;
+    }
+
+    public String getBotToken() {
+        return config.getString("discord-to-minecraft.bot-token", "").trim();
     }
 
     private String formatUptime() {

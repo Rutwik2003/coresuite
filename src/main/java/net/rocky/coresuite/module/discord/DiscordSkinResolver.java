@@ -43,6 +43,23 @@ public final class DiscordSkinResolver {
     }
 
     /**
+     * Resolves the Discord avatar URL for an offline or online player by UUID and name.
+     */
+    public String getAvatarUrl(UUID uuid, String playerName) {
+        if (uuid != null) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) {
+                return getAvatarUrl(player);
+            }
+        }
+        if (playerName != null && !playerName.isEmpty()) {
+            String template = config.getString("avatars.avatar-url-template", "https://mc-heads.net/avatar/{identifier}/100.png");
+            return template.replace("{identifier}", playerName);
+        }
+        return getDefaultAvatar();
+    }
+
+    /**
      * Resolves the avatar URL directly without using cache.
      */
     private String resolveDirect(Player player) {

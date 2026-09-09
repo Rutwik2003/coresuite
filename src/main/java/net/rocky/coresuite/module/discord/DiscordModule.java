@@ -109,7 +109,7 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         }
 
         if (topicManager != null) {
-            topicManager.shutdown();
+            topicManager.shutdown(isReloading);
         }
 
         if (statusManager != null) {
@@ -143,7 +143,7 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         return config.getString("discord-to-minecraft.channel-id", "").trim();
     }
 
-    private String getBotToken() {
+    public String getBotToken() {
         return config.getString("discord-to-minecraft.bot-token", "").trim();
     }
 
@@ -266,6 +266,10 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
                     statusManager.updateStatus();
                     TextUtil.sendMessage(sender, "&aTriggered Discord status embed update!");
                 }
+                if (topicManager != null) {
+                    topicManager.updateTopic();
+                    TextUtil.sendMessage(sender, "&aTriggered Discord channel topic update!");
+                }
                 return true;
             }
 
@@ -298,5 +302,38 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
                     .collect(Collectors.toList());
         }
         return List.of();
+    }
+
+    public DiscordTopicManager getTopicManager() {
+        return topicManager;
+    }
+
+    public DiscordWebhookClient getWebhookClient() {
+        return webhookClient;
+    }
+
+    public DiscordSkinResolver getSkinResolver() {
+        return skinResolver;
+    }
+
+    public int getOrdersEmbedColor() {
+        return config.getInt("orders.embed-color", 16753920);
+    }
+
+    public void sendOrderEmbed(String jsonPayload, boolean isServiceOrder) {
+        if (!config.getBoolean("orders.enabled", true)) return;
+        if (isServiceOrder && !config.getBoolean("orders.post-service-orders", true)) return;
+        if (!isServiceOrder && !config.getBoolean("orders.post-item-orders", true)) return;
+
+        String destination = config.getString("orders.webhook-url", "").trim();
+        if (destination.isEmpty()) {
+            destination = config.getString("orders.channel-id", "").trim();
+        }
+        if (destination.isEmpty()) {
+            destination = getChatDestination();
+        }
+        if (destination.isEmpty() || webhookClient == null) return;
+
+        webhookClient.sendHybridAsync(destination, getBotToken(), jsonPayload);
     }
 }

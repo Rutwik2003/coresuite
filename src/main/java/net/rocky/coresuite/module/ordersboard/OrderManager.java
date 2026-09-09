@@ -4,6 +4,7 @@ import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -25,6 +26,7 @@ public class OrderManager {
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
     private final Map<UUID, Integer> activeOrderCache = new ConcurrentHashMap<>();
+    private OrderDiscordNotifier discordNotifier;
 
     public OrderManager(CoreSuitePlugin plugin, FileConfiguration config) {
         this.plugin = plugin;
@@ -71,6 +73,14 @@ public class OrderManager {
                 "player_uuid TEXT NOT NULL, " +
                 "material TEXT NOT NULL, " +
                 "amount INTEGER NOT NULL" +
+                ")"
+        );
+        plugin.getDatabaseManager().execute(
+                "CREATE TABLE IF NOT EXISTS coresuite_orders_notifications (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "player_uuid TEXT NOT NULL, " +
+                "message TEXT NOT NULL, " +
+                "created_at BIGINT NOT NULL" +
                 ")"
         );
 
@@ -194,6 +204,9 @@ public class OrderManager {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             incrementOrderCount(posterUuid);
                             onSuccess.accept(order);
+                            if (discordNotifier != null) {
+                                discordNotifier.broadcastNewOrder(order);
+                            }
                             // Announce to all players
                             String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
                             String announceMsg = prefix + "&f" + posterName + " &7posted a new "
@@ -238,6 +251,9 @@ public class OrderManager {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             incrementOrderCount(posterUuid);
                             onSuccess.accept(order);
+                            if (discordNotifier != null) {
+                                discordNotifier.broadcastNewOrder(order);
+                            }
                             // Announce to all players
                             String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
                             String announceMsg = prefix + "&f" + posterName + " &7posted a new service order! "
@@ -254,21 +270,50 @@ public class OrderManager {
         });
     }
 
-    /** Accepts a service order — marks it as ACCEPTED and stores who accepted it. */
+    /** Accepts a service order — marks it as ACCEPTED, stores who accepted it, and notifies poster immediately or on next login. */
     public void acceptServiceOrder(int orderId, UUID acceptorUuid, String acceptorName, Runnable onSuccess, Runnable onFail) {
         plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                String posterUuidStr = null;
+                String desc = null;
+                try (PreparedStatement fetch = conn.prepareStatement("SELECT poster_uuid, description FROM coresuite_orders WHERE id = ? AND active = 1 AND status = 'OPEN'")) {
+                    fetch.setInt(1, orderId);
+                    try (ResultSet rs = fetch.executeQuery()) {
+                        if (rs.next()) {
+                            posterUuidStr = rs.getString("poster_uuid");
+                            desc = rs.getString("description");
+                        }
+                    }
+                }
+
+                if (posterUuidStr == null) {
+                    Bukkit.getScheduler().runTask(plugin, onFail);
+                    return;
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement(
                      "UPDATE coresuite_orders SET status = 'ACCEPTED', accepted_by_uuid = ?, accepted_by_name = ? " +
                      "WHERE id = ? AND active = 1 AND status = 'OPEN'")) {
-                stmt.setString(1, acceptorUuid.toString());
-                stmt.setString(2, acceptorName);
-                stmt.setInt(3, orderId);
-                int rows = stmt.executeUpdate();
-                if (rows > 0) {
-                    Bukkit.getScheduler().runTask(plugin, onSuccess);
-                } else {
-                    Bukkit.getScheduler().runTask(plugin, onFail); // already accepted or closed
+                    stmt.setString(1, acceptorUuid.toString());
+                    stmt.setString(2, acceptorName);
+                    stmt.setInt(3, orderId);
+                    int rows = stmt.executeUpdate();
+                    if (rows > 0) {
+                        final String finalPosterUuid = posterUuidStr;
+                        final String finalDesc = desc != null ? desc : "Task";
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            onSuccess.run();
+                            String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                            String shortDesc = finalDesc.length() > 30 ? finalDesc.substring(0, 30) + "..." : finalDesc;
+                            String msg = prefix + "&aYour service order &e#" + orderId + " &8(&7'" + shortDesc + "'&8) &awas accepted by &f" + acceptorName + "&a!\n"
+                                    + prefix + "&7They are now working on it. When complete, use &e/orders \u2192 My Orders &7to confirm & pay.";
+                            try {
+                                notifyPlayerOrQueue(UUID.fromString(finalPosterUuid), msg);
+                            } catch (Exception ignored) {}
+                        });
+                    } else {
+                        Bukkit.getScheduler().runTask(plugin, onFail);
+                    }
                 }
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Failed to accept service order", e);
@@ -307,11 +352,10 @@ public class OrderManager {
                         Player acceptor = Bukkit.getPlayer(aUuid);
                         org.bukkit.OfflinePlayer aTarget = (acceptor != null) ? acceptor : Bukkit.getOfflinePlayer(aUuid);
                         plugin.getEconomyManager().deposit(aTarget, finalOrder.getPriceTotal());
-                        if (acceptor != null) {
-                            String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
-                            TextUtil.sendMessage(acceptor, prefix + "&aYour service for &f" + finalOrder.getPosterName()
-                                + "&a was marked complete! You earned &e" + plugin.getEconomyManager().format(finalOrder.getPriceTotal()));
-                        }
+                        String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                        String msg = prefix + "&aYour service for &f" + finalOrder.getPosterName()
+                                + "&a was marked complete! You earned &e" + plugin.getEconomyManager().format(finalOrder.getPriceTotal());
+                        notifyPlayerOrQueue(aUuid, msg);
                     }
                     onSuccess.run();
                 });
@@ -427,6 +471,10 @@ public class OrderManager {
                     }
 
                     Bukkit.getScheduler().runTask(plugin, () -> {
+                        String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
+                        int newFilled = order.getAmountFilled() + actualToFill;
+                        boolean completed = (newFilled >= order.getAmountNeeded());
+
                         // Deliver items to poster if online
                         Player poster = Bukkit.getPlayer(UUID.fromString(order.getPosterUuid()));
                         if (poster != null) {
@@ -434,20 +482,31 @@ public class OrderManager {
                             if (!overflow.isEmpty()) {
                                 overflow.values().forEach(it -> poster.getWorld().dropItemNaturally(poster.getLocation(), it));
                             }
-                            String prefix = config.getString("messages.prefix", "&8[&6Orders&8] &r");
-                            int newFilled = order.getAmountFilled() + actualToFill;
-                            if (newFilled >= order.getAmountNeeded()) {
-                                TextUtil.sendMessage(poster, prefix + config.getString("messages.order-complete", "&aYour order is complete!").replace("{item}", formatMaterialName(order.getMaterial())));
+                            poster.playSound(poster.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+                            if (completed) {
+                                TextUtil.sendMessage(poster, prefix + config.getString("messages.order-complete", "&aYour order is complete!")
+                                        .replace("{item}", formatMaterialName(order.getMaterial())) + " &7(fulfilled by &f" + filler.getName() + "&7)");
                                 decrementOrderCount(poster.getUniqueId());
                             } else {
                                 TextUtil.sendMessage(poster, prefix + config.getString("messages.filled-notify", "&aOrder partially filled.")
                                         .replace("{item}", formatMaterialName(order.getMaterial()))
                                         .replace("{filled}", String.valueOf(newFilled))
-                                        .replace("{total}", String.valueOf(order.getAmountNeeded())));
+                                        .replace("{total}", String.valueOf(order.getAmountNeeded())) + " &7(by &f" + filler.getName() + "&7)");
                             }
-                        } else if (order.getAmountFilled() + actualToFill >= order.getAmountNeeded()) {
+                        } else {
                             UUID pUuid = UUID.fromString(order.getPosterUuid());
-                            decrementOrderCount(pUuid);
+                            if (completed) {
+                                decrementOrderCount(pUuid);
+                                String msg = prefix + config.getString("messages.order-complete", "&aYour order is complete!")
+                                        .replace("{item}", formatMaterialName(order.getMaterial())) + " &7(fulfilled by &f" + filler.getName() + "&7)";
+                                notifyPlayerOrQueue(pUuid, msg);
+                            } else {
+                                String msg = prefix + config.getString("messages.filled-notify", "&aOrder partially filled.")
+                                        .replace("{item}", formatMaterialName(order.getMaterial()))
+                                        .replace("{filled}", String.valueOf(newFilled))
+                                        .replace("{total}", String.valueOf(order.getAmountNeeded())) + " &7(by &f" + filler.getName() + "&7)";
+                                notifyPlayerOrQueue(pUuid, msg);
+                            }
                         }
                         onSuccess.accept(moneyEarned);
                     });
@@ -672,6 +731,65 @@ public class OrderManager {
                             overflow.values().forEach(it -> player.getWorld().dropItemNaturally(player.getLocation(), it));
                         }
                         TextUtil.sendMessage(player, prefix + "&aDelivered &e" + entry.getValue() + "x " + formatMaterialName(entry.getKey()) + " &afrom fulfilled orders while you were away!");
+                    }
+                });
+            }
+        });
+    }
+
+    public void setDiscordNotifier(OrderDiscordNotifier discordNotifier) {
+        this.discordNotifier = discordNotifier;
+    }
+
+    public void notifyPlayerOrQueue(UUID playerUuid, String message) {
+        if (playerUuid == null || message == null) return;
+        Player player = Bukkit.getPlayer(playerUuid);
+        if (player != null && player.isOnline()) {
+            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+            TextUtil.sendMessage(player, message);
+        } else {
+            plugin.getDatabaseManager().execute(
+                "INSERT INTO coresuite_orders_notifications (player_uuid, message, created_at) VALUES (?, ?, ?)",
+                playerUuid.toString(), message, System.currentTimeMillis()
+            );
+        }
+    }
+
+    public void deliverPendingNotifications(Player player) {
+        if (player == null) return;
+        plugin.getDatabaseManager().executeAsync(() -> {
+            List<String> messages = new ArrayList<>();
+            List<Integer> ids = new ArrayList<>();
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(
+                     "SELECT id, message FROM coresuite_orders_notifications WHERE player_uuid = ? ORDER BY created_at ASC")) {
+                stmt.setString(1, player.getUniqueId().toString());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        ids.add(rs.getInt("id"));
+                        messages.add(rs.getString("message"));
+                    }
+                }
+                if (!ids.isEmpty()) {
+                    try (PreparedStatement del = conn.prepareStatement("DELETE FROM coresuite_orders_notifications WHERE id = ?")) {
+                        for (int id : ids) {
+                            del.setInt(1, id);
+                            del.addBatch();
+                        }
+                        del.executeBatch();
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to load pending order notifications", e);
+            }
+
+            if (!messages.isEmpty()) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline()) {
+                        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+                        for (String msg : messages) {
+                            TextUtil.sendMessage(player, msg);
+                        }
                     }
                 });
             }

@@ -40,9 +40,14 @@ public class BidManager {
     ) {}
 
     private final CoreSuitePlugin plugin;
+    private OrderManager orderManager;
 
     public BidManager(CoreSuitePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    public void setOrderManager(OrderManager orderManager) {
+        this.orderManager = orderManager;
     }
 
     public void initDatabase() {
@@ -289,12 +294,16 @@ public class BidManager {
                 onSuccess.run();
 
                 // Notify bidder
-                Player bidder = Bukkit.getPlayer(UUID.fromString(bid.bidderUuid()));
-                if (bidder != null) {
-                    String type = order.isItemOrder() ? order.getDisplayTitle() : "service";
-                    TextUtil.sendMessage(bidder,
-                        "&8[&6Orders&8] &a\u2713 Your bid of &e" + plugin.getEconomyManager().format(bid.bidAmount()) +
-                        " &awas accepted by &f" + order.getPosterName() + "&a on the &f" + type + " &aorder! Check &e/orders &ato fill it.");
+                String type = order.isItemOrder() ? order.getDisplayTitle() : "service";
+                String msg = "&8[&6Orders&8] &a\u2713 Your bid of &e" + plugin.getEconomyManager().format(bid.bidAmount()) +
+                    " &awas accepted by &f" + order.getPosterName() + "&a on the &f" + type + " &aorder! Check &e/orders &ato fill it.";
+                if (orderManager != null) {
+                    orderManager.notifyPlayerOrQueue(UUID.fromString(bid.bidderUuid()), msg);
+                } else {
+                    Player bidder = Bukkit.getPlayer(UUID.fromString(bid.bidderUuid()));
+                    if (bidder != null) {
+                        TextUtil.sendMessage(bidder, msg);
+                    }
                 }
             });
         });

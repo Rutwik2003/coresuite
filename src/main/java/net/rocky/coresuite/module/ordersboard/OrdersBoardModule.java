@@ -39,6 +39,10 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
         orderManager = new OrderManager(plugin, config);
         bidManager   = new BidManager(plugin);
         bidManager.initDatabase();
+        bidManager.setOrderManager(orderManager);
+
+        OrderDiscordNotifier discordNotifier = new OrderDiscordNotifier(plugin);
+        orderManager.setDiscordNotifier(discordNotifier);
 
         myOrdersGUI  = new MyOrdersGUI(plugin, orderManager, config);
         postOrderGUI = new PostOrderGUI(plugin, orderManager, config);
@@ -71,7 +75,13 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         if (orderManager != null) {
-            orderManager.deliverPendingItems(event.getPlayer());
+            Player player = event.getPlayer();
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    orderManager.deliverPendingItems(player);
+                    orderManager.deliverPendingNotifications(player);
+                }
+            }, 25L);
         }
     }
 
@@ -108,6 +118,7 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
         Player player = (Player) sender;
         if (orderManager != null) {
             orderManager.deliverPendingItems(player);
+            orderManager.deliverPendingNotifications(player);
         }
         
         if (args.length == 0 || args[0].equalsIgnoreCase("gui")) {

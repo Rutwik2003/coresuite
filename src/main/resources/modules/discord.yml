@@ -83,10 +83,25 @@ events:
 # Discord Channel Topic Auto-Updater
 channel-topic:
   enabled: true
+  # Optional channel ID for topic updates (leave empty to use discord-to-minecraft or server-status channel-id)
+  channel-id: ""
   # Update frequency in minutes (Discord allows max 2 edits per 10 mins; minimum 5m recommended)
   update-interval-minutes: 5
   format-online: "🟢 Online: {online}/{max} | TPS: {tps} | IP: {ip}"
   format-offline: "🔴 Server Offline | IP: {ip}"
+
+# Orders Board Discord Integration
+orders:
+  # Master toggle: broadcast newly posted orders to Discord
+  enabled: true
+  # Individual toggles for order types
+  post-item-orders: true
+  post-service-orders: true
+  # Optional dedicated channel ID or webhook URL (leave empty to use chat webhook or bot channel)
+  channel-id: ""
+  webhook-url: ""
+  # Embed color (Hex integer, 16753920 is #FFA500 Gold/Orange)
+  embed-color: 16753920
 
 # In-Discord Bot Commands (e.g. m!playerlist, m!status, m!ip, m!help)
 commands:

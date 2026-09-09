@@ -1,6 +1,7 @@
 package net.rocky.coresuite.module.discord;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import net.rocky.coresuite.CoreSuitePlugin;
 
 import java.net.URI;
@@ -131,14 +132,19 @@ public final class DiscordWebhookClient {
         } catch (Exception ignored) {}
     }
 
+    public record TopicUpdateResult(int statusCode, double retryAfterSeconds) {
+        public boolean isSuccess() { return statusCode >= 200 && statusCode < 300; }
+        public boolean isRateLimited() { return statusCode == 429; }
+    }
+
     /**
      * Updates the Discord channel topic asynchronously.
      */
-    public CompletableFuture<Void> updateChannelTopicAsync(String channelId, String botToken, String topic) {
+    public CompletableFuture<TopicUpdateResult> updateChannelTopicAsync(String channelId, String botToken, String topic) {
         String cleanChannel = LightweightDiscordGateway.cleanChannelId(channelId);
         String token = LightweightDiscordGateway.cleanToken(botToken);
         if (cleanChannel.isEmpty() || token.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(new TopicUpdateResult(400, 0));
         }
 
         JsonObject body = new JsonObject();
@@ -155,21 +161,34 @@ public final class DiscordWebhookClient {
                     .build();
 
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .thenAccept(response -> {
-                        if (response.statusCode() == 403) {
-                            plugin.getLogger().warning("[Discord] Cannot update channel topic (403 Forbidden). Ensure the bot has 'Manage Channels' permission in Discord.");
-                        } else if (response.statusCode() == 429) {
-                            plugin.getLogger().warning("[Discord] Channel topic update rate-limited (429).");
-                        } else if (response.statusCode() >= 400) {
-                            plugin.getLogger().warning("[Discord] Channel topic update failed (HTTP " + response.statusCode() + "): " + response.body());
+                    .thenApply(response -> {
+                        int code = response.statusCode();
+                        double retryAfter = 0;
+                        if (code >= 200 && code < 300) {
+                            plugin.getLogger().info("[Discord Topic] Successfully updated channel topic: " + topic);
+                        } else if (code == 429) {
+                            try {
+                                JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                                if (json.has("retry_after")) {
+                                    retryAfter = json.get("retry_after").getAsDouble();
+                                }
+                            } catch (Exception ignored) {}
+                            plugin.getLogger().warning("[Discord Topic] Channel topic update rate-limited by Discord (429)."
+                                    + (retryAfter > 0 ? " Rate limit clears in " + String.format("%.1f", retryAfter) + "s." : ""));
+                        } else if (code == 403) {
+                            plugin.getLogger().warning("[Discord Topic] Cannot update channel topic (403 Forbidden). Ensure the bot has 'Manage Channels' permission in Discord.");
+                        } else if (code >= 400) {
+                            plugin.getLogger().warning("[Discord Topic] Channel topic update failed (HTTP " + code + "): " + response.body());
                         }
+                        return new TopicUpdateResult(code, retryAfter);
                     })
                     .exceptionally(ex -> {
-                        plugin.getLogger().log(Level.FINE, "[Discord] Topic update network exception", ex);
-                        return null;
+                        plugin.getLogger().warning("[Discord Topic] Network error updating channel topic: " + ex.getMessage());
+                        return new TopicUpdateResult(500, 0);
                     });
         } catch (Exception e) {
-            return CompletableFuture.completedFuture(null);
+            plugin.getLogger().warning("[Discord Topic] Failed to dispatch channel topic update: " + e.getMessage());
+            return CompletableFuture.completedFuture(new TopicUpdateResult(500, 0));
         }
     }
 
@@ -194,8 +213,17 @@ public final class DiscordWebhookClient {
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(body.toString()))
                     .build();
 
-            httpClient.send(request, HttpResponse.BodyHandlers.discarding());
-        } catch (Exception ignored) {}
+            HttpResponse<String> resp = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                plugin.getLogger().info("[Discord Topic] Offline topic set successfully on shutdown.");
+            } else if (resp.statusCode() == 429) {
+                plugin.getLogger().warning("[Discord Topic] Could not set offline topic on shutdown (Discord Rate Limited 429).");
+            } else {
+                plugin.getLogger().warning("[Discord Topic] Failed to set offline topic on shutdown (HTTP " + resp.statusCode() + "): " + resp.body());
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("[Discord Topic] Error setting offline topic: " + e.getMessage());
+        }
     }
 
     // ── Internal Webhook Methods ──
