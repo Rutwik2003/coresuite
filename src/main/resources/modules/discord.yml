@@ -66,6 +66,11 @@ events:
     enabled: true
     color: 10038562 # Dark Red
     format: "☠ {message}"
+  advancement:
+    enabled: true
+    # 'EMBED' (rich cards with player skin head & colors) or 'TEXT'
+    style: "EMBED"
+    format: "🏆 **{player}** has made the advancement **[{title}]**"
   server-start:
     enabled: true
     title: "🟢 Server is Online!"
@@ -88,6 +93,8 @@ commands:
   enabled: true
   # Command prefix in Discord
   prefix: "m!"
+  # Optional dedicated channel ID for bot commands (leave empty to use the chat channel)
+  channel-id: ""
 
 # Two-Way Chat (Discord -> Minecraft)
 discord-to-minecraft:

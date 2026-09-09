@@ -256,10 +256,14 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
         if (d == null) return;
 
         String targetChannel = cleanChannelId(config.getString("discord-to-minecraft.channel-id", ""));
+        String commandsChannel = cleanChannelId(config.getString("commands.channel-id", ""));
         String messageChannel = d.has("channel_id") ? d.get("channel_id").getAsString() : "";
 
-        if (targetChannel.isEmpty() || !targetChannel.equals(messageChannel)) {
-            return; // Not our chat channel
+        boolean isTargetChannel = !targetChannel.isEmpty() && targetChannel.equals(messageChannel);
+        boolean isCommandsChannel = !commandsChannel.isEmpty() && commandsChannel.equals(messageChannel);
+
+        if (!isTargetChannel && !isCommandsChannel) {
+            return; // Not our chat or commands channel
         }
 
         // 1. Ignore Webhook messages (prevents infinite echo loops)
@@ -296,8 +300,14 @@ public final class LightweightDiscordGateway implements WebSocket.Listener {
 
         // 3. Intercept in-Discord bot commands (e.g. m!playerlist, m!status, m!ip)
         if (commandHandler != null && commandHandler.isCommand(content)) {
+            plugin.getLogger().info("[Discord] Intercepted bot command: '" + content + "' from @" + globalName);
             commandHandler.handleCommand(messageChannel, globalName, content);
             return; // Abort broadcasting so the command isn't sent to Minecraft
+        }
+
+        // If message was sent in commands channel only (not chat channel), don't broadcast regular chat to Minecraft
+        if (!isTargetChannel) {
+            return;
         }
 
         JsonArray mentions = d.has("mentions") && d.get("mentions").isJsonArray()

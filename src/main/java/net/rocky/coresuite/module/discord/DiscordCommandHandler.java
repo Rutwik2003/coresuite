@@ -57,6 +57,8 @@ public final class DiscordCommandHandler {
         String[] parts = content.split("\\s+");
         String cmd = parts[0].toLowerCase();
 
+        plugin.getLogger().info("[Discord Command] Received command '" + cmd + "' from @" + authorName + " in channel " + channelId);
+
         String botToken = config.getString("discord-to-minecraft.bot-token", "").trim();
 
         switch (cmd) {
@@ -79,7 +81,7 @@ public final class DiscordCommandHandler {
                 sendHelp(channelId, botToken);
                 break;
             default:
-                // Ignore unrecognized command to avoid noise
+                plugin.getLogger().info("[Discord Command] Unknown command '" + cmd + "'. Ignoring.");
                 break;
         }
     }
@@ -214,13 +216,28 @@ public final class DiscordCommandHandler {
         sendEmbed(channelId, botToken, embed);
     }
 
+    private String getDestination(String channelId) {
+        String webhook = config.getString("webhooks.chat-url", "").trim();
+        if (!webhook.isEmpty()) return webhook;
+        return channelId;
+    }
+
     private void sendEmbed(String channelId, String botToken, JsonObject embed) {
         JsonArray embeds = new JsonArray();
         embeds.add(embed);
         JsonObject payload = new JsonObject();
         payload.add("embeds", embeds);
 
-        webhookClient.sendHybridAsync(channelId, botToken, payload.toString());
+        String destination = getDestination(channelId);
+        if (webhookClient.isWebhookUrl(destination)) {
+            payload.addProperty("username", "MeerMC Bot");
+            String avatarUrl = config.getString("avatars.default-avatar-url", "https://mc-heads.net/avatar/MHF_Steve/100.png");
+            payload.addProperty("avatar_url", avatarUrl);
+        }
+
+        plugin.getLogger().info("[Discord Command] Sending response embed via " + (webhookClient.isWebhookUrl(destination) ? "Webhook" : "Bot REST API"));
+
+        webhookClient.sendHybridAsync(destination, botToken, payload.toString());
     }
 
     private String formatUptime() {

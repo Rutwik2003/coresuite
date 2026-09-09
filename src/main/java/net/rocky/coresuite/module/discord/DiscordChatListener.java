@@ -13,6 +13,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import io.papermc.paper.advancement.AdvancementDisplay;
+import org.bukkit.advancement.Advancement;
+import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
@@ -213,6 +216,72 @@ public final class DiscordChatListener implements Listener {
         } else {
             String format = config.getString("events.death.format", "☠ {message}");
             String message = format.replace("{message}", sanitizedDeath);
+            payload.addProperty("content", message);
+        }
+
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onAdvancement(PlayerAdvancementDoneEvent event) {
+        if (!config.getBoolean("events.advancement.enabled", true)) return;
+
+        Advancement advancement = event.getAdvancement();
+        if (advancement.getKey().getKey().startsWith("recipes/")) return;
+
+        AdvancementDisplay display = advancement.getDisplay();
+        if (display == null) return;
+        if (!display.doesAnnounceToChat()) return;
+
+        String destination = getChatDestination();
+        if (destination.isEmpty()) return;
+
+        Player player = event.getPlayer();
+        String playerName = skinResolver.getFormattedName(player);
+        String avatarUrl = skinResolver.getAvatarUrl(player);
+
+        String title = PlainTextComponentSerializer.plainText().serialize(display.title());
+        String description = display.description() != null
+                ? PlainTextComponentSerializer.plainText().serialize(display.description())
+                : "";
+
+        AdvancementDisplay.Frame frame = display.frame();
+        String verb = switch (frame) {
+            case CHALLENGE -> "has completed the challenge";
+            case GOAL -> "has reached the goal";
+            default -> "has made the advancement";
+        };
+
+        int color = switch (frame) {
+            case CHALLENGE -> 10181046; // Purple #9B59B6
+            case GOAL -> 3447003;       // Blue #3498DB
+            default -> 16766720;        // Gold #FFAA00
+        };
+
+        String style = config.getString("events.style", "EMBED").toUpperCase();
+        JsonObject payload = new JsonObject();
+
+        if ("EMBED".equals(style)) {
+            JsonObject embed = new JsonObject();
+            embed.addProperty("color", color);
+
+            JsonObject author = new JsonObject();
+            author.addProperty("name", playerName + " " + verb + " [" + title + "]!");
+            author.addProperty("icon_url", avatarUrl);
+            embed.add("author", author);
+
+            if (!description.isEmpty()) {
+                embed.addProperty("description", "*" + description + "*");
+            }
+
+            embed.addProperty("timestamp", DateTimeFormatter.ISO_INSTANT.format(Instant.now()));
+
+            JsonArray embeds = new JsonArray();
+            embeds.add(embed);
+            payload.add("embeds", embeds);
+        } else {
+            String format = config.getString("events.advancement.format", "🏆 **{player}** " + verb + " **[{title}]**");
+            String message = format.replace("{player}", playerName).replace("{title}", title);
             payload.addProperty("content", message);
         }
 
