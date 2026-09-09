@@ -229,6 +229,12 @@ commands:
     permission: coresuite.harvest.use
     aliases: [harvestmarket, market]
 
+  discord:
+    description: View Discord invite or manage Discord bridge
+    usage: /<command> [status|update|reload]
+    permission: coresuite.discord.use
+    aliases: [dc]
+
 permissions:
   coresuite.admin:
     description: Access to /coresuite admin commands
@@ -366,3 +372,9 @@ permissions:
   coresuite.website.rank:
     description: Allow players to view rank shop link
     default: true
+  coresuite.discord.use:
+    description: View Discord invite and status
+    default: true
+  coresuite.discord.admin:
+    description: Manage Discord bridge (force update, reload)
+    default: op

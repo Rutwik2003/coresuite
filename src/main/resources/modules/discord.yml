@@ -1,0 +1,74 @@
+enabled: true
+
+# Link shared with players when they type /discord in-game
+invite-link: "https://discord.gg/yourserver"
+
+# Outbound Webhooks (In-Game -> Discord)
+webhooks:
+  # Webhook URL for in-game chat and event notifications
+  chat-url: ""
+  # Webhook URL for the live server status & player list embed (can be same or different channel)
+  status-url: ""
+
+# Avatar & Skin Resolution (Cracked & Bedrock Support)
+avatars:
+  # Enable SkinsRestorer integration to display custom /skin textures in Discord
+  use-skinsrestorer: true
+  # Template for avatar lookup. {identifier} is replaced by texture hash, username, or UUID
+  avatar-url-template: "https://mc-heads.net/avatar/{identifier}/100.png"
+  # Default avatar if player has no skin and name cannot be resolved
+  default-avatar-url: "https://mc-heads.net/avatar/MHF_Steve/100.png"
+  # Prefix used by Floodgate/Geyser for Bedrock players
+  bedrock-prefix: "."
+  # Show Bedrock icon or label next to Bedrock players in the player list
+  bedrock-tag: " 📱"
+
+# Live Server Status & Player List Embed
+server-status:
+  enabled: true
+  # Message ID of the status embed. Automatically populated after the first post
+  message-id: ""
+  # Periodic refresh interval in seconds (embed also refreshes immediately upon join/quit)
+  update-interval-seconds: 60
+  embed:
+    title: "🎮 Server Status & Player List"
+    # Hex colors in integer format: Green = 3066993 (0x2ECC71), Red = 15158332 (0xE74C3C)
+    online-color: 3066993
+    offline-color: 15158332
+    show-playerlist: true
+    max-displayed-players: 50
+    show-tps: true
+    show-uptime: true
+    thumbnail-url: "" # Optional server logo URL for embed thumbnail
+
+# In-Game Event Notifications sent to Discord chat webhook
+events:
+  chat:
+    enabled: true
+  join:
+    enabled: true
+    format: "📥 **{player}** joined the server"
+  quit:
+    enabled: true
+    format: "📤 **{player}** left the server"
+  death:
+    enabled: true
+    format: "☠ {message}"
+  server-start:
+    enabled: true
+    message: "🟢 **Server is online and ready for players!**"
+  server-stop:
+    enabled: true
+    message: "🔴 **Server has been shut down.**"
+
+# Two-Way Chat (Discord -> Minecraft)
+discord-to-minecraft:
+  enabled: true
+  # Standard Discord Bot Token (from Discord Developer Portal)
+  bot-token: ""
+  # Discord channel ID to listen for chat messages
+  channel-id: ""
+  # In-game chat format when a Discord user speaks
+  format: "&9[Discord] &b{user}&8: &f{message}"
+  # Ignore messages from bots and other webhooks
+  filter-bots: true

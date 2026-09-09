@@ -195,6 +195,9 @@ public final class CoreSuitePlugin extends JavaPlugin {
         moduleManager.registerModule(new net.rocky.coresuite.module.wishingwell.WishingWellModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.archaeologyrush.ArchaeologyRushModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.harvestmarket.HarvestMarketModule(this));
+
+        // Phase 13 — Discord Bridge
+        moduleManager.registerModule(new net.rocky.coresuite.module.discord.DiscordModule(this));
     }
 
     // ── Static accessor ──
