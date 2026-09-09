@@ -17,7 +17,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +32,7 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
     private ServerStatusEmbedManager statusManager;
     private LightweightDiscordGateway gateway;
     private DiscordChatListener chatListener;
+    private boolean isReloading = false;
 
     public DiscordModule(CoreSuitePlugin plugin) {
         super(plugin, "Discord", "discord");
@@ -50,8 +50,8 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         statusManager.start();
         gateway.start();
 
-        // Send Server Start notification
-        if (config.getBoolean("events.server-start.enabled", true)) {
+        // Send Server Start notification (only on real startup, not on /discord reload)
+        if (!isReloading && config.getBoolean("events.server-start.enabled", true)) {
             String chatUrl = config.getString("webhooks.chat-url", "").trim();
             if (!chatUrl.isEmpty()) {
                 String message = config.getString("events.server-start.message", "🟢 **Server is online and ready for players!**");
@@ -69,8 +69,8 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
 
     @Override
     public void onDisable() {
-        // Send Server Stop notification
-        if (config.getBoolean("events.server-stop.enabled", true) && webhookClient != null) {
+        // Send Server Stop notification (only on real shutdown, not on /discord reload)
+        if (!isReloading && config.getBoolean("events.server-stop.enabled", true) && webhookClient != null) {
             String chatUrl = config.getString("webhooks.chat-url", "").trim();
             if (!chatUrl.isEmpty()) {
                 String message = config.getString("events.server-stop.message", "🔴 **Server has been shut down.**");
@@ -102,6 +102,16 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         if (command != null && command.getExecutor() == this) {
             command.setExecutor(null);
             command.setTabCompleter(null);
+        }
+    }
+
+    @Override
+    public void onReload() {
+        isReloading = true;
+        try {
+            super.onReload();
+        } finally {
+            isReloading = false;
         }
     }
 
@@ -140,13 +150,27 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
                 TextUtil.sendMessage(sender, "&9&lCoreSuite Discord Bridge Status");
                 boolean chatWebhook = !config.getString("webhooks.chat-url", "").trim().isEmpty();
                 boolean statusWebhook = !config.getString("webhooks.status-url", "").trim().isEmpty();
-                boolean twoWay = config.getBoolean("discord-to-minecraft.enabled", false);
-                boolean botToken = !config.getString("discord-to-minecraft.bot-token", "").trim().isEmpty();
-                boolean channelId = !config.getString("discord-to-minecraft.channel-id", "").trim().isEmpty();
 
                 TextUtil.sendMessage(sender, "&7Chat Webhook: " + (chatWebhook ? "&aConfigured" : "&cNot Configured"));
                 TextUtil.sendMessage(sender, "&7Status Webhook: " + (statusWebhook ? "&aConfigured" : "&eUsing Chat Webhook"));
-                TextUtil.sendMessage(sender, "&7Two-Way Gateway: " + (twoWay ? (botToken && channelId ? "&aActive" : "&eMissing Token/Channel") : "&7Disabled"));
+                TextUtil.sendMessage(sender, "&7Two-Way Gateway: " + (gateway != null ? gateway.getStatusFormatted() : "&7Disabled"));
+
+                if (gateway != null) {
+                    if (gateway.getState() == LightweightDiscordGateway.GatewayState.DISALLOWED_INTENTS) {
+                        TextUtil.sendMessage(sender, "");
+                        TextUtil.sendMessage(sender, "&c&lACTION REQUIRED (Why bot is offline):");
+                        TextUtil.sendMessage(sender, "&e1. Open &bhttps://discord.com/developers/applications");
+                        TextUtil.sendMessage(sender, "&e2. Click your bot -> click &f'Bot'&e tab on the left.");
+                        TextUtil.sendMessage(sender, "&e3. Scroll down to &f'Privileged Gateway Intents'&e.");
+                        TextUtil.sendMessage(sender, "&e4. Turn ON &a'Message Content Intent'&e!");
+                        TextUtil.sendMessage(sender, "&e5. Click &fSave Changes&e, then run &a/discord reload&e.");
+                    } else if (gateway.getState() == LightweightDiscordGateway.GatewayState.AUTH_FAILED) {
+                        TextUtil.sendMessage(sender, "");
+                        TextUtil.sendMessage(sender, "&c&lACTION REQUIRED (Why bot is offline):");
+                        TextUtil.sendMessage(sender, "&eYour Discord Bot Token is invalid (Error 4004).");
+                        TextUtil.sendMessage(sender, "&eReset your bot token in Developer Portal and paste it in &fmodules/discord.yml&e!");
+                    }
+                }
                 TextUtil.sendMessage(sender, "&8&m----------------------------------------");
                 return true;
             }
