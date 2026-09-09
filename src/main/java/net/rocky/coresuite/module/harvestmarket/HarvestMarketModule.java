@@ -150,7 +150,7 @@ public class HarvestMarketModule extends Module implements CommandExecutor, List
                     if (list.isEmpty()) {
                         TextUtil.sendMessage(sender, "&7No sellers yet.");
                     } else {
-                        for (HarvestLeaderboardManager.LeaderboardEntry entry : list) {
+                        for (LeaderboardEntry entry : list) {
                             TextUtil.sendMessage(sender, "&e#" + entry.rank + " &f" + entry.playerName + " &7- &a" + TextUtil.formatNumber(entry.totalSold) + " items");
                         }
                     }

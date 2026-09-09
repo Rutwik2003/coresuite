@@ -56,61 +56,71 @@ public class DailyBountyManager {
         
         plugin.getDatabaseManager().executeAsync(() -> {
             List<DailyBounty> bounties = new ArrayList<>();
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT * FROM coresuite_harvest_bounties WHERE uuid = ? AND bounty_date = ? ORDER BY bounty_slot ASC")) {
-                stmt.setString(1, uuid.toString());
-                stmt.setString(2, today);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        bounties.add(new DailyBounty(
-                            rs.getInt("id"),
-                            rs.getInt("bounty_slot"),
-                            Material.valueOf(rs.getString("material")),
-                            rs.getInt("amount_needed"),
-                            rs.getInt("amount_done"),
-                            rs.getDouble("money_reward"),
-                            rs.getInt("claimed") == 1
-                        ));
-                    }
-                }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "DB error loading bounties", e);
-            }
-            
-            if (bounties.isEmpty() && seasonManager.getCurrentSeason() != null) {
-                List<Material> inSeason = seasonManager.getCurrentSeason().getInSeasonCrops();
-                if (!inSeason.isEmpty()) {
-                    for (int i = 1; i <= 3; i++) {
-                        Material mat = inSeason.get(ThreadLocalRandom.current().nextInt(inSeason.size()));
-                        int amount = (ThreadLocalRandom.current().nextInt(2, 11)) * 50; // 100 to 500 in steps of 50
-                        double basePrice = config.getDouble("crop-prices." + mat.name(), 10);
-                        double reward = amount * basePrice * 1.2;
-                        
-                        try (Connection conn = plugin.getDatabaseManager().getConnection();
-                             PreparedStatement stmt = conn.prepareStatement(
-                                 "INSERT INTO coresuite_harvest_bounties (uuid, bounty_date, bounty_slot, material, amount_needed, money_reward) " +
-                                 "VALUES (?, ?, ?, ?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS)) {
-                            stmt.setString(1, uuid.toString());
-                            stmt.setString(2, today);
-                            stmt.setInt(3, i);
-                            stmt.setString(4, mat.name());
-                            stmt.setInt(5, amount);
-                            stmt.setDouble(6, reward);
-                            stmt.executeUpdate();
-                            
-                            try (ResultSet rs = stmt.getGeneratedKeys()) {
-                                if (rs.next()) {
-                                    bounties.add(new DailyBounty(rs.getInt(1), i, mat, amount, 0, reward, false));
-                                }
+            try {
+                try (Connection conn = plugin.getDatabaseManager().getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("SELECT * FROM coresuite_harvest_bounties WHERE uuid = ? AND bounty_date = ? ORDER BY bounty_slot ASC")) {
+                    stmt.setString(1, uuid.toString());
+                    stmt.setString(2, today);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            Material mat;
+                            try {
+                                mat = Material.valueOf(rs.getString("material"));
+                            } catch (Exception e) {
+                                mat = Material.WHEAT;
                             }
-                        } catch (SQLException e) {
-                            plugin.getLogger().log(Level.SEVERE, "DB error creating bounty", e);
+                            bounties.add(new DailyBounty(
+                                rs.getInt("id"),
+                                rs.getInt("bounty_slot"),
+                                mat,
+                                rs.getInt("amount_needed"),
+                                rs.getInt("amount_done"),
+                                rs.getDouble("money_reward"),
+                                rs.getInt("claimed") == 1
+                            ));
+                        }
+                    }
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "DB error loading bounties", e);
+                }
+                
+                if (bounties.isEmpty() && seasonManager.getCurrentSeason() != null) {
+                    List<Material> inSeason = seasonManager.getCurrentSeason().getInSeasonCrops();
+                    if (!inSeason.isEmpty()) {
+                        for (int i = 1; i <= 3; i++) {
+                            Material mat = inSeason.get(ThreadLocalRandom.current().nextInt(inSeason.size()));
+                            int amount = (ThreadLocalRandom.current().nextInt(2, 11)) * 50; // 100 to 500 in steps of 50
+                            double basePrice = config.getDouble("crop-prices." + mat.name(), 10);
+                            double reward = amount * basePrice * 1.2;
+                            
+                            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                                 PreparedStatement stmt = conn.prepareStatement(
+                                     "INSERT INTO coresuite_harvest_bounties (uuid, bounty_date, bounty_slot, material, amount_needed, money_reward) " +
+                                     "VALUES (?, ?, ?, ?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS)) {
+                                stmt.setString(1, uuid.toString());
+                                stmt.setString(2, today);
+                                stmt.setInt(3, i);
+                                stmt.setString(4, mat.name());
+                                stmt.setInt(5, amount);
+                                stmt.setDouble(6, reward);
+                                stmt.executeUpdate();
+                                
+                                try (ResultSet rs = stmt.getGeneratedKeys()) {
+                                    if (rs.next()) {
+                                        bounties.add(new DailyBounty(rs.getInt(1), i, mat, amount, 0, reward, false));
+                                    }
+                                }
+                            } catch (SQLException e) {
+                                plugin.getLogger().log(Level.SEVERE, "DB error creating bounty", e);
+                            }
                         }
                     }
                 }
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Unexpected error in loadOrGenerateBounties", t);
+            } finally {
+                Bukkit.getScheduler().runTask(plugin, () -> callback.accept(bounties));
             }
-            
-            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(bounties));
         });
     }
 
@@ -176,25 +186,5 @@ public class DailyBountyManager {
                 });
             }
         });
-    }
-
-    public static class DailyBounty {
-        public final int id;
-        public final int slot;
-        public final Material material;
-        public final int amountNeeded;
-        public final int amountDone;
-        public final double moneyReward;
-        public final boolean claimed;
-
-        public DailyBounty(int id, int slot, Material material, int amountNeeded, int amountDone, double moneyReward, boolean claimed) {
-            this.id = id;
-            this.slot = slot;
-            this.material = material;
-            this.amountNeeded = amountNeeded;
-            this.amountDone = amountDone;
-            this.moneyReward = moneyReward;
-            this.claimed = claimed;
-        }
     }
 }

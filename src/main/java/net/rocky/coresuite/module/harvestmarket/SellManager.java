@@ -51,23 +51,28 @@ public class SellManager {
         int seasonId = seasonManager.getCurrentSeason().getId();
         plugin.getDatabaseManager().executeAsync(() -> {
             int sold = 0;
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT items_sold FROM coresuite_harvest_quota WHERE uuid = ? AND season_id = ?")) {
-                stmt.setString(1, uuid.toString());
-                stmt.setInt(2, seasonId);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    if (rs.next()) {
-                        sold = rs.getInt("items_sold");
+            try {
+                try (Connection conn = plugin.getDatabaseManager().getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("SELECT items_sold FROM coresuite_harvest_quota WHERE uuid = ? AND season_id = ?")) {
+                    stmt.setString(1, uuid.toString());
+                    stmt.setInt(2, seasonId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            sold = rs.getInt("items_sold");
+                        }
                     }
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "DB error loading quota", e);
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "DB error loading quota", e);
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Unexpected error loading quota", t);
+            } finally {
+                final int finalSold = sold;
+                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                    quotaCache.put(uuid, finalSold);
+                    if (callback != null) callback.run();
+                });
             }
-            final int finalSold = sold;
-            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
-                quotaCache.put(uuid, finalSold);
-                if (callback != null) callback.run();
-            });
         });
     }
 

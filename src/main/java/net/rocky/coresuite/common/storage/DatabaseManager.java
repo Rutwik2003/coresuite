@@ -43,6 +43,7 @@ public final class DatabaseManager {
             public Thread newThread(Runnable r) {
                 Thread thread = new Thread(r, "CoreSuite-DB-Thread-" + counter.getAndIncrement());
                 thread.setDaemon(true);
+                thread.setContextClassLoader(plugin.getClass().getClassLoader());
                 return thread;
             }
         });
@@ -207,8 +208,8 @@ public final class DatabaseManager {
         asyncExecutor.execute(() -> {
             try {
                 task.run();
-            } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "Async database task failed", e);
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Async database task failed", t);
             }
         });
     }

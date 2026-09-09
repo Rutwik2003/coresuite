@@ -256,13 +256,13 @@ public class WellGUI {
             ), e -> {}
         ));
 
-        List<WellManager.WellHistoryEntry> history = manager.getRecentHistory();
+        List<WellHistoryEntry> history = manager.getRecentHistory();
         int[] headSlots = {11, 12, 13, 14, 15};
 
         for (int i = 0; i < 5; i++) {
             int slot = headSlots[i];
             if (i < history.size()) {
-                WellManager.WellHistoryEntry entry = history.get(i);
+                WellHistoryEntry entry = history.get(i);
                 String timeAgo = TextUtil.formatDuration((System.currentTimeMillis() - entry.drawnAt()) / 1000) + " ago";
                 ItemStack head = TextUtil.createItem(Material.PLAYER_HEAD,
                     "&6&l" + entry.name(),

@@ -115,7 +115,7 @@ public class WishingWellModule extends Module implements CommandExecutor, Listen
 
         if (sub.equals("history")) {
             TextUtil.sendMessage(player, prefix + "&6&lRecent Winners:");
-            for (WellManager.WellHistoryEntry entry : wellManager.getRecentHistory()) {
+            for (WellHistoryEntry entry : wellManager.getRecentHistory()) {
                 String timeAgo = TextUtil.formatDuration((System.currentTimeMillis() - entry.drawnAt()) / 1000) + " ago";
                 TextUtil.sendMessage(player, "&8- &e" + entry.name() + " &7won &a" + plugin.getEconomyManager().format(entry.potWon()) + " &8(" + timeAgo + ")");
             }

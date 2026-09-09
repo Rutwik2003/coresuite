@@ -96,7 +96,7 @@ public class MarketGUI {
                     lbLore.add("&8&m────────────────────");
                     for (int i = 0; i < 3; i++) {
                         if (i < topSellers.size()) {
-                            HarvestLeaderboardManager.LeaderboardEntry entry = topSellers.get(i);
+                            LeaderboardEntry entry = topSellers.get(i);
                             String color = i == 0 ? "&e" : (i == 1 ? "&f" : "&6");
                             lbLore.add(color + "#" + (i + 1) + " &f" + entry.playerName + "&7: &a" + TextUtil.formatNumber(entry.totalSold) + " crops");
                         } else {
@@ -227,7 +227,7 @@ public class MarketGUI {
                     // Slots 30, 31, 32: Daily Bounties
                     int[] bountySlots = {30, 31, 32};
                     for (int i = 0; i < Math.min(bounties.size(), bountySlots.length); i++) {
-                        DailyBountyManager.DailyBounty b = bounties.get(i);
+                        DailyBounty b = bounties.get(i);
                         List<String> bLore = new ArrayList<>();
                         bLore.add("&8&m────────────────────");
                         bLore.add("&7Objective: &fSell " + b.amountNeeded + "× " + capitalize(b.material.name()));

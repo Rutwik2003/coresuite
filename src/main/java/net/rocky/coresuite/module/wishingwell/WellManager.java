@@ -372,6 +372,4 @@ public class WellManager {
         currentEntries.clear();
         recentHistory.clear();
     }
-
-    public record WellHistoryEntry(String name, double potWon, long drawnAt) {}
 }

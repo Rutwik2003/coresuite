@@ -51,20 +51,25 @@ public class HarvestLeaderboardManager {
     public void getTopSellers(int seasonId, int limit, Consumer<List<LeaderboardEntry>> callback) {
         plugin.getDatabaseManager().executeAsync(() -> {
             List<LeaderboardEntry> list = new ArrayList<>();
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT player_name, total_sold FROM coresuite_harvest_leaderboard WHERE season_id = ? ORDER BY total_sold DESC LIMIT ?")) {
-                stmt.setInt(1, seasonId);
-                stmt.setInt(2, limit);
-                try (ResultSet rs = stmt.executeQuery()) {
-                    int rank = 1;
-                    while (rs.next()) {
-                        list.add(new LeaderboardEntry(rs.getString("player_name"), rs.getInt("total_sold"), rank++));
+            try {
+                try (Connection conn = plugin.getDatabaseManager().getConnection();
+                     PreparedStatement stmt = conn.prepareStatement("SELECT player_name, total_sold FROM coresuite_harvest_leaderboard WHERE season_id = ? ORDER BY total_sold DESC LIMIT ?")) {
+                    stmt.setInt(1, seasonId);
+                    stmt.setInt(2, limit);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        int rank = 1;
+                        while (rs.next()) {
+                            list.add(new LeaderboardEntry(rs.getString("player_name"), rs.getInt("total_sold"), rank++));
+                        }
                     }
+                } catch (SQLException e) {
+                    plugin.getLogger().log(Level.SEVERE, "DB error fetching leaderboard", e);
                 }
-            } catch (SQLException e) {
-                plugin.getLogger().log(Level.SEVERE, "DB error fetching leaderboard", e);
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Unexpected error in getTopSellers", t);
+            } finally {
+                Bukkit.getScheduler().runTask(plugin, () -> callback.accept(list));
             }
-            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(list));
         });
     }
 
@@ -94,17 +99,5 @@ public class HarvestLeaderboardManager {
                 }
             }
         });
-    }
-
-    public static class LeaderboardEntry {
-        public final String playerName;
-        public final int totalSold;
-        public final int rank;
-
-        public LeaderboardEntry(String playerName, int totalSold, int rank) {
-            this.playerName = playerName;
-            this.totalSold = totalSold;
-            this.rank = rank;
-        }
     }
 }
