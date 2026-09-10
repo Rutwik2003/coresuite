@@ -32,6 +32,8 @@ public class CrashGUI {
     private CasinoMainGUI mainGUI;
 
     private final Set<UUID> awaitingCustomBet = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> activePlayers = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastGameTimes = new ConcurrentHashMap<>();
 
     public CrashGUI(CoreSuitePlugin plugin, FileConfiguration config, CasinoStatsManager statsManager) {
         this.plugin = plugin;
@@ -47,16 +49,20 @@ public class CrashGUI {
         Gui gui = new Gui("&8▶ &c&l🚀 The Crash — Select Bet &8◀", 4);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        gui.setItem(4, GuiButton.of(Material.FIREWORK_ROCKET, "&c&lThe Crash",
-            List.of(
-                "&8&m────────────────────",
-                "&7Watch the multiplier climb!",
-                "&7Click &aCASH OUT &7before it crashes!",
-                "&7Greedy players lose everything.",
-                "&8&m────────────────────",
-                "&e▶ Select your bet below:"
-            ), e -> {}
+        double taxPercent = config.getDouble("crash.tax-percent", 5.0);
+        List<String> infoLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Watch the multiplier climb!",
+            "&7Click &aCASH OUT &7before it crashes!",
+            "&7Greedy players lose everything."
         ));
+        if (taxPercent > 0) {
+            infoLore.add("&7House Tax: &c" + taxPercent + "% &7(on cash out)");
+        }
+        infoLore.add("&8&m────────────────────");
+        infoLore.add("&e▶ Select your bet below:");
+
+        gui.setItem(4, GuiButton.of(Material.FIREWORK_ROCKET, "&c&lThe Crash", infoLore, e -> {}));
 
         int[] slots = {10, 11, 12, 13, 14, 15};
         for (int i = 0; i < Math.min(BET_PRESETS.length, slots.length); i++) {
@@ -108,11 +114,28 @@ public class CrashGUI {
 
     public void cleanup(UUID uuid) {
         awaitingCustomBet.remove(uuid);
+        activePlayers.remove(uuid);
     }
 
     private void startCrashGame(Player player, double bet) {
+        if (activePlayers.contains(player.getUniqueId())) {
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cYou already have an active Crash game running!");
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long lastGame = lastGameTimes.getOrDefault(player.getUniqueId(), 0L);
+        int cooldownSeconds = config.getInt("crash.cooldown-seconds", 3);
+        long cooldownMs = cooldownSeconds * 1000L;
+        if (now - lastGame < cooldownMs) {
+            long waitSec = (cooldownMs - (now - lastGame)) / 1000L + 1;
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.8f);
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cPlease wait &e" + waitSec + "s &cbefore launching again!");
+            return;
+        }
+
         double minBet = config.getDouble("min-bet", 1000);
-        double maxBet = config.getDouble("max-bet", 5000000);
+        double maxBet = config.getDouble("max-bet", 250000);
 
         if (bet < minBet || bet > maxBet) {
             TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cBet must be between &e" + plugin.getEconomyManager().format(minBet)
@@ -129,6 +152,9 @@ public class CrashGUI {
             TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cTransaction failed.");
             return;
         }
+
+        activePlayers.add(player.getUniqueId());
+        lastGameTimes.put(player.getUniqueId(), now);
 
         // Calculate crash point using mathematical house edge
         double instantChance = config.getDouble("crash.instant-crash-chance", 0.08);
@@ -193,6 +219,7 @@ public class CrashGUI {
             @Override
             public void run() {
                 if (!player.isOnline()) {
+                    activePlayers.remove(player.getUniqueId());
                     if (!cashedOut.get()) {
                         statsManager.recordGame(player.getUniqueId(), player.getName(), bet, 0);
                     }
@@ -214,6 +241,7 @@ public class CrashGUI {
                 if (mult >= finalCrashPoint) {
                     // Rocket CRASHED!
                     crashed.set(true);
+                    activePlayers.remove(player.getUniqueId());
                     cancel();
 
                     gui.setItem(13, GuiButton.of(Material.TNT, "&c&l💥 CRASHED AT " + String.format("%.2f", finalCrashPoint) + "x!",
@@ -244,35 +272,54 @@ public class CrashGUI {
 
                 // Update live items
                 double potentialPayout = bet * mult;
+                double taxPercent = config.getDouble("crash.tax-percent", 5.0);
+                double potentialTax = (taxPercent > 0) ? (potentialPayout * (taxPercent / 100.0)) : 0.0;
+                double netPotential = potentialPayout - potentialTax;
                 Material rocketMat = (step % 2 == 0) ? Material.FIREWORK_ROCKET : Material.BLAZE_ROD;
 
+                List<String> rocketLore = new ArrayList<>(List.of(
+                    "&8&m────────────────────",
+                    "&7Original Bet:    &f" + plugin.getEconomyManager().format(bet),
+                    "&7Potential Win:   &a" + plugin.getEconomyManager().format(netPotential)
+                ));
+                if (taxPercent > 0) {
+                    rocketLore.add("&8(Gross: " + plugin.getEconomyManager().format(potentialPayout) + " | Tax: -" + plugin.getEconomyManager().format(potentialTax) + ")");
+                }
+                rocketLore.add("&8&m────────────────────");
+
                 gui.setItem(13, GuiButton.of(rocketMat, "&e&lMultiplier: &a&l" + String.format("%.2f", mult) + "x",
-                    List.of(
-                        "&8&m────────────────────",
-                        "&7Original Bet:    &f" + plugin.getEconomyManager().format(bet),
-                        "&7Potential Win:   &a" + plugin.getEconomyManager().format(potentialPayout),
-                        "&8&m────────────────────"
-                    ), ev -> {}
+                    rocketLore, ev -> {}
                 ));
 
                 if (!cashedOut.get()) {
-                    gui.setItem(31, GuiButton.of(Material.EMERALD_BLOCK, "&a&l💰 CASH OUT: " + plugin.getEconomyManager().format(potentialPayout),
-                        List.of(
-                            "&8&m────────────────────",
-                            "&7Take &a" + plugin.getEconomyManager().format(potentialPayout) + " &7now!",
-                            "&8&m────────────────────",
-                            "&e▶ Click to CASH OUT"
-                        ),
+                    List<String> cashOutLore = new ArrayList<>(List.of(
+                        "&8&m────────────────────",
+                        "&7Take &a" + plugin.getEconomyManager().format(netPotential) + " &7now!"
+                    ));
+                    if (taxPercent > 0) {
+                        cashOutLore.add("&8(" + taxPercent + "% house tax included)");
+                    }
+                    cashOutLore.add("&8&m────────────────────");
+                    cashOutLore.add("&e▶ Click to CASH OUT");
+
+                    gui.setItem(31, GuiButton.of(Material.EMERALD_BLOCK, "&a&l💰 CASH OUT: " + plugin.getEconomyManager().format(netPotential),
+                        cashOutLore,
                         ev -> {
                             if (crashed.get() || !cashedOut.compareAndSet(false, true)) return;
 
                             double wonM = currentMultiplier.get();
-                            double payout = Math.round(bet * wonM * 100.0) / 100.0;
+                            double grossPayout = Math.round(bet * wonM * 100.0) / 100.0;
+                            double tax = (taxPercent > 0) ? (grossPayout * (taxPercent / 100.0)) : 0.0;
+                            double payout = grossPayout - tax;
+
                             plugin.getEconomyManager().deposit(player, payout);
                             statsManager.recordGame(player.getUniqueId(), player.getName(), bet, payout);
 
                             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &a&lCASHED OUT! &7You won &a" + plugin.getEconomyManager().format(payout) + "&a!");
+                            String taxNotice = (taxPercent > 0)
+                                ? " &8(&c" + taxPercent + "% house tax: -" + plugin.getEconomyManager().format(tax) + "&8)"
+                                : "";
+                            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &a&lCASHED OUT! &7You won &a" + plugin.getEconomyManager().format(payout) + taxNotice + "&a!");
 
                             gui.setItem(31, GuiButton.of(Material.LIME_DYE, "&a&l✓ CASHED OUT: " + String.format("%.2f", wonM) + "x",
                                 List.of("&7Winnings: &a" + plugin.getEconomyManager().format(payout)), e2 -> {}

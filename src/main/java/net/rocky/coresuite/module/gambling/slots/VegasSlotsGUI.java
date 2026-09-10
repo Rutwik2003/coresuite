@@ -34,6 +34,8 @@ public class VegasSlotsGUI {
     private CasinoMainGUI mainGUI;
 
     private final Set<UUID> awaitingCustomBet = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> activeSpinners = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastSpinTimes = new ConcurrentHashMap<>();
 
     public VegasSlotsGUI(CoreSuitePlugin plugin, FileConfiguration config, CasinoStatsManager statsManager) {
         this.plugin = plugin;
@@ -53,36 +55,53 @@ public class VegasSlotsGUI {
         double eMult = config.getDouble("slots.multipliers.emerald", 8.0);
         double gMult = config.getDouble("slots.multipliers.gold", 4.0);
         double iMult = config.getDouble("slots.multipliers.iron", 2.0);
+        double taxPercent = config.getDouble("slots.tax-percent", 5.0);
 
-        gui.setItem(4, GuiButton.of(Material.JUKEBOX, "&d&lVegas Slot Machine",
-            List.of(
-                "&8&m────────────────────",
-                "&7Match 3 symbols on the reels to win!",
-                "&8  ▸ &b3x Diamonds  &8— &a" + (int)dMult + "x JACKPOT",
-                "&8  ▸ &a3x Emeralds  &8— &a" + (int)eMult + "x",
-                "&8  ▸ &e3x Gold      &8— &a" + (int)gMult + "x",
-                "&8  ▸ &f3x Iron      &8— &a" + (int)iMult + "x",
-                "&8&m────────────────────",
-                "&e▶ Select your spin bet below:"
-            ), e -> {}
+        List<String> machineLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Match 3 symbols on the reels to win!",
+            "&8  ▸ &b3x Diamonds  &8— &a" + (int)dMult + "x JACKPOT",
+            "&8  ▸ &a3x Emeralds  &8— &a" + (int)eMult + "x",
+            "&8  ▸ &e3x Gold      &8— &a" + (int)gMult + "x",
+            "&8  ▸ &f3x Iron      &8— &a" + (int)iMult + "x"
         ));
+        if (taxPercent > 0) {
+            machineLore.add("&8  ▸ &cHouse Tax:   &f" + taxPercent + "% &7(on wins)");
+        }
+        machineLore.add("&8&m────────────────────");
+        machineLore.add("&e▶ Select your spin bet below:");
+
+        gui.setItem(4, GuiButton.of(Material.JUKEBOX, "&d&lVegas Slot Machine", machineLore, e -> {}));
 
         int[] slots = {10, 11, 12, 13, 14, 15};
         for (int i = 0; i < Math.min(BET_PRESETS.length, slots.length); i++) {
             double bet = BET_PRESETS[i];
+            double grossJackpot = bet * dMult;
+            double netJackpot = (taxPercent > 0) ? (grossJackpot * (1.0 - taxPercent / 100.0)) : grossJackpot;
+
+            List<String> spinLore = new ArrayList<>(List.of(
+                "&8&m────────────────────",
+                "&7Bet Amount: &e" + plugin.getEconomyManager().format(bet),
+                "&7Jackpot:    &a" + plugin.getEconomyManager().format(netJackpot)
+            ));
+            if (taxPercent > 0) {
+                spinLore.add("&8(House Tax: " + taxPercent + "% deducted on wins)");
+            }
+            spinLore.add("&8&m────────────────────");
+            spinLore.add("&e▶ Click to Spin!");
+
             gui.setItem(slots[i], GuiButton.of(Material.EMERALD, "&a&lSpin " + plugin.getEconomyManager().format(bet),
-                List.of(
-                    "&8&m────────────────────",
-                    "&7Bet Amount: &e" + plugin.getEconomyManager().format(bet),
-                    "&7Jackpot:    &a" + plugin.getEconomyManager().format(bet * dMult),
-                    "&8&m────────────────────",
-                    "&e▶ Click to Spin!"
-                ), e -> startSpin(player, bet)
+                spinLore, e -> startSpin(player, bet)
             ));
         }
 
         gui.setItem(22, GuiButton.of(Material.NAME_TAG, "&a&l✎ Custom Spin Bet",
-            List.of("&7Type custom amount in chat.", "", "&e▶ Click to type"),
+            List.of(
+                "&7Type custom amount in chat.",
+                taxPercent > 0 ? "&8(House Tax: &c" + taxPercent + "%&8)" : "",
+                "",
+                "&e▶ Click to type"
+            ),
             e -> {
                 player.closeInventory();
                 awaitingCustomBet.add(player.getUniqueId());
@@ -118,11 +137,28 @@ public class VegasSlotsGUI {
 
     public void cleanup(UUID uuid) {
         awaitingCustomBet.remove(uuid);
+        activeSpinners.remove(uuid);
     }
 
     private void startSpin(Player player, double bet) {
+        if (activeSpinners.contains(player.getUniqueId())) {
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cYou already have an active spin in progress!");
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        long lastSpin = lastSpinTimes.getOrDefault(player.getUniqueId(), 0L);
+        int cooldownSeconds = config.getInt("slots.cooldown-seconds", 3);
+        long cooldownMs = cooldownSeconds * 1000L;
+        if (now - lastSpin < cooldownMs) {
+            long waitSec = (cooldownMs - (now - lastSpin)) / 1000L + 1;
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.8f);
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cPlease wait &e" + waitSec + "s &cbefore spinning again!");
+            return;
+        }
+
         double minBet = config.getDouble("min-bet", 1000);
-        double maxBet = config.getDouble("max-bet", 5000000);
+        double maxBet = config.getDouble("max-bet", 250000);
 
         if (bet < minBet || bet > maxBet) {
             TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cBet must be between &e" + plugin.getEconomyManager().format(minBet)
@@ -139,6 +175,9 @@ public class VegasSlotsGUI {
             TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cTransaction failed.");
             return;
         }
+
+        activeSpinners.add(player.getUniqueId());
+        lastSpinTimes.put(player.getUniqueId(), now);
 
         // Determine outcome based on configured odds
         double dChance = config.getDouble("slots.odds.diamond-percent", 0.5) / 100.0;
@@ -188,14 +227,13 @@ public class VegasSlotsGUI {
 
         BukkitRunnable task = new BukkitRunnable() {
             int ticks = 0;
+            boolean rewarded = false;
 
             @Override
             public void run() {
                 if (!player.isOnline()) {
-                    if (isWin) {
-                        plugin.getEconomyManager().deposit(player, bet * finalMult);
-                        statsManager.recordGame(player.getUniqueId(), player.getName(), bet, bet * finalMult);
-                    } else {
+                    activeSpinners.remove(player.getUniqueId());
+                    if (!rewarded) {
                         statsManager.recordGame(player.getUniqueId(), player.getName(), bet, 0);
                     }
                     cancel();
@@ -226,15 +264,24 @@ public class VegasSlotsGUI {
                     spinGui.setItem(15, GuiButton.of(cycle[random.nextInt(cycle.length)], "&eSpinning...", List.of(), e -> {}));
                 } else if (ticks == 39) {
                     spinGui.setItem(15, GuiButton.of(finalReels[2], "&f&l" + formatMaterial(finalReels[2]), List.of(), e -> {}));
+                    activeSpinners.remove(player.getUniqueId());
 
                     if (isWin) {
-                        double payout = bet * finalMult;
+                        double grossPayout = bet * finalMult;
+                        double taxPercent = config.getDouble("slots.tax-percent", 5.0);
+                        double tax = (taxPercent > 0) ? (grossPayout * (taxPercent / 100.0)) : 0.0;
+                        double payout = grossPayout - tax;
+
                         plugin.getEconomyManager().deposit(player, payout);
                         statsManager.recordGame(player.getUniqueId(), player.getName(), bet, payout);
+                        rewarded = true;
 
                         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+                        String taxNotice = (taxPercent > 0)
+                            ? " &8(&c" + taxPercent + "% house tax: -" + plugin.getEconomyManager().format(tax) + "&8)"
+                            : "";
                         TextUtil.sendMessage(player, "&8[&6&lCasino&8] &a&lSLOT WIN! &7Matched 3x &f" +
-                                formatMaterial(finalReels[0]) + "! &aWon &e" + plugin.getEconomyManager().format(payout) + "&a!");
+                                formatMaterial(finalReels[0]) + "! &aWon &e" + plugin.getEconomyManager().format(payout) + taxNotice + "&a!");
 
                         if (finalReels[0] == Material.DIAMOND) {
                             spawnCelebrationFirework(player);

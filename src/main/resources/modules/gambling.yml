@@ -11,7 +11,7 @@ messages:
 
 # Betting limits
 min-bet: 1000
-max-bet: 5000000
+max-bet: 250000
 
 # Minimum win payout that triggers a server-wide chat broadcast & celebration
 broadcast-win-threshold: 100000
@@ -33,6 +33,10 @@ pvp-coinflip:
 # ── The Crash (Multiplier Rocket) ─────────────────────────────────────────────
 crash:
   enabled: true
+  # House tax percentage deducted on cash-outs
+  tax-percent: 5.0
+  # Cooldown between games in seconds to prevent rapid-fire macro abuse
+  cooldown-seconds: 3
   # Chance (0.0 to 1.0) that the rocket instantly crashes at 1.00x (0.08 = 8%)
   instant-crash-chance: 0.08
   # House edge factor (0.94 = 6% mathematical house edge on non-instant crashes)
@@ -43,14 +47,24 @@ crash:
 # ── Roulette (CS:GO-Style Red/Black/Gold) ──────────────────────────────────────
 roulette:
   enabled: true
-  # Multiplier for landing on Red or Black (standard 2x)
-  color-multiplier: 2.0
-  # Multiplier for landing on Gold / Green (standard 14x jackpot)
-  gold-multiplier: 14.0
+  # House tax percentage deducted from winnings (burns money from economy)
+  tax-percent: 7.5
+  # Cooldown between roulette spins in seconds (prevents automated bot/macro spamming)
+  spin-cooldown-seconds: 4
+  # Maximum bet limit specifically for the Gold Jackpot slot (prevents 50k gold spamming)
+  max-bet-gold: 25000
+  # Multiplier for landing on Red or Black (1.90x = standard casino payout with ~11.3% house edge)
+  color-multiplier: 1.90
+  # Multiplier for landing on Gold (9.0x = jackpot payout with ~40% house edge, prevents recovery farming)
+  gold-multiplier: 9.0
 
 # ── Vegas Slots ───────────────────────────────────────────────────────────────
 slots:
   enabled: true
+  # House tax percentage deducted on slot winnings
+  tax-percent: 5.0
+  # Cooldown between slot spins in seconds
+  cooldown-seconds: 3
   # Multipliers for matching 3 symbols
   multipliers:
     diamond: 20.0

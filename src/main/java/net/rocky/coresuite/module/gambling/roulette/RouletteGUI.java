@@ -51,6 +51,7 @@ public class RouletteGUI {
     }
 
     private static final double[] BET_PRESETS = {5_000, 10_000, 25_000, 50_000, 100_000, 250_000};
+    private static final double[] GOLD_BET_PRESETS = {1_000, 2_500, 5_000, 10_000, 15_000, 25_000};
 
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
@@ -59,6 +60,8 @@ public class RouletteGUI {
     private CasinoMainGUI mainGUI;
 
     private final Map<UUID, RouletteColor> awaitingCustomBetColor = new ConcurrentHashMap<>();
+    private final Set<UUID> activeSpinners = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> lastSpinTimes = new ConcurrentHashMap<>();
 
     public RouletteGUI(CoreSuitePlugin plugin, FileConfiguration config, CasinoStatsManager statsManager) {
         this.plugin = plugin;
@@ -74,31 +77,55 @@ public class RouletteGUI {
         Gui gui = new Gui("&8▶ &e&lRoulette — Choose Bet &8◀", 4);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        gui.setItem(4, GuiButton.of(Material.COMPASS, "&6&lRoulette Wheel",
-            List.of(
-                "&8&m────────────────────",
-                "&7Classic CS:GO-style 15-slot wheel!",
-                "&7  ▸ &c7 Red &7(2x Payout)",
-                "&7  ▸ &87 Black &7(2x Payout)",
-                "&7  ▸ &61 Gold &7(14x JACKPOT!)",
-                "&8&m────────────────────",
-                "&e▶ Click a color below to select bet:"
-            ), e -> {}
-        ));
+        double cMult = config.getDouble("roulette.color-multiplier", 1.90);
+        double gMult = config.getDouble("roulette.gold-multiplier", 9.0);
+        double taxPercent = config.getDouble("roulette.tax-percent", 7.5);
 
-        // Color buttons at slots 11, 13, 15
-        gui.setItem(11, GuiButton.of(Material.RED_CONCRETE, "&c&lBet on RED (2x)",
-            List.of("&7Pays &e2x &7your bet.", "", "&e▶ Click to set bet amount"),
+        String cMultStr = (cMult % 1 == 0) ? String.format("%.0fx", cMult) : String.format("%.2fx", cMult);
+        String gMultStr = (gMult % 1 == 0) ? String.format("%.0fx", gMult) : String.format("%.2fx", gMult);
+
+        List<String> wheelLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Classic CS:GO-style 15-slot wheel!",
+            "&7  ▸ &c7 Red &7(" + cMultStr + " Payout)",
+            "&7  ▸ &87 Black &7(" + cMultStr + " Payout)",
+            "&7  ▸ &61 Gold &7(" + gMultStr + " JACKPOT!)"
+        ));
+        if (taxPercent > 0) {
+            wheelLore.add("&7  ▸ &cHouse Tax: &f" + taxPercent + "% &7(on wins)");
+        }
+        wheelLore.add("&8&m────────────────────");
+        wheelLore.add("&e▶ Click a color below to select bet:");
+
+        gui.setItem(4, GuiButton.of(Material.COMPASS, "&6&lRoulette Wheel", wheelLore, e -> {}));
+
+        List<String> redLore = new ArrayList<>(List.of("&7Pays &e" + cMultStr + " &7your bet."));
+        if (taxPercent > 0) redLore.add("&8(House Tax: &c" + taxPercent + "%&8)");
+        redLore.add("");
+        redLore.add("&e▶ Click to set bet amount");
+
+        gui.setItem(11, GuiButton.of(Material.RED_CONCRETE, "&c&lBet on RED (" + cMultStr + ")", redLore,
             e -> openBetAmount(player, RouletteColor.RED)
         ));
 
-        gui.setItem(13, GuiButton.of(Material.GOLD_BLOCK, "&6&lBet on GOLD (14x)",
-            List.of("&7The Jackpot slot! Pays &e14x&7.", "", "&e▶ Click to set bet amount"),
+        List<String> goldLore = new ArrayList<>(List.of(
+            "&7The Jackpot slot! Pays &e" + gMultStr + "&7.",
+            "&7High volatility jackpot!"
+        ));
+        if (taxPercent > 0) goldLore.add("&8(House Tax: &c" + taxPercent + "%&8)");
+        goldLore.add("");
+        goldLore.add("&e▶ Click to set bet amount");
+
+        gui.setItem(13, GuiButton.of(Material.GOLD_BLOCK, "&6&lBet on GOLD (" + gMultStr + ")", goldLore,
             e -> openBetAmount(player, RouletteColor.GOLD)
         ));
 
-        gui.setItem(15, GuiButton.of(Material.BLACK_CONCRETE, "&8&lBet on BLACK (2x)",
-            List.of("&7Pays &e2x &7your bet.", "", "&e▶ Click to set bet amount"),
+        List<String> blackLore = new ArrayList<>(List.of("&7Pays &e" + cMultStr + " &7your bet."));
+        if (taxPercent > 0) blackLore.add("&8(House Tax: &c" + taxPercent + "%&8)");
+        blackLore.add("");
+        blackLore.add("&e▶ Click to set bet amount");
+
+        gui.setItem(15, GuiButton.of(Material.BLACK_CONCRETE, "&8&lBet on BLACK (" + cMultStr + ")", blackLore,
             e -> openBetAmount(player, RouletteColor.BLACK)
         ));
 
@@ -113,38 +140,68 @@ public class RouletteGUI {
         Gui gui = new Gui("&8▶ &e&lRoulette — Bet Amount &8◀", 4);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        double mult = (chosenColor == RouletteColor.GOLD)
-            ? config.getDouble("roulette.gold-multiplier", 14.0)
-            : config.getDouble("roulette.color-multiplier", 2.0);
+        boolean isGold = (chosenColor == RouletteColor.GOLD);
+        double mult = isGold
+            ? config.getDouble("roulette.gold-multiplier", 9.0)
+            : config.getDouble("roulette.color-multiplier", 1.90);
+        double taxPercent = config.getDouble("roulette.tax-percent", 7.5);
+        double minBet = config.getDouble("min-bet", 1000);
+        double maxBet = isGold
+            ? config.getDouble("roulette.max-bet-gold", 25000)
+            : config.getDouble("max-bet", 250000);
 
-        gui.setItem(4, GuiButton.of(chosenColor.getMaterial(), chosenColor.getName(),
-            List.of(
-                "&8&m────────────────────",
-                "&7Payout Multiplier: &e" + (int) mult + "x",
-                "&8&m────────────────────",
-                "&7Select bet amount below:"
-            ), e -> {}
+        String multStr = (mult % 1 == 0) ? String.format("%.0fx", mult) : String.format("%.2fx", mult);
+
+        List<String> headerLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Payout Multiplier: &e" + multStr,
+            "&7Bet Limits: &f" + plugin.getEconomyManager().format(minBet) + " &7- &e" + plugin.getEconomyManager().format(maxBet)
         ));
+        if (taxPercent > 0) {
+            headerLore.add("&7House Tax: &c" + taxPercent + "% &8(deducted on wins)");
+        }
+        headerLore.add("&8&m────────────────────");
+        headerLore.add("&7Select bet amount below:");
 
+        gui.setItem(4, GuiButton.of(chosenColor.getMaterial(), chosenColor.getName(), headerLore, e -> {}));
+
+        double[] presets = isGold ? GOLD_BET_PRESETS : BET_PRESETS;
         int[] slots = {10, 11, 12, 13, 14, 15};
-        for (int i = 0; i < Math.min(BET_PRESETS.length, slots.length); i++) {
-            double bet = BET_PRESETS[i];
+        for (int i = 0; i < Math.min(presets.length, slots.length); i++) {
+            double bet = presets[i];
+            if (bet > maxBet) continue;
+
+            double gross = bet * mult;
+            double tax = (taxPercent > 0) ? (gross * (taxPercent / 100.0)) : 0.0;
+            double net = gross - tax;
+
+            List<String> betLore = new ArrayList<>();
+            betLore.add("&8&m────────────────────");
+            betLore.add("&7Potential Win: &a" + plugin.getEconomyManager().format(net));
+            if (taxPercent > 0) {
+                betLore.add("&8(Gross: " + plugin.getEconomyManager().format(gross) + " | Tax: -" + plugin.getEconomyManager().format(tax) + ")");
+            }
+            betLore.add("&8&m────────────────────");
+            betLore.add("&e▶ Click to Spin Roulette");
+
             gui.setItem(slots[i], GuiButton.of(Material.GOLD_INGOT, "&e&l" + plugin.getEconomyManager().format(bet),
-                List.of(
-                    "&8&m────────────────────",
-                    "&7Potential Win: &a" + plugin.getEconomyManager().format(bet * mult),
-                    "&8&m────────────────────",
-                    "&e▶ Click to Spin Roulette"
-                ), e -> startSpin(player, chosenColor, bet)
+                betLore, e -> startSpin(player, chosenColor, bet)
             ));
         }
 
         gui.setItem(22, GuiButton.of(Material.NAME_TAG, "&a&l✎ Custom Bet",
-            List.of("&7Type custom amount in chat.", "", "&e▶ Click to type"),
+            List.of(
+                "&7Type custom amount in chat.",
+                "&7Max allowed: &e" + plugin.getEconomyManager().format(maxBet),
+                taxPercent > 0 ? "&8(House Tax: &c" + taxPercent + "%&8)" : "",
+                "",
+                "&e▶ Click to type"
+            ),
             e -> {
                 player.closeInventory();
                 awaitingCustomBetColor.put(player.getUniqueId(), chosenColor);
-                TextUtil.sendMessage(player, "&8[&6&lCasino&8] &eType your Roulette bet amount in chat &8(or &ccancel&8):");
+                TextUtil.sendMessage(player, "&8[&6&lCasino&8] &eType your " + chosenColor.getName() + " &ebet amount in chat &8(max &6"
+                        + plugin.getEconomyManager().format(maxBet) + "&8, or &ccancel&8):");
             }
         ));
 
@@ -167,7 +224,7 @@ public class RouletteGUI {
             double amount = Double.parseDouble(message.replace(",", "").replace("$", ""));
             Bukkit.getScheduler().runTask(plugin, () -> startSpin(player, color, amount));
         } catch (NumberFormatException ex) {
-            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cInvalid amount. Type a number (e.g. 50000).");
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cInvalid amount. Type a number (e.g. 25000).");
             awaitingCustomBetColor.put(player.getUniqueId(), color);
         }
         return true;
@@ -175,15 +232,44 @@ public class RouletteGUI {
 
     public void cleanup(UUID uuid) {
         awaitingCustomBetColor.remove(uuid);
+        activeSpinners.remove(uuid);
     }
 
     private void startSpin(Player player, RouletteColor chosenColor, double bet) {
-        double minBet = config.getDouble("min-bet", 1000);
-        double maxBet = config.getDouble("max-bet", 5000000);
+        if (activeSpinners.contains(player.getUniqueId())) {
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cYou already have an active spin in progress!");
+            return;
+        }
 
-        if (bet < minBet || bet > maxBet) {
-            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cBet must be between &e" + plugin.getEconomyManager().format(minBet)
-                    + " &cand &e" + plugin.getEconomyManager().format(maxBet) + "&c.");
+        long now = System.currentTimeMillis();
+        long lastSpin = lastSpinTimes.getOrDefault(player.getUniqueId(), 0L);
+        int cooldownSeconds = config.getInt("roulette.spin-cooldown-seconds", 4);
+        long cooldownMs = cooldownSeconds * 1000L;
+        if (now - lastSpin < cooldownMs) {
+            long waitSec = (cooldownMs - (now - lastSpin)) / 1000L + 1;
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.8f);
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cPlease wait &e" + waitSec + "s &cbefore spinning again!");
+            return;
+        }
+
+        double minBet = config.getDouble("min-bet", 1000);
+        boolean isGold = (chosenColor == RouletteColor.GOLD);
+        double maxBet = isGold
+            ? config.getDouble("roulette.max-bet-gold", 25000)
+            : config.getDouble("max-bet", 250000);
+
+        if (bet < minBet) {
+            TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cMinimum bet is &e" + plugin.getEconomyManager().format(minBet) + "&c.");
+            return;
+        }
+
+        if (bet > maxBet) {
+            if (isGold) {
+                TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cMaximum bet on the &6&lGOLD Jackpot &cis &e"
+                        + plugin.getEconomyManager().format(maxBet) + "&c!");
+            } else {
+                TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cMaximum bet is &e" + plugin.getEconomyManager().format(maxBet) + "&c.");
+            }
             return;
         }
 
@@ -197,13 +283,16 @@ public class RouletteGUI {
             return;
         }
 
+        activeSpinners.add(player.getUniqueId());
+        lastSpinTimes.put(player.getUniqueId(), now);
+
         // Winning index on the 15-slot wheel
         int winningIndex = random.nextInt(15);
         RouletteColor winningColor = WHEEL[winningIndex];
 
-        double mult = (chosenColor == RouletteColor.GOLD)
-            ? config.getDouble("roulette.gold-multiplier", 14.0)
-            : config.getDouble("roulette.color-multiplier", 2.0);
+        double mult = isGold
+            ? config.getDouble("roulette.gold-multiplier", 9.0)
+            : config.getDouble("roulette.color-multiplier", 1.90);
 
         boolean won = (chosenColor == winningColor);
 
@@ -229,11 +318,11 @@ public class RouletteGUI {
         BukkitRunnable task = new BukkitRunnable() {
             int step = 0;
             int offset = random.nextInt(15);
-            int speed = 1;
 
             @Override
             public void run() {
                 if (!player.isOnline()) {
+                    activeSpinners.remove(player.getUniqueId());
                     cancel();
                     return;
                 }
@@ -251,24 +340,34 @@ public class RouletteGUI {
 
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.4f, 1.6f);
 
-                // Stop after ~50 ticks when offset aligns winningIndex at slot 13 (col 4)
+                // Stop after ~45 ticks when offset aligns winningIndex at slot 13 (col 4)
                 if (step >= 45 && ((offset + 4) % 15) == winningIndex) {
+                    activeSpinners.remove(player.getUniqueId());
                     cancel();
 
                     if (won) {
-                        double payout = bet * mult;
-                        plugin.getEconomyManager().deposit(player, payout);
-                        statsManager.recordGame(player.getUniqueId(), player.getName(), bet, payout);
+                        double grossPayout = bet * mult;
+                        double taxPercent = config.getDouble("roulette.tax-percent", 7.5);
+                        double taxAmount = (taxPercent > 0) ? (grossPayout * (taxPercent / 100.0)) : 0.0;
+                        double netPayout = grossPayout - taxAmount;
+
+                        plugin.getEconomyManager().deposit(player, netPayout);
+                        statsManager.recordGame(player.getUniqueId(), player.getName(), bet, netPayout);
 
                         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+
+                        String taxNotice = (taxPercent > 0)
+                            ? " &8(&c" + taxPercent + "% house tax: -" + plugin.getEconomyManager().format(taxAmount) + "&8)"
+                            : "";
                         TextUtil.sendMessage(player, "&8[&6&lCasino&8] &a&lROULETTE WIN! &7Landed on " + winningColor.getName() +
-                                "&7! You won &a" + plugin.getEconomyManager().format(payout) + "&a!");
+                                "&7! You won &a" + plugin.getEconomyManager().format(netPayout) + taxNotice + "&a!");
 
                         if (winningColor == RouletteColor.GOLD) {
                             String prefix = config.getString("messages.prefix", "&8[&6&lCasino&8] &r");
+                            String gMultFormatted = (mult % 1 == 0) ? String.format("%.0fx", mult) : String.format("%.2fx", mult);
                             Bukkit.broadcastMessage(TextUtil.legacyColorize(
-                                prefix + "&6★ &e" + player.getName() + " &ahit the &6&lGOLD ROULETTE JACKPOT (14x) &afor &e" +
-                                plugin.getEconomyManager().format(payout) + "&a! &6★"
+                                prefix + "&6★ &e" + player.getName() + " &ahit the &6&lGOLD ROULETTE JACKPOT (" + gMultFormatted + ") &afor &e" +
+                                plugin.getEconomyManager().format(netPayout) + "&a! &6★"
                             ));
                         }
                     } else {

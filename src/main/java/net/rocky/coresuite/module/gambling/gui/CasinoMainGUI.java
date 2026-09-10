@@ -89,36 +89,53 @@ public class CasinoMainGUI {
         ));
 
         // Slot 13: The Crash
+        double cTax = config.getDouble("crash.tax-percent", 5.0);
+        List<String> crashLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Ride the multiplier rocket!",
+            "&7Multiplier climbs in real-time.",
+            "&7Cash out before it CRASHES!",
+            "&8&m────────────────────",
+            "&8  ▸ &aUp to 50x Multiplier",
+            "&8  ▸ &eLive Cash Out Button",
+            "&8  ▸ &cHigh tension, high risk"
+        ));
+        if (cTax > 0) {
+            crashLore.add("&8  ▸ &7House Tax: &c" + cTax + "%");
+        }
+        crashLore.add("&8&m────────────────────");
+        crashLore.add("&e▶ Click to launch The Crash");
+
         gui.setItem(13, GuiButton.of(Material.FIREWORK_ROCKET, "&c&l🚀 The Crash",
-            List.of(
-                "&8&m────────────────────",
-                "&7Ride the multiplier rocket!",
-                "&7Multiplier climbs in real-time.",
-                "&7Cash out before it CRASHES!",
-                "&8&m────────────────────",
-                "&8  ▸ &aUp to 50x Multiplier",
-                "&8  ▸ &eLive Cash Out Button",
-                "&8  ▸ &cHigh tension, high risk",
-                "&8&m────────────────────",
-                "&e▶ Click to launch The Crash"
-            ), e -> {
+            crashLore, e -> {
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                 crashGUI.openBetSelect(player);
             }
         ));
 
         // Slot 15: Roulette
+        double rColorMult = config.getDouble("roulette.color-multiplier", 1.90);
+        double rGoldMult = config.getDouble("roulette.gold-multiplier", 9.0);
+        double rTax = config.getDouble("roulette.tax-percent", 7.5);
+        String rColorStr = (rColorMult % 1 == 0) ? String.format("%.0fx", rColorMult) : String.format("%.2fx", rColorMult);
+        String rGoldStr = (rGoldMult % 1 == 0) ? String.format("%.0fx", rGoldMult) : String.format("%.2fx", rGoldMult);
+
+        List<String> rouletteLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7The classic 15-slot conveyor wheel!",
+            "&8&m────────────────────",
+            "&8  ▸ &cRed   &8— &a" + rColorStr + " Payout",
+            "&8  ▸ &8Black &8— &a" + rColorStr + " Payout",
+            "&8  ▸ &6Gold  &8— &e" + rGoldStr + " JACKPOT!"
+        ));
+        if (rTax > 0) {
+            rouletteLore.add("&8  ▸ &7House Tax: &c" + rTax + "%");
+        }
+        rouletteLore.add("&8&m────────────────────");
+        rouletteLore.add("&e▶ Click to play Roulette");
+
         gui.setItem(15, GuiButton.of(Material.COMPASS, "&6&l🎰 CS:GO Roulette",
-            List.of(
-                "&8&m────────────────────",
-                "&7The classic 15-slot conveyor wheel!",
-                "&8&m────────────────────",
-                "&8  ▸ &cRed   &8— &a2x Payout",
-                "&8  ▸ &8Black &8— &a2x Payout",
-                "&8  ▸ &6Gold  &8— &e14x JACKPOT!",
-                "&8&m────────────────────",
-                "&e▶ Click to play Roulette"
-            ), e -> {
+            rouletteLore, e -> {
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                 rouletteGUI.openColorSelect(player);
             }
@@ -127,18 +144,29 @@ public class CasinoMainGUI {
         // ── Row 4: Secondary Games & Stats ──────────────────────────────────
 
         // Slot 29: Vegas Slots
+        double dMult = config.getDouble("slots.multipliers.diamond", 20.0);
+        double eMult = config.getDouble("slots.multipliers.emerald", 8.0);
+        double gMult = config.getDouble("slots.multipliers.gold", 4.0);
+        double iMult = config.getDouble("slots.multipliers.iron", 2.0);
+        double sTax = config.getDouble("slots.tax-percent", 5.0);
+
+        List<String> slotsLore = new ArrayList<>(List.of(
+            "&8&m────────────────────",
+            "&7Match 3 symbols across the reels!",
+            "&8&m────────────────────",
+            "&8  ▸ &bDiamonds &8— &a" + (int)dMult + "x JACKPOT",
+            "&8  ▸ &aEmeralds &8— &a" + (int)eMult + "x",
+            "&8  ▸ &eGold     &8— &a" + (int)gMult + "x",
+            "&8  ▸ &fIron     &8— &a" + (int)iMult + "x"
+        ));
+        if (sTax > 0) {
+            slotsLore.add("&8  ▸ &7House Tax: &c" + sTax + "%");
+        }
+        slotsLore.add("&8&m────────────────────");
+        slotsLore.add("&e▶ Click to spin Slots");
+
         gui.setItem(29, GuiButton.of(Material.JUKEBOX, "&d&l🍒 Vegas 3-Reel Slots",
-            List.of(
-                "&8&m────────────────────",
-                "&7Match 3 symbols across the reels!",
-                "&8&m────────────────────",
-                "&8  ▸ &bDiamonds &8— &a20x JACKPOT",
-                "&8  ▸ &aEmeralds &8— &a8x",
-                "&8  ▸ &eGold     &8— &a4x",
-                "&8  ▸ &fIron     &8— &a2x",
-                "&8&m────────────────────",
-                "&e▶ Click to spin Slots"
-            ), e -> {
+            slotsLore, e -> {
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1f, 1f);
                 slotsGUI.openBetSelect(player);
             }
