@@ -37,8 +37,10 @@ crash:
   tax-percent: 5.0
   # Cooldown between games in seconds to prevent rapid-fire macro abuse
   cooldown-seconds: 3
-  # Chance (0.0 to 1.0) that the rocket instantly crashes at 1.00x (0.08 = 8%)
-  instant-crash-chance: 0.08
+  # Chance (0.0 to 1.0) of an early low-multiplier crash (0.05 = 5%)
+  instant-crash-chance: 0.05
+  # Minimum crash multiplier floor (guarantees GUI loads and rocket visibly lifts off)
+  min-crash-multiplier: 1.08
   # House edge factor (0.94 = 6% mathematical house edge on non-instant crashes)
   house-edge-factor: 0.94
   # Max possible multiplier cap
