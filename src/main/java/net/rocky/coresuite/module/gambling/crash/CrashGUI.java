@@ -13,6 +13,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,7 +29,7 @@ public class CrashGUI {
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
     private final CasinoStatsManager statsManager;
-    private final Random random = new Random();
+    private final SecureRandom secureRandom = new SecureRandom();
     private CasinoMainGUI mainGUI;
 
     private final Set<UUID> awaitingCustomBet = ConcurrentHashMap.newKeySet();
@@ -156,19 +157,19 @@ public class CrashGUI {
         activePlayers.add(player.getUniqueId());
         lastGameTimes.put(player.getUniqueId(), now);
 
-        // Calculate crash point using mathematical house edge
+        // Calculate crash point using mathematical house edge and cryptographic randomness
         double instantChance = config.getDouble("crash.instant-crash-chance", 0.05);
         double maxMultiplier = config.getDouble("crash.max-multiplier", 50.0);
         double houseEdge = config.getDouble("crash.house-edge-factor", 0.94);
-        double minCrashFloor = config.getDouble("crash.min-crash-multiplier", 1.08);
+        double minCrashFloor = Math.max(1.15, config.getDouble("crash.min-crash-multiplier", 1.15));
 
         double crashPoint;
-        if (random.nextDouble() < instantChance) {
-            // Early low crash: between minCrashFloor and 1.15x
-            crashPoint = minCrashFloor + (random.nextDouble() * 0.07);
+        if (secureRandom.nextDouble() < instantChance) {
+            // Early low crash: between minCrashFloor and 1.25x (gives ample time for client sync)
+            crashPoint = minCrashFloor + (secureRandom.nextDouble() * 0.10);
         } else {
-            // Standard geometric crash distribution
-            double raw = houseEdge / (1.0 - random.nextDouble());
+            // Standard geometric crash distribution (cryptographic RNG)
+            double raw = houseEdge / (1.0 - secureRandom.nextDouble());
             crashPoint = Math.max(minCrashFloor, Math.min(raw, maxMultiplier));
         }
         crashPoint = Math.round(crashPoint * 100.0) / 100.0;

@@ -16,6 +16,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.ItemStack;
 
+import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -30,6 +31,7 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
     private String currentQuestion;
     private List<String> currentAnswers;
     private String currentDifficulty;
+    private String currentGameType = "TRIVIA";
 
     private int timeUntilNext;
     private int schedulerTaskId = -1;
@@ -37,7 +39,10 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
 
     private final List<String> recentTrivia = new ArrayList<>();
     private final List<String> recentScramble = new ArrayList<>();
-    private final Random random = new Random();
+    private final List<String> recentReverse = new ArrayList<>();
+    private final List<String> recentFillBlank = new ArrayList<>();
+    private final List<String> recentTypeRace = new ArrayList<>();
+    private final SecureRandom random = new SecureRandom();
 
     public ChatGamesModule(CoreSuitePlugin plugin) {
         super(plugin, "ChatGames", "chat-games");
@@ -136,19 +141,32 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
         int typeRoll = random.nextInt(100) + 1;
         String[] qna = null;
 
-        if (typeRoll <= 35) {
+        if (typeRoll <= 24) {
+            currentGameType = "Trivia";
             qna = pickNonRepeatingTrivia(difficulty);
-        } else if (typeRoll <= 65) {
-            qna = generateMathQuestion(difficulty);
-        } else if (typeRoll <= 85) {
+        } else if (typeRoll <= 40) {
+            currentGameType = "Word Scramble";
             qna = generateScrambleQuestion(difficulty);
+        } else if (typeRoll <= 55) {
+            currentGameType = "Crafting Math";
+            qna = generateCraftingMathQuestion(difficulty);
+        } else if (typeRoll <= 70) {
+            currentGameType = "Arithmetic Math";
+            qna = generateMathQuestion(difficulty);
+        } else if (typeRoll <= 82) {
+            currentGameType = "Speed Typing";
+            qna = generateTypeRaceQuestion(difficulty);
+        } else if (typeRoll <= 91) {
+            currentGameType = "Reverse Word";
+            qna = generateReverseWordQuestion(difficulty);
         } else {
-            qna = generateServerDataQuestion(difficulty);
+            currentGameType = "Fill in the Blank";
+            qna = generateFillBlankQuestion(difficulty);
         }
 
         if (qna == null) {
-            // Fallback if pool is empty
-            qna = generateMathQuestion(difficulty);
+            currentGameType = "Crafting Math";
+            qna = generateCraftingMathQuestion(difficulty);
         }
 
         currentQuestion = qna[0];
@@ -167,7 +185,7 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
         Bukkit.broadcast(TextUtil.colorize(""));
         Bukkit.broadcast(TextUtil.colorize("&8&m--------------------------------------------------"));
         Bukkit.broadcast(TextUtil.colorize("              &6&l⭐ CHAT GAME ⭐"));
-        Bukkit.broadcast(TextUtil.colorize("        " + color + label + " &7difficulty question!"));
+        Bukkit.broadcast(TextUtil.colorize("      " + color + label + " &7difficulty &e[" + currentGameType + "]&7!"));
         Bukkit.broadcast(TextUtil.colorize(""));
         Bukkit.broadcast(TextUtil.colorize("  &f❓ " + currentQuestion));
         Bukkit.broadcast(TextUtil.colorize(""));
@@ -199,13 +217,14 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
 
         String entry = pool.get(random.nextInt(pool.size()));
         int tries = 0;
-        while (tries < 12 && recentTrivia.contains(entry)) {
+        int noRepeat = config.getInt("no-repeat-size", 35);
+        while (tries < 15 && recentTrivia.contains(entry)) {
             entry = pool.get(random.nextInt(pool.size()));
             tries++;
         }
 
         recentTrivia.add(entry);
-        if (recentTrivia.size() > config.getInt("no-repeat-size", 15)) {
+        if (recentTrivia.size() > noRepeat) {
             recentTrivia.remove(0);
         }
 
@@ -216,17 +235,18 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
 
     private String[] generateScrambleQuestion(String diff) {
         List<String> pool = config.getStringList("scramble." + diff);
-        if (pool == null || pool.isEmpty()) return generateMathQuestion(diff);
+        if (pool == null || pool.isEmpty()) return generateCraftingMathQuestion(diff);
 
         String word = pool.get(random.nextInt(pool.size()));
         int tries = 0;
-        while (tries < 12 && recentScramble.contains(word)) {
+        int noRepeat = config.getInt("no-repeat-size", 35);
+        while (tries < 15 && recentScramble.contains(word)) {
             word = pool.get(random.nextInt(pool.size()));
             tries++;
         }
 
         recentScramble.add(word);
-        if (recentScramble.size() > config.getInt("no-repeat-size", 15)) {
+        if (recentScramble.size() > noRepeat) {
             recentScramble.remove(0);
         }
 
@@ -253,13 +273,140 @@ public class ChatGamesModule extends Module implements Listener, CommandExecutor
         return sb.toString();
     }
 
-    private String[] generateServerDataQuestion(String diff) {
-        int count = Bukkit.getOnlinePlayers().size();
-        if (random.nextBoolean()) {
-            return new String[]{"How many players are online on the server right at this moment?", String.valueOf(count)};
-        } else {
-            return new String[]{count + " players are online right now. If one more player joined, how many would that be?", String.valueOf(count + 1)};
+    private String[] generateCraftingMathQuestion(String diff) {
+        int mode = random.nextInt(10);
+        switch (mode) {
+            case 0 -> {
+                int logs = random.nextInt(16) + 3;
+                int ans = logs * 4;
+                return new String[]{"How many wood planks can you craft from " + logs + " wood logs?", String.valueOf(ans)};
+            }
+            case 1 -> {
+                int pairs = random.nextInt(10) + 2;
+                int planks = pairs * 2;
+                int ans = pairs * 4;
+                return new String[]{"How many sticks can you craft from " + planks + " wood planks?", String.valueOf(ans)};
+            }
+            case 2 -> {
+                int ingots = random.nextInt(12) + 2;
+                int ans = ingots * 9;
+                String metal = random.nextBoolean() ? "iron" : "gold";
+                return new String[]{"How many " + metal + " nuggets can you craft from " + ingots + " " + metal + " ingots?", String.valueOf(ans)};
+            }
+            case 3 -> {
+                int blocks = random.nextInt(12) + 3;
+                int ans = blocks * 9;
+                String ore = random.nextBoolean() ? "diamond" : (random.nextBoolean() ? "emerald" : "iron");
+                return new String[]{"How many " + ore + "s are needed to craft " + blocks + " " + ore + " blocks?", String.valueOf(ans)};
+            }
+            case 4 -> {
+                int anvils = random.nextInt(4) + 1;
+                int ans = anvils * 31;
+                return new String[]{"How many total iron ingots are needed to craft " + anvils + " anvil" + (anvils > 1 ? "s" : "") + "? (1 anvil = 3 blocks + 4 ingots)", String.valueOf(ans)};
+            }
+            case 5 -> {
+                int sets = random.nextInt(3) + 1;
+                int ans = sets * 24;
+                String mat = random.nextBoolean() ? "diamond" : "iron";
+                return new String[]{"How many " + mat + "s are needed to craft " + sets + " full set" + (sets > 1 ? "s" : "") + " of " + mat + " armor?", String.valueOf(ans)};
+            }
+            case 6 -> {
+                int hoppers = random.nextInt(6) + 2;
+                int ans = hoppers * 5;
+                return new String[]{"How many iron ingots are required to craft " + hoppers + " hoppers? (5 per hopper)", String.valueOf(ans)};
+            }
+            case 7 -> {
+                int portals = random.nextInt(5) + 2;
+                int ans = portals * 10;
+                return new String[]{"How many obsidian blocks are needed to build " + portals + " minimal nether portals without corners?", String.valueOf(ans)};
+            }
+            case 8 -> {
+                int apples = random.nextInt(8) + 2;
+                int ans = apples * 8;
+                return new String[]{"How many gold ingots are needed to craft " + apples + " golden apples? (8 per apple)", String.valueOf(ans)};
+            }
+            default -> {
+                int coal = random.nextInt(12) + 3;
+                int ans = coal * 4;
+                return new String[]{"How many torches can you craft with " + coal + " coal and enough sticks?", String.valueOf(ans)};
+            }
         }
+    }
+
+    private String[] generateTypeRaceQuestion(String diff) {
+        if (random.nextBoolean()) {
+            int length = switch (diff) {
+                case "easy" -> 5;
+                case "normal" -> 6;
+                case "intermediate" -> 7;
+                case "hard" -> 8;
+                case "difficult" -> 9;
+                default -> 10;
+            };
+            String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            StringBuilder code = new StringBuilder();
+            for (int i = 0; i < length; i++) {
+                code.append(chars.charAt(random.nextInt(chars.length())));
+            }
+            String finalCode = code.toString();
+            return new String[]{"Fast Fingers! Type this code: &e&l" + finalCode, finalCode};
+        } else {
+            List<String> pool = config.getStringList("type_race_phrases");
+            if (pool == null || pool.isEmpty()) {
+                return generateCraftingMathQuestion(diff);
+            }
+            String entry = pool.get(random.nextInt(pool.size()));
+            int tries = 0;
+            int noRepeat = config.getInt("no-repeat-size", 35);
+            while (tries < 10 && recentTypeRace.contains(entry)) {
+                entry = pool.get(random.nextInt(pool.size()));
+                tries++;
+            }
+            recentTypeRace.add(entry);
+            if (recentTypeRace.size() > noRepeat) recentTypeRace.remove(0);
+
+            String[] parts = entry.split("\\|");
+            if (parts.length < 2) return new String[]{"Type this phrase: &f" + entry, entry};
+            return new String[]{"Type this phrase: &f\"" + parts[0] + "\"", parts[1]};
+        }
+    }
+
+    private String[] generateReverseWordQuestion(String diff) {
+        List<String> pool = config.getStringList("scramble." + diff);
+        if (pool == null || pool.isEmpty()) pool = config.getStringList("scramble.normal");
+        if (pool == null || pool.isEmpty()) return generateCraftingMathQuestion(diff);
+
+        String word = pool.get(random.nextInt(pool.size()));
+        int tries = 0;
+        int noRepeat = config.getInt("no-repeat-size", 35);
+        while (tries < 10 && recentReverse.contains(word)) {
+            word = pool.get(random.nextInt(pool.size()));
+            tries++;
+        }
+        recentReverse.add(word);
+        if (recentReverse.size() > noRepeat) recentReverse.remove(0);
+
+        String reversed = new StringBuilder(word).reverse().toString();
+        return new String[]{"Type this word BACKWARDS: &e&l" + word.toUpperCase(), reversed};
+    }
+
+    private String[] generateFillBlankQuestion(String diff) {
+        List<String> pool = config.getStringList("fill_blank");
+        if (pool == null || pool.isEmpty()) return generateCraftingMathQuestion(diff);
+
+        String entry = pool.get(random.nextInt(pool.size()));
+        int tries = 0;
+        int noRepeat = config.getInt("no-repeat-size", 35);
+        while (tries < 10 && recentFillBlank.contains(entry)) {
+            entry = pool.get(random.nextInt(pool.size()));
+            tries++;
+        }
+        recentFillBlank.add(entry);
+        if (recentFillBlank.size() > noRepeat) recentFillBlank.remove(0);
+
+        String[] parts = entry.split("\\|");
+        if (parts.length < 2) return generateCraftingMathQuestion(diff);
+        return new String[]{"Complete the blank: &e" + parts[0], parts[1]};
     }
 
     private String[] generateMathQuestion(String diff) {

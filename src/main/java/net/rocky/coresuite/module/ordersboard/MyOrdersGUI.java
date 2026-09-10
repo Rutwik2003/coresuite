@@ -252,10 +252,11 @@ public class MyOrdersGUI {
                 String msg = config.getString("messages.cancelled", "&aOrder cancelled. Refunded: &e{refund}&a.")
                         .replace("{refund}", plugin.getEconomyManager().format(refund));
                 TextUtil.sendMessage(player, prefix + msg);
-                onReturn.run();
+                // Ensure inventory remains closed upon successful cancellation
+                player.closeInventory();
             }, () -> {
                 TextUtil.sendMessage(player, "&cCould not cancel order. It might already be cancelled or completed.");
-                onReturn.run();
+                player.closeInventory();
             });
         }));
 

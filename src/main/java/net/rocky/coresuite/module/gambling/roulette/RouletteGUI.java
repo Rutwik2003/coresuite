@@ -13,8 +13,10 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * CS:GO-Style 15-Slot Wheel Roulette (Red 2x, Black 2x, Gold 14x).
@@ -56,7 +58,8 @@ public class RouletteGUI {
     private final CoreSuitePlugin plugin;
     private final FileConfiguration config;
     private final CasinoStatsManager statsManager;
-    private final Random random = new Random();
+    private final SecureRandom secureRandom = new SecureRandom();
+    private final List<RouletteColor> recentRolls = new CopyOnWriteArrayList<>();
     private CasinoMainGUI mainGUI;
 
     private final Map<UUID, RouletteColor> awaitingCustomBetColor = new ConcurrentHashMap<>();
@@ -67,6 +70,10 @@ public class RouletteGUI {
         this.plugin = plugin;
         this.config = config;
         this.statsManager = statsManager;
+        // Initialize recent history with independent cryptographic rolls
+        for (int i = 0; i < 7; i++) {
+            recentRolls.add(WHEEL[secureRandom.nextInt(15)]);
+        }
     }
 
     public void setMainGUI(CasinoMainGUI mainGUI) {
@@ -128,6 +135,35 @@ public class RouletteGUI {
         gui.setItem(15, GuiButton.of(Material.BLACK_CONCRETE, "&8&lBet on BLACK (" + cMultStr + ")", blackLore,
             e -> openBetAmount(player, RouletteColor.BLACK)
         ));
+
+        // Recent Rolls History Row (Slots 18-25)
+        gui.setItem(18, GuiButton.of(Material.CLOCK, "&6&lRecent Rolls", List.of(
+            "&8&m────────────────────",
+            "&7Live history of last rolls:",
+            "&8(Cryptographic RNG)",
+            "&8&m────────────────────"
+        ), e -> {}));
+
+        for (int i = 0; i < 7; i++) {
+            if (i < recentRolls.size()) {
+                RouletteColor rc = recentRolls.get(i);
+                Material paneMat = switch (rc) {
+                    case RED -> Material.RED_STAINED_GLASS_PANE;
+                    case BLACK -> Material.BLACK_STAINED_GLASS_PANE;
+                    case GOLD -> Material.YELLOW_STAINED_GLASS_PANE;
+                };
+                String orderLabel = (i == 0) ? " &a&l[LATEST]" : " &7[#" + (i + 1) + "]";
+                gui.setItem(19 + i, GuiButton.of(paneMat, rc.getName() + orderLabel,
+                    List.of(
+                        "&8&m────────────────────",
+                        "&7Landed: " + rc.getName(),
+                        "&8Independent Roll",
+                        "&8&m────────────────────"
+                    ), e -> {}));
+            } else {
+                gui.setItem(19 + i, GuiButton.of(Material.GRAY_STAINED_GLASS_PANE, "&8-", List.of(), e -> {}));
+            }
+        }
 
         gui.setItem(27, GuiButton.of(Material.ARROW, "&7◀ Back to Casino", List.of(), e -> {
             if (mainGUI != null) mainGUI.open(player);
@@ -286,8 +322,8 @@ public class RouletteGUI {
         activeSpinners.add(player.getUniqueId());
         lastSpinTimes.put(player.getUniqueId(), now);
 
-        // Winning index on the 15-slot wheel
-        int winningIndex = random.nextInt(15);
+        // Winning index on the 15-slot wheel using cryptographic randomness
+        int winningIndex = secureRandom.nextInt(15);
         RouletteColor winningColor = WHEEL[winningIndex];
 
         double mult = isGold
@@ -317,7 +353,7 @@ public class RouletteGUI {
 
         BukkitRunnable task = new BukkitRunnable() {
             int step = 0;
-            int offset = random.nextInt(15);
+            int offset = secureRandom.nextInt(15);
 
             @Override
             public void run() {
@@ -340,10 +376,16 @@ public class RouletteGUI {
 
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.4f, 1.6f);
 
-                // Stop after ~45 ticks when offset aligns winningIndex at slot 13 (col 4)
-                if (step >= 45 && ((offset + 4) % 15) == winningIndex) {
+                // Stop after ~24 steps (~2.4s to 3.9s) when offset aligns winningIndex at slot 13 (col 4)
+                if (step >= 24 && ((offset + 4) % 15) == winningIndex) {
                     activeSpinners.remove(player.getUniqueId());
                     cancel();
+
+                    // Record roll in recent history
+                    recentRolls.add(0, winningColor);
+                    if (recentRolls.size() > 14) {
+                        recentRolls.remove(recentRolls.size() - 1);
+                    }
 
                     if (won) {
                         double grossPayout = bet * mult;
@@ -387,6 +429,7 @@ public class RouletteGUI {
             }
         };
 
-        task.runTaskTimer(plugin, 1L, 1L);
+        // 2L, 2L (10 updates/sec) is 100% Bedrock/Geyser compatible and prevents packet drops
+        task.runTaskTimer(plugin, 2L, 2L);
     }
 }

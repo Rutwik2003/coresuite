@@ -1,5 +1,6 @@
 # ============================================================
 # CoreSuite - ChatGames Module Configuration
+# Expanded pool: 250+ Trivia, 150+ Scramble, 4 Procedural Modes
 # ============================================================
 
 prefix: '&8[&6&lChat Games&8] &r'
@@ -8,121 +9,576 @@ max-delay: 600
 answer-time: 45
 min-players: 2
 reveal-answer: false
-no-repeat-size: 15
-
-# Trivia Pools (Question|Answer,alias)
+no-repeat-size: 35
 trivia:
   easy:
-  - What block explodes when lit?|tnt
-  - What mob explodes near players?|creeper
-  - What do you mine diamonds with?|iron pickaxe,pickaxe
-  - What animal gives you wool?|sheep
-  - What do you get from milking a cow?|milk
-  - What tool do you use to chop wood?|axe
-  - What mob shoots arrows?|skeleton
-  - What do you need to craft a bed?|wool and wood,wood and wool
-  - What food do you get from wheat?|bread
-  - What block do you sleep in?|bed
-  - What mob do you shear to get wool?|sheep
-  - What liquid do you swim in that isn't water?|lava
-  - What do zombies drop sometimes?|rotten flesh
-  - What tool do you use to mine stone?|pickaxe
-  - What color is a creeper?|green
-  - What do you use to tame a wolf?|bone
-  - What ore is orange in color?|copper
-  - What do you use to breed cows?|wheat
-  - What block breaks almost instantly when dug by hand?|dirt
-  - What do you use to put out fire quickly?|water
-  - How many totems of undying can you hold in each hand at once?|1
+  - What block explodes when lit by flint and steel?|tnt,dynamite
+  - What green mob silently hisses and explodes near players?|creeper
+  - What tool tier is the minimum required to mine diamonds?|iron pickaxe,iron,iron
+    pick
+  - What animal gives you wool when sheared?|sheep
+  - What do you get when you right-click a cow with an empty bucket?|milk,bucket of
+    milk
+  - What tool is best for chopping wood and logs?|axe,hatchet
+  - What undead mob shoots arrows at players?|skeleton
+  - How many wool blocks are needed to craft a bed?|3,three
+  - What food item do you craft directly from 3 wheat?|bread
+  - What block allows you to sleep through the night and set your spawn?|bed
+  - What liquid in the Nether replaces oceans of water?|lava
+  - What meat item do zombies drop when killed?|rotten flesh
+  - What tool is best for mining stone and ores?|pickaxe,pick
+  - What primary color is a creeper?|green
+  - What item do you feed a wild wolf to tame it?|bone,bones
+  - What metallic ore oxidizes and turns green over time?|copper,copper ore
+  - What crop item do you use to breed cows and sheep?|wheat
+  - What block falls with gravity alongside gravel?|sand
+  - What liquid extinguishes fire and turns lava into obsidian?|water
+  - How many Totems of Undying can you hold in your off-hand?|1,one
+  - What tool do you use to dig dirt, sand, and gravel fastest?|shovel,spade
+  - What fuel is made by smelting wood logs in a furnace?|charcoal
+  - How many wood planks do you get from crafting a single log?|4,four
+  - How many wood planks are required to craft a Crafting Table?|4,four
+  - What item do chickens drop that is used to craft arrows?|feather,feathers
+  - What tool is used to shear sheep and collect cobwebs?|shears,shear
+  - What mob drops string and spider eyes?|spider,spiders
+  - What item is used to catch fish in water?|fishing rod,rod
+  - What vehicle allows players to travel across water quickly?|boat,boats
+  - What item is crafted with 1 stick and 1 piece of coal?|torch,torches
+  - What weapon requires arrows as ammunition?|bow
+  - What shield-like item blocks incoming projectile damage?|shield
+  - What item do cows drop that is used to craft books and armor?|leather
+  - What fruit falls rarely from broken oak tree leaves?|apple,apples
+  - What plant grows near water and is crafted into paper and sugar?|sugar cane,sugarcane
+  - What hostile mob burns in sunlight alongside skeletons?|zombie,zombies
+  - What flying equipment allows players to glide through the air?|elytra,wings
+  - What item do bees produce inside bee nests and beehives?|honey,honeycomb
+  - What plant grows tall in jungles and is used to make scaffolding?|bamboo
+  - What projectile throws knockback at blazes and deals damage to them?|snowball,snowballs
+  - What slime drop is used to craft sticky pistons and lead?|slimeball,slime ball,slime
+  - What item drops occasionally when digging gravel without silk touch?|flint
+  - What transparent block is made by smelting sand in a furnace?|glass
+  - How many inventory slots does a single small chest have?|27,twenty seven
+  - What navigation tool points towards the world spawn point?|compass
+  - What device crafted with gold and redstone tells time of day?|clock
+  - What large friendly mob protects villagers from zombies?|iron golem,golem
+  - What status effect do you get from eating rotten flesh?|hunger
+  - What green gemstone is used as currency with villagers?|emerald,emeralds
+  - What structure made of obsidian allows travel to the Nether?|nether portal,portal
   normal:
-  - What ore is needed to enchant items?|lapis lazuli,lapis
-  - What mob drops ender pearls?|enderman
-  - What item do you throw to locate a stronghold?|eye of ender
-  - What food do you use to breed pigs?|carrot,carrots
-  - What block do you need to make a nether portal?|obsidian
-  - What tool removes enchantments and combines items?|anvil
-  - What item lets you teleport short distances instantly?|ender pearl
-  - What mob drops blaze rods?|blaze
-  - What potion base is made from nether wart?|awkward potion,awkward
-  - What is the flying hostile boss mob in the End called?|enderdragon,ender dragon
-  - What is the max stack size of an ender pearl?|16
-  - What underwater structure contains guardians and treasure?|ocean monument
-  - What happens if you sleep in a bed in the Nether?|explodes
-  - What common Nether mob is fire-immune and shaped like a bouncy cube?|magma cube
+  - What blue ore is required to enchant items in an enchanting table?|lapis lazuli,lapis
+  - What tall purple-eyed mob drops ender pearls?|enderman,endermen
+  - What item crafted from blaze powder and ender pearl locates strongholds?|eye of
+    ender,ender eye
+  - What orange vegetable is used to breed pigs and tame rabbits?|carrot,carrots
+  - What dark purple block is required to build a nether portal frame?|obsidian
+  - What heavy iron block repairs, renames, and combines enchanted items?|anvil
+  - What item can be thrown to teleport short distances at the cost of health?|ender
+    pearl,pearl
+  - What floating yellow mob found in nether fortresses drops blaze rods?|blaze,blazes
+  - What potion base ingredient is brewed by adding Nether Wart to a Water Bottle?|awkward
+    potion,awkward
+  - What giant flying dragon is the main boss of the End dimension?|ender dragon,enderdragon,dragon
+  - What is the maximum stack size for ender pearls in an inventory slot?|16,sixteen
+  - What ocean monument hostile mob shoots laser beams at players?|guardian,guardians
+  - What happens if you try to sleep in a bed while in the Nether dimension?|it explodes,explode,explodes,explosion
+  - What bouncy hostile mob found in the Nether drops magma cream?|magma cube,magmacube
+  - What storage box retains its contents when broken and picked up?|shulker box,shulker
+  - What fuel powder is required to power a brewing stand?|blaze powder
+  - What melon variant is brewed with awkward potion to make Potion of Healing?|glistering
+    melon,glistering melon slice
+  - What sweet ingredient is brewed with awkward potion to make Potion of Swiftness?|sugar
+  - What spider ingredient is brewed to invert potion effects into negative ones?|fermented
+    spider eye
+  - What golden vegetable is brewed with awkward potion to create Potion of Night
+    Vision?|golden carrot
+  - What large white floating Nether mob shoots exploding fireballs?|ghast,ghasts
+  - What tall black skeleton in nether fortresses inflicts the Wither effect?|wither
+    skeleton
+  - What nether block slows down players walking across it?|soul sand
+  - What ice type creates the fastest boat transportation highway?|blue ice
+  - What ocean monument block absorbs massive amounts of surrounding water?|sponge,wet
+    sponge
+  - What beacon-like ocean conduit structure gives Conduit Power underwater?|conduit
+  - On what specific nether block does nether wart grow?|soul sand
+  - What aquatic trident-wielding zombie spawns in oceans and rivers?|drowned
+  - What flying winged mob spawns if a player doesn't sleep for over 3 days?|phantom,phantoms
+  - What workstation block turns an unemployed villager into a Cleric?|brewing stand
+  - What workstation block turns an unemployed villager into a Weaponsmith?|grindstone
+  - What workstation block turns an unemployed villager into a Fletcher?|fletching
+    table
+  - What workstation block turns an unemployed villager into an Armorer?|blast furnace
+  - What workstation block turns an unemployed villager into a Librarian?|lectern
+  - What workstation block turns an unemployed villager into a Farmer?|composter
+  - What workstation block turns an unemployed villager into a Butcher?|smoker
+  - What workstation block turns an unemployed villager into a Mason?|stonecutter
+  - What glowing ocean creature drops glow ink sacs?|glow squid
+  - What mountain animal drops goat horns when ramming certain blocks?|goat,goats
+  - What purple crystal shards are harvested inside underground geode crystals?|amethyst
+    shard,amethyst shards,amethyst
+  - What honey-based block causes entities to slide down its side slowly?|honey block
+  - What block can players climb vertically like an elevator ladder?|scaffolding
+  - What item crafted from string and slimeball allows you to leash animals?|lead,leash
+  - What item allows you to rename mobs and prevent them from despawning?|name tag,nametag
+  - Can a horse saddle be crafted on a standard crafting table?|no,false
+  - What powerful spellcaster illager in woodland mansions drops Totems of Undying?|evoker,evokers
+  - What tiny ghost-like flying mob is summoned by evokers to attack players?|vex,vexes
+  - What massive horned beast do pillagers ride into battle during raids?|ravager,ravagers
+  - What bad omen status effect triggers a raid when entering a village?|bad omen
+  - What 1.21 redstone block automatically crafts items when powered?|crafter
   intermediate:
-  - What is the max enchant level for Sharpness normally?|5
-  - What is the max level of the Mending enchant?|1
-  - What is the max fortune level obtainable normally?|3
-  - What enchant prevents mob drops but gives you the block instead?|silk touch
-  - What is the highest enchant level obtainable from an enchanting table without commands?|30
-  - What material is required to craft a beacon block itself?|nether star
-  - What job block turns a villager into a cartographer?|cartography table
-  - What company originally developed Minecraft before being bought by Microsoft?|mojang
+  - What is the maximum normal enchantment level for Sharpness?|5,v,five
+  - What is the maximum enchantment level for Mending?|1,i,one
+  - What is the maximum enchantment level for Fortune?|3,iii,three
+  - What is the maximum enchantment level for Looting?|3,iii,three
+  - What is the maximum enchantment level for Unbreaking?|3,iii,three
+  - What enchantment allows blocks to drop themselves instead of their regular item?|silk
+    touch
+  - What is the maximum enchantment table level without commands?|30,thirty
+  - How many bookshelves placed around an enchanting table are needed for level 30?|15,fifteen
+  - What nether boss drop item is strictly required to craft a Beacon?|nether star
+  - What workstation block turns an unemployed villager into a Cartographer?|cartography
+    table
+  - What game studio originally developed Minecraft before acquisition?|mojang,mojang
+    studios
+  - What trial chamber mob shoots wind charges at players?|breeze
+  - What 1.21 heavy melee weapon is crafted with a breeze rod and heavy core?|mace
+  - What rare item found in ominous trial vaults crafts the Mace?|heavy core
+  - What new trial spawner type rewards trial keys and loot in 1.21?|trial spawner,trial
+    spawners
+  - What mossy skeleton variant spawns in swamps and trial chambers shooting poison?|bogged,the
+    bogged
+  - What savanna mob rolls into a protective ball and drops scutes?|armadillo,armadillos
+  - How many armadillo scutes are needed to craft Wolf Armor?|6,six
+  - What ancient mob hatches from sniffer eggs found in warm ocean ruins?|sniffer,sniffers
+  - Name one of the two ancient plants the sniffer digs up seeds for.|torchflower,pitcher
+    plant,pitcher
+  - What pink-leafed tree biome was added in the 1.20 Trails & Tales update?|cherry
+    grove,cherry blossoms,cherry
+  - How many books can a single Chiseled Bookshelf hold?|6,six
+  - What wood sign variant is suspended with chains from the ceiling?|hanging sign,hanging
+    signs
+  - What desert animal can seat two players and perform a forward sprint dash?|camel,camels
+  - What consumable item is required at a smithing table to customize armor trims?|smithing
+    template,armor trim template,template
+  - What smithing template is strictly required to upgrade diamond gear to netherite?|netherite
+    upgrade,netherite upgrade smithing template
+  - What gold item do you drop or give to Piglins to initiate bartering?|gold ingot,gold
+  - What hostile nether mob spawns in bastion remnants wielding a golden axe?|piglin
+    brute
+  - What compass modification points directly to a designated Lodestone block?|lodestone
+    compass
+  - What nether block allows players to set a spawn point in the Nether using glowstone?|respawn
+    anchor
+  - What fungus attached to a fishing rod allows you to steer a saddled strider?|warped
+    fungus on a stick
+  - What redstone target block emits higher signals the closer an arrow hits center?|target
+    block,target
+  - What sculk block detects vibrations from movement and sound?|sculk sensor
+  - What sculk block emits a shriek and summons the Warden after 4 activations?|sculk
+    shrieker
+  - Is the Warden mob capable of seeing players with its eyes?|no,false
+  - What ancient city treasure enchantment allows faster movement while crouching?|swift
+    sneak
+  - What vision-impairing status effect is inflicted by the Warden?|darkness
+  - What item crafted with echo shards points to the location of your last death?|recovery
+    compass
+  - What flying blue helper mob duplicates when given an amethyst shard while dancing?|allay,allays
+  - What light source block is dropped when frogs eat small magma cubes?|froglight,frog
+    light
+  - What is the maximum tick delay of a single redstone repeater?|4,4 ticks,four
+  - What redstone component compares, subtracts, or measures container fill levels?|comparator,redstone
+    comparator
+  - What redstone block detects updates or changes to the block in front of its face?|observer
+  - What redstone sensor block outputs power according to the sun's position?|daylight
+    detector,daylight sensor
+  - How many items does a standard hopper transfer every second?|2.5,2.5 items
   hard:
-  - How many blocks tall is the Nether roof at bedrock from Y0?|128
-  - What is the rarest naturally spawning ore in the game?|ancient debris
-  - What Y level range is best for finding ancient debris?|8 to 22
-  - What is the exact health of the Ender Dragon in health points?|200
-  - What is the maximum world height in modern Minecraft versions?|320
-  - What was the first hostile mob ever added to Minecraft?|zombie
+  - What is the exact Y coordinate height of the Nether ceiling bedrock roof?|128
+  - What is the rarest naturally spawning ore found in the Nether dimension?|ancient
+    debris
+  - What Y-level range is statistically the best for mining ancient debris?|15,y15,8
+    to 22,12 to 17
+  - What is the exact health pool of the Ender Dragon in hit points?|200,200 hp
+  - What is the health pool of the Wither boss on Minecraft Java Edition?|300,300
+    hp
+  - What is the maximum building world height coordinate in modern Minecraft?|320,y320
+  - What is the lowest buildable depth coordinate in the Overworld?|-64,y-64
+  - What was the first hostile mob ever added to Minecraft in Classic?|zombie
+  - How many Eyes of Ender are required to fill an empty End Portal frame ring?|12,twelve
+  - What item collected with empty bottles from dragon breath clouds brews lingering
+    potions?|dragon's breath,dragon breath
+  - What levitation projectile do shulkers fire at intruding players in End Cities?|shulker
+    bullet,bullet
+  - What mob drop is required to repair an Elytra at an anvil?|phantom membrane
+  - What is the anvil experience cost cap before an item displays Too Expensive?|40,40
+    levels
+  - What potion effect and golden item are used to cure a Zombie Villager?|weakness
+    and golden apple,splash potion of weakness and golden apple
+  - How many villagers are needed to panic/gossip to spawn an Iron Golem?|3,three
+  - How many raid waves occur on Hard difficulty in Minecraft?|7,seven
+  - What is the exact maximum health of the Warden in hit points?|500,500 hp
+  - Does the Warden's sonic boom attack get blocked by shields?|no,false
+  - What item thrown by players launches them forward with wind physics in 1.21?|wind
+    charge,wind charges
+  - What key unlocks ominous trial vaults in 1.21 trial chambers?|ominous trial key,trial
+    key
+  - What material layer do Trial Chamber structures naturally generate in?|deepslate
+  - What mace exclusive enchantment allows the player to bounce upward upon hitting
+    an enemy?|wind burst
+  - What mace enchantment increases attack damage per block fallen?|density
+  - What mace enchantment bypasses a percentage of enemy armor?|breach
+  - What copper block toggles its light on and off with each redstone pulse in 1.21?|copper
+    bulb
+  - Can players lock specific slots in a Crafter by clicking on them?|yes,true
+  - What type of sculk sensor can be calibrated using a redstone comparator?|calibrated
+    sculk sensor
+  - How many seconds does a Piglin take to zombify after entering the Overworld?|15,fifteen
+  - What aggressive mob does a Hoglin transform into when transported to the Overworld?|zoglin
+  - Can a Nether Star item entity be destroyed by explosion damage?|no,false
+  - Up to how many water source blocks can a single dry sponge absorb?|65,sixty five
+  - What copper device redirects lightning strikes within a 128 block radius?|lightning
+    rod
+  - What enchantment allows walking on surface water by turning it into frosted ice?|frost
+    walker
+  - What soul sand valley enchantment increases walking speed on soul speed blocks?|soul
+    speed
+  - What weapon enchantment prevents a player from dropping their trident upon throwing?|loyalty
+  - What trident enchantment propels the player through rain or water?|riptide
+  - What trident enchantment strikes enemies with lightning during thunderstorms?|channeling
+  - What crossbow enchantment allows arrows to shoot through multiple mobs?|piercing
+  - What crossbow enchantment fires three arrows at the cost of one?|multishot
+  - What block protects crops from being trampled when placed underneath farmland?|fence,fences
   difficult:
-  - What year was Minecraft's Alpha version first publicly released?|2010
-  - What was the original working name for Minecraft before release?|cave game
-  - What is the exact tick rate Minecraft servers run at, in ticks per second?|20
-  - What update added the Warden and Deep Dark biome?|1.19
-  - Who is the original creator of Minecraft?|notch
+  - In what year was Minecraft Alpha version first made available publicly?|2010
+  - What was the original working development title for Minecraft in 2009?|cave game
+  - What is the standard game tick rate of a Minecraft server in ticks per second?|20,20
+    tps,twenty
+  - What numbered major update was titled The Wild Update?|1.19
+  - What was the developer alias of Minecraft's original creator?|notch
+  - What numbered major update introduced pillagers, raids, and village overhauls?|1.14
+  - What numbered major update introduced netherite and overhauled the Nether?|1.16
+  - What numbered major update expanded world height from 256 to 320 blocks?|1.18
+  - What numbered major update added camel mounts and the sniffer mob?|1.20
+  - What numbered major update introduced the Trial Chambers, Mace, and Crafter?|1.21
+  - What block is destroyed immediately if an adjacent solid block is placed touching
+    it?|cactus
+  - What blocks destroy dropped item entities on contact?|cactus and lava,cactus,lava
+  - What is the maximum signal strength output emitted by standard redstone dust?|15,fifteen
+  - What is the delay in redstone ticks of an Observer detecting a block update?|1,one,1
+    tick
+  - What is the maximum velocity of a minecart or boat travelling on blue ice?|72,72
+    blocks per second,40 m/s
+  - Can a ghast fireball be deflected by hitting it with an empty hand?|yes,true
+  - Below what Y-level do slimes naturally spawn inside slime chunks?|40,y40
+  - How many mineral blocks are required to construct a full 4-layer beacon pyramid?|164,one
+    hundred sixty four
+  - What event transforms a regular creeper into a blue Charged Creeper?|lightning
+    strike,lightning
+  - What mob head drops when a charged creeper blows up a skeleton?|skeleton skull,skeleton
+    head
+  - What mob does a regular skeleton turn into if trapped in powder snow for 7 seconds?|stray
+  - What mob does a regular zombie turn into if submerged underwater for 45 seconds?|drowned
+  - What rare animal variant is created when lightning strikes a red Mooshroom?|brown
+    mooshroom,brown cow
+  - Can an untamed Fox hold an enchanted diamond sword in its mouth and deal damage?|yes,true
+  - What friendly tameable mob dances when a music disc is played in a nearby jukebox?|parrot,parrots
+  - What aquatic creature feigns death to regenerate health when taking damage?|axolotl,axolotls
+  - What percentage chance does a goat have to spawn as a screaming goat?|2%,2 percent,2
+  - What pet animal brings gifts to its owner while sleeping in a bed?|cat,cats
+  - Name one of the seven personality types a panda can have in Minecraft.|playful,lazy,worried,aggressive,weak,brown,normal
+  - In what minor update was the iron nugget first added to Minecraft?|1.11.1,1.11
+  - Can bees pollinate wither roses without taking wither damage?|no,false
+  - How many blocks of distance does 1 block travelled in the Nether equal in the
+    Overworld?|8,eight
+  - What rare flower generates exclusively in suspicious stew and wither skeleton
+    kills?|wither rose
+  - What happens when you use a water bucket on a sponge in the Nether?|water evaporates,evaporates,steam
+  - What potion effect makes hostile mobs and players highlighted with an outline?|glowing
   extreme:
-  - What year was Minecraft's full release version 1.0 launched?|2011
-  - In what year did Microsoft acquire Mojang?|2014
-  - What was the very first mob added to Minecraft during early development?|pig
+  - In what year did Minecraft officially launch its full release version 1.0?|2011
+  - In what year did Microsoft officially acquire Mojang and the Minecraft IP?|2014
+  - What was the first passive mob introduced to Minecraft during early testing?|pig
+  - What urban legend creepypasta character originated from an anonymous 2010 forum
+    post?|herobrine
+  - What German musician and composer composed Minecraft's original ambient soundtrack?|c418,daniel
+    rosenfeld
+  - What is the title of the iconic soft piano track from Minecraft Volume Alpha?|sweden
+  - Who served as Minecraft's lead designer and game director following Notch's departure?|jeb,jens
+    bergensten
+  - What name tag flips any mob upside down when applied?|dinnerbone,grumm
+  - What name tag turns a sheep's wool into an animated rainbow color cycle?|jeb_
+  - What name tag applied to a rabbit unlocks a black and white commemorative skin?|toast
+  - What name tag applied to a Vindicator causes it to attack all nearby mobs?|johnny
+  - What was the default coordinate boundary distance of the ancient Far Lands?|12550820,12.5
+    million
+  - In what Minecraft Beta update were the original terrain Far Lands patched out?|beta
+    1.8,1.8
+  - What was the first building block ever created by Notch in the initial 2009 build?|cobblestone,grass
+  - In what update was the recipe for crafting enchanted golden apples removed?|1.9,combat
+    update
+  - What mob was originally planned by Notch to serve as village merchants before
+    villagers?|pigmen,pigman
+  - What obsidian and gold structure was exclusive to old Pocket Edition before the
+    Nether?|nether reactor,nether reactor core
+  - What was the original planned name for the End dimension before release?|sky dimension
+  - From what animal did C418 record the audio samples used for Ghast cries?|cat,his
+    cat
+  - What animal was Notch attempting to model when a coding error created the Creeper?|pig
+  - What celebration dance do Piglins perform after successfully hunting a Hoglin?|victory
+    dance,piglin dance,dance
+  - In what update were stray cats separated from jungle ocelots into their own mob?|1.14
+  - What mob was officially renamed to Zombified Piglin in the 1.16 Nether Update?|zombie
+    pigman
+  - What secret command item allows staff to edit block states without world editors?|debug
+    stick
+  - What coordinate is the world border edge located at in default modern worlds?|30000000,29999999,30
+    million
+  - What item can be used on a creeper to manually force it to ignite and explode?|flint
+    and steel
+  - What block can only be obtained in survival by blowing up an active conduit?|prismarine,none
+  - What potion effect is given when drinking milk?|clears effects,none,clears all
+    effects
+  - How many blocks of obsidian are required to construct a minimal nether portal?|10,ten
+  - What is the maximum number of blocks a standard sticky piston can push?|12,twelve
 scramble:
   easy:
+  - sword
+  - shield
+  - armor
+  - torch
+  - chest
+  - apple
+  - bread
+  - stone
+  - stick
+  - water
+  - glass
+  - arrow
+  - craft
+  - flint
+  - melon
+  - grass
+  - plank
+  - sugar
+  - sheep
+  - boots
+  - brick
+  - fence
+  - lever
+  - paper
+  - wheat
+  normal:
+  - diamond
+  - emerald
   - creeper
   - zombie
-  - diamond
-  - sword
-  - chest
-  - torch
-  - ladder
-  - bucket
-  - carrot
-  - potato
-  normal:
-  - obsidian
-  - enderman
-  - blaze
-  - cauldron
-  - hopper
-  - beacon
-  - anvil
+  - furnace
   - compass
+  - feather
+  - leather
+  - pumpkin
+  - pickaxe
+  - chicken
+  - monster
+  - respawn
+  - village
+  - phantom
+  - lantern
+  - bonemeal
+  - cauldron
+  - campfire
+  - fletcher
+  - smoker
+  - bucket
+  - shears
+  - saddle
+  - copper
   intermediate:
   - netherite
-  - trident
+  - obsidian
+  - enderman
   - shulker
-  - phantom
-  - villager
+  - trident
+  - conduit
+  - redstone
+  - repeater
+  - dispenser
+  - dropper
+  - observer
+  - daylight
+  - composter
+  - lectern
   - grindstone
+  - smithing
+  - deepslate
+  - amethyst
+  - scaffolding
+  - cartography
+  - lightning
+  - spyglass
+  - glowstone
+  - minecart
+  - nametag
   hard:
   - stronghold
   - monument
   - fortress
   - guardian
-  - elytra
   - endermite
-  difficult:
-  - silverfish
+  - pillager
   - vindicator
-  - illusioner
-  - conduit
-  - allocator
-  extreme:
-  - smithingtable
-  - cartography
+  - ravager
+  - magmacube
+  - strider
+  - zombified
+  - enderdragon
+  - crossbow
   - blastfurnace
-  - obsidianplatform
+  - chiseled
+  - honeycomb
+  - lodestone
+  - suspicious
+  - recovery
+  - drowned
+  - sculksensor
+  - calibrated
+  - froglight
+  - torchflower
+  - pitcher
+  difficult:
+  - trialchamber
+  - crafter
+  - heavycore
+  - armadillo
+  - wolfarmor
+  - sniffer
+  - cherrygrove
+  - sculkshrieker
+  - ancientcity
+  - echoshard
+  - windcharge
+  - windburst
+  - breachmace
+  - ominousvault
+  - trialspawner
+  - copperbulb
+  - tuffbricks
+  - swiftsneak
+  - fireprotection
+  - featherfall
+  - unbreaking
+  - fortuneenchant
+  - silktouch
+  - regeneration
+  - invisibility
+  extreme:
+  - respiration
+  - aquaffinity
+  - multishot
+  - channeling
+  - frostwalker
+  - soulspeed
+  - baneofarthropods
+  - knockback
+  - fireaspect
+  - lootingenchant
   - enchantingtable
-
+  - smithingtemplate
+  - ominousbottle
+  - breezerod
+  - dragonbreath
+  - chiseledbookshelf
+  - cartographytable
+  - spongeabsorption
+  - chargedcreeper
+  - brownmooshroom
+  - elytraflying
+  - witherrose
+  - screaminggoat
+  - netherreactor
+  - superflatworld
+fill_blank:
+- Awkward Potion + Ghast Tear = Potion of [?]|regeneration,regen
+- Awkward Potion + Magma Cream = Potion of [?]|fire resistance,fire resist
+- Awkward Potion + Sugar = Potion of [?]|swiftness,speed
+- Awkward Potion + Glistering Melon = Potion of [?]|healing,health,instant health
+- Awkward Potion + Golden Carrot = Potion of [?]|night vision
+- Awkward Potion + Blaze Powder = Potion of [?]|strength
+- Awkward Potion + Pufferfish = Potion of [?]|water breathing
+- Awkward Potion + Rabbit's Foot = Potion of [?]|leaping,jump boost
+- Awkward Potion + Phantom Membrane = Potion of [?]|slow falling
+- Potion of Night Vision + Fermented Spider Eye = Potion of [?]|invisibility
+- Potion of Healing + Fermented Spider Eye = Potion of [?]|harming,instant damage
+- Potion of Swiftness + Fermented Spider Eye = Potion of [?]|slowness
+- To craft an Eye of Ender, combine an Ender Pearl with [?]|blaze powder
+- A Beacon is crafted with glass, obsidian, and a [?]|nether star
+- An Anvil requires 4 iron ingots and 3 iron [?]|blocks,iron blocks
+- Breeze rods and a Heavy Core are used to craft a [?]|mace
+- Armadillos drop Scutes when brushed, which are used to craft [?]|wolf armor
+- Trial Chambers contain a unique hostile mob that shoots wind charges called the
+  [?]|breeze
+- The Bogged is a skeleton variant that shoots arrows of [?]|poison
+- The Crafter block automatically crafts items when powered by [?]|redstone
+- To upgrade diamond gear to Netherite, you need a Netherite [?]|upgrade smithing
+  template,ingot,upgrade
+- To respawn the Ender Dragon, place four [?] on the portal frame.|end crystals,crystals
+- A Hopper is crafted using a chest and 5 [?]|iron ingots,iron
+- A Bow is crafted with 3 sticks and 3 [?]|string,strings
+- Bookshelves require 6 wood planks and 3 [?]|books
+- A Shield is crafted with 1 iron ingot and 6 [?]|planks,wood planks,wood
+- Netherite ingots are crafted from 4 gold ingots and 4 netherite [?]|scrap,scraps
+- A Piston is crafted with planks, cobblestone, 1 redstone, and 1 [?]|iron ingot,iron
+- A Campfire is crafted with 3 logs, 3 sticks, and 1 [?]|coal,charcoal
+- A Compass is crafted with 4 iron ingots and 1 [?]|redstone,redstone dust
+- A Dispenser is crafted with cobblestone, redstone, and a [?]|bow
+- A Sticky Piston is crafted with a piston and a [?]|slimeball,slime ball
+- A Clock is crafted with 4 gold ingots and 1 [?]|redstone,redstone dust
+- A Fishing Rod is crafted with 3 sticks and 2 [?]|string,strings
+- A Cauldron is crafted using 7 [?]|iron ingots,iron
+- An Enchanting Table requires 4 obsidian, 2 diamonds, and 1 [?]|book
+- Golden Apples are crafted with 1 apple and 8 [?]|gold ingots,gold
+- A Spyglass is crafted with 2 copper ingots and 1 [?]|amethyst shard,amethyst
+- A Recovery Compass is crafted using 8 echo shards and 1 [?]|compass
+- Chiseled Bookshelves require 6 planks and 3 wooden [?]|slabs,wood slabs
+- Wind Charges are dropped when defeating a [?]|breeze
+- Trial Keys unlock standard [?] in trial chambers.|vaults,vault
+- Ominous Trial Keys unlock [?] vaults in trial chambers.|ominous,ominous vaults
+- Sniffers hatch from Sniffer [?] found in warm ocean ruins.|eggs,egg
+- Lightning Rods are crafted from 3 [?]|copper ingots,copper
+type_race_phrases:
+- Never dig straight down|never dig straight down
+- The cake is a lie|the cake is a lie
+- Diamonds are forever|diamonds are forever
+- Beware of the hissing creeper|beware of the hissing creeper
+- Sleep tight do not let the phantoms bite|sleep tight do not let the phantoms bite
+- Enter the Nether at your own risk|enter the nether at your own risk
+- Keep your eyes away from the Enderman|keep your eyes away from the enderman
+- A mace delivers crushing impact|a mace delivers crushing impact
+- The crafter changes redstone forever|the crafter changes redstone forever
+- Listen for the sculk in deep dark|listen for the sculk in deep dark
+- Protect the villagers from the raid|protect the villagers from the raid
+- Drink milk to clear negative potion effects|drink milk to clear negative potion
+  effects
+- Smelt iron in the blast furnace|smelt iron in the blast furnace
+- Light the portal with flint and steel|light the portal with flint and steel
+- Barter with piglins using gold|barter with piglins using gold
+- Defeat the Ender Dragon to open the gateway|defeat the ender dragon to open the
+  gateway
+- Ancient Debris is hidden in deep netherrack|ancient debris is hidden in deep netherrack
+- Brew a speed potion using sugar|brew a speed potion using sugar
+- Trade with the wandering trader|trade with the wandering trader
+- Wear golden boots to calm the piglins|wear golden boots to calm the piglins
+- Craft a totem to defy death itself|craft a totem to defy death itself
+- Ride the minecart down the tracks|ride the minecart down the tracks
+- Gather copper to craft lightning rods|gather copper to craft lightning rods
+- Feed wolves bones to gain loyal companions|feed wolves bones to gain loyal companions
+- Conquer the trial chambers with friends|conquer the trial chambers with friends
+- Explore the deep dark without making a sound|explore the deep dark without making
+  a sound
+- Harvest wheat to bake fresh warm bread|harvest wheat to bake fresh warm bread
+- Enchant your pickaxe with Fortune three|enchant your pickaxe with fortune three
+- Breeze rods power the mighty heavy mace|breeze rods power the mighty heavy mace
+- Sail across the ocean under the stars|sail across the ocean under the stars
 rewards:
   easy:
     economy-min: 500
