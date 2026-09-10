@@ -165,7 +165,7 @@ public final class DiscordWebhookClient {
                         int code = response.statusCode();
                         double retryAfter = 0;
                         if (code >= 200 && code < 300) {
-                            plugin.getLogger().info("[Discord Topic] Successfully updated channel topic: " + topic);
+                            // Successfully updated topic - kept quiet to prevent console spam
                         } else if (code == 429) {
                             try {
                                 JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();

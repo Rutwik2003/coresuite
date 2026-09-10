@@ -27,6 +27,7 @@ public final class DiscordTopicManager {
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> updateTask;
     private ScheduledFuture<?> retryTask;
+    private volatile String lastUpdatedTopic = null;
 
     public DiscordTopicManager(CoreSuitePlugin plugin, FileConfiguration config,
                                DiscordWebhookClient webhookClient, Instant startTime) {
@@ -80,9 +81,20 @@ public final class DiscordTopicManager {
                 .replace("{uptime}", uptime)
                 .replace("{ip}", ip);
 
+        // Only update if the topic has actually changed (prevents spamming Discord API and logs when server is empty or static)
+        boolean onlyOnChange = config.getBoolean("channel-topic.update-only-on-change", true);
+        if (onlyOnChange && topic.equals(lastUpdatedTopic)) {
+            return;
+        }
+
         webhookClient.updateChannelTopicAsync(channelId, botToken, topic)
                 .thenAccept(result -> {
-                    if (result != null && result.isRateLimited() && result.retryAfterSeconds() > 0) {
+                    if (result != null && result.statusCode() >= 200 && result.statusCode() < 300) {
+                        lastUpdatedTopic = topic;
+                        if (config.getBoolean("channel-topic.log-updates", false)) {
+                            plugin.getLogger().info("[Discord Topic] Successfully updated channel topic: " + topic);
+                        }
+                    } else if (result != null && result.isRateLimited() && result.retryAfterSeconds() > 0) {
                         scheduleRetry((long) Math.ceil(result.retryAfterSeconds()) + 1);
                     }
                 });

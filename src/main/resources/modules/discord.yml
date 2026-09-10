@@ -87,6 +87,10 @@ channel-topic:
   channel-id: ""
   # Update frequency in minutes (Discord allows max 2 edits per 10 mins; minimum 5m recommended)
   update-interval-minutes: 5
+  # Only update Discord when the topic content actually changes (prevents spamming Discord API and logs when server is empty/static)
+  update-only-on-change: true
+  # Log successful topic updates to console (set false to prevent console spam)
+  log-updates: false
   format-online: "🟢 Online: {online}/{max} | TPS: {tps} | IP: {ip}"
   format-offline: "🔴 Server Offline | IP: {ip}"
 
