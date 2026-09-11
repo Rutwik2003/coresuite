@@ -600,6 +600,25 @@
                 </table>
             </div>
 
+            <!-- Batch Crate Keys & Treasure Breakdown Table -->
+            <div class="table-container" id="batch_keys_box" style="display:none;">
+                <div class="table-header-bar">
+                    <div class="table-title">🗝️ Crate Keys & Special Treasure Yields</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Reward Item</th>
+                            <th>Tier</th>
+                            <th>Relative Pool Weight</th>
+                            <th>Catches in Batch</th>
+                            <th>Effective Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch_keys_body"></tbody>
+                </table>
+            </div>
+
             <!-- Top 5 Most Valuable Catches in Batch -->
             <div class="table-container" id="batch_top_box" style="display:none;">
                 <div class="table-header-bar">
@@ -1185,18 +1204,40 @@ uncommonWeight /= (1.0 + gearBoost * 0.15)
             const revenue = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythical: 0 };
             const allCatches = [];
 
-            const treasureChance = Math.min(1.0, 0.05 * (1.0 + cfg.treasureLvl * 0.2 * cfg.tierMult) * (cfg.inPond ? 2.0 : 1.0));
+            // MMO Balanced Treasure & Junk System
+            const baseTreasure = 0.02;
+            const enchantBonus = (cfg.treasureLvl * 0.0035 * (0.8 + 0.2 * cfg.tierMult)) + (cfg.lureLvl * 0.0020) + 0.0015;
+            let treasureChance = (baseTreasure + enchantBonus) * (cfg.inPond ? 1.5 : 1.0);
+            treasureChance = Math.min(0.10, treasureChance);
+
+            let junkChance = 0.0;
+            if (!cfg.inPond) {
+                const junkRed = (cfg.lureLvl * 0.015) + (cfg.treasureLvl * 0.015) + ((cfg.tierMult - 1.0) * 0.05);
+                junkChance = Math.max(0.0, 0.04 - junkRed);
+            }
+
+            const keyCounts = { uncommon: 0, rare: 0, potions: 0, elite: 0, spawner: 0, junk: 0 };
 
             for (let i = 0; i < trials; i++) {
-                const c = simulateOneCatch(cfg);
-                totalMoney += c.totalVal;
-                counts[c.rarity]++;
-                revenue[c.rarity] += c.totalVal;
-
-                if (c.isDouble) doubleCount++;
-                if (Math.random() < treasureChance) treasureCount++;
-
-                allCatches.push(c);
+                if (Math.random() < treasureChance) {
+                    treasureCount++;
+                    const keyRoll = Math.random() * 100.0;
+                    if (keyRoll < 60.0) keyCounts.uncommon++;
+                    else if (keyRoll < 86.0) keyCounts.rare++;
+                    else if (keyRoll < 96.0) keyCounts.potions++;
+                    else if (keyRoll < 98.0) keyCounts.elite++;
+                    else keyCounts.spawner++;
+                } else if (Math.random() < junkChance) {
+                    keyCounts.junk++;
+                    totalMoney += 5.0; // Old boot sold for $5
+                } else {
+                    const c = simulateOneCatch(cfg);
+                    totalMoney += c.totalVal;
+                    counts[c.rarity]++;
+                    revenue[c.rarity] += c.totalVal;
+                    if (c.isDouble) doubleCount++;
+                    allCatches.push(c);
+                }
             }
 
             // Sort catches to find Top 5
@@ -1206,6 +1247,7 @@ uncommonWeight /= (1.0 + gearBoost * 0.15)
             // Display Results
             document.getElementById('batch_cards').style.display = 'grid';
             document.getElementById('batch_dist_box').style.display = 'block';
+            document.getElementById('batch_keys_box').style.display = 'block';
             document.getElementById('batch_top_box').style.display = 'block';
 
             document.getElementById('batch_total_money').innerText = formatCurrency(totalMoney);
@@ -1238,6 +1280,29 @@ uncommonWeight /= (1.0 + gearBoost * 0.15)
                 distBody.appendChild(tr);
             }
 
+            // Populate Crate Keys Table
+            const keyData = [
+                { name: 'Uncommon Crate Key', tier: 'UNCOMMON', badge: 'uncommon', weight: '60.0%', count: keyCounts.uncommon },
+                { name: 'Rare Crate Key', tier: 'RARE', badge: 'rare', weight: '26.0%', count: keyCounts.rare },
+                { name: 'Potions Crate Key', tier: 'EPIC', badge: 'epic', weight: '10.0%', count: keyCounts.potions },
+                { name: 'Elite Crate Key', tier: 'LEGENDARY', badge: 'legendary', weight: '2.0%', count: keyCounts.elite },
+                { name: 'Spawner Crate Key', tier: 'MYTHICAL', badge: 'mythical', weight: '2.0%', count: keyCounts.spawner },
+                { name: 'Old Boot (Junk Item)', tier: 'JUNK', badge: 'common', weight: (junkChance * 100).toFixed(1) + '%', count: keyCounts.junk }
+            ];
+            const keysBody = document.getElementById('batch_keys_body');
+            keysBody.innerHTML = '';
+            keyData.forEach(k => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${k.name}</strong></td>
+                    <td><span class="badge badge-${k.badge}">${k.tier}</span></td>
+                    <td style="color:var(--text-muted);">${k.weight}</td>
+                    <td><strong>${k.count.toLocaleString()}</strong></td>
+                    <td style="color:var(--accent-cyan); font-weight:bold;">${((k.count / trials) * 100).toFixed(2)}% (1 in ${(k.count > 0 ? Math.round(trials / k.count) : '—')})</td>
+                `;
+                keysBody.appendChild(tr);
+            });
+
             // Populate Top 5 Table
             const topBody = document.getElementById('batch_top_body');
             topBody.innerHTML = '';
@@ -1261,6 +1326,41 @@ uncommonWeight /= (1.0 + gearBoost * 0.15)
             playSound('cast');
 
             setTimeout(() => {
+                const baseTreasure = 0.02;
+                const enchantBonus = (cfg.treasureLvl * 0.0035 * (0.8 + 0.2 * cfg.tierMult)) + (cfg.lureLvl * 0.0020) + 0.0015;
+                let treasureChance = (baseTreasure + enchantBonus) * (cfg.inPond ? 1.5 : 1.0);
+                treasureChance = Math.min(0.10, treasureChance);
+
+                let junkChance = 0.0;
+                if (!cfg.inPond) {
+                    const junkRed = (cfg.lureLvl * 0.015) + (cfg.treasureLvl * 0.015) + ((cfg.tierMult - 1.0) * 0.05);
+                    junkChance = Math.max(0.0, 0.04 - junkRed);
+                }
+
+                if (Math.random() < treasureChance) {
+                    const keyRoll = Math.random() * 100.0;
+                    let keyName = 'Uncommon Crate Key';
+                    let keyRarity = 'uncommon';
+                    let sound = 'levelup';
+                    if (keyRoll < 60.0) { keyName = 'Uncommon Crate Key'; keyRarity = 'uncommon'; }
+                    else if (keyRoll < 86.0) { keyName = 'Rare Crate Key'; keyRarity = 'rare'; sound = 'catch_rare'; }
+                    else if (keyRoll < 96.0) { keyName = 'Potions Crate Key'; keyRarity = 'epic'; sound = 'catch_legendary'; }
+                    else if (keyRoll < 98.0) { keyName = 'Elite Crate Key'; keyRarity = 'legendary'; sound = 'catch_legendary'; }
+                    else { keyName = 'Spawner Crate Key'; keyRarity = 'mythical'; sound = 'catch_legendary'; }
+
+                    playSound(sound);
+                    logMessage(`🎁 <strong>TREASURE FOUND!</strong> You reeled in a <span class="badge badge-${keyRarity}">${keyName}</span> from the deep!`);
+                    return;
+                }
+
+                if (Math.random() < junkChance) {
+                    player.wallet += 5.0;
+                    document.getElementById('live_wallet').innerText = formatCurrency(player.wallet);
+                    playSound('catch_common');
+                    logMessage(`👞 Caught an <strong>Old Boot</strong> (Junk) — automatically sold to Fishmonger for $5.00.`);
+                    return;
+                }
+
                 const c = simulateOneCatch(cfg);
                 player.caughtFish.push(c);
                 player.wallet += c.totalVal;

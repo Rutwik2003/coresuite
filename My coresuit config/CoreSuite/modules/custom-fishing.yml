@@ -368,13 +368,17 @@ baits:
 # ==========================================
 # Rare items, keys, and commands executed when players fish up treasure.
 # Format: <weight>|<Rarity>|<Display Name>|<Sound>|<Command (without /)>
+treasure:
+  base-chance: 2.0
+  pond-multiplier: 1.5
+junk:
+  base-chance: 4.0
 rewards:
-  - '5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1'
-  - '3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1'
-  - '0.5|Legendary|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player} potions 1'
-  - '0.1|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player} elite 1'
-  - '0.1|Legendary|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player} spawner 1'
-  - '10.0|Junk|&8Old Boot|entity.item.break|give {player} leather_boots 1'
+  - '60.0|Uncommon|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1'
+  - '26.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1'
+  - '10.0|Epic|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player} potions 1'
+  - '2.0|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player} elite 1'
+  - '2.0|Mythical|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player} spawner 1'
 
 # ═══════════════════════════════════════════════════
 # BAIT SHOP

@@ -272,21 +272,32 @@ TabCompleter {
         boolean needsRewardsFix = false;
         if (rewards != null && !rewards.isEmpty()) {
             for (String r : rewards) {
-                if (r.contains("\n") || r.contains("\r")) {
+                if (r.contains("Old Boot") || r.contains("5.0|Rare") || r.contains("\n") || r.contains("\r")) {
                     needsRewardsFix = true;
                     break;
                 }
             }
         }
-        if (needsRewardsFix) {
+        if (needsRewardsFix || rewards == null || rewards.isEmpty()) {
             this.config.set("rewards", Arrays.asList(
-                "5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1",
-                "3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1",
-                "0.5|Legendary|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player} potions 1",
-                "0.1|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player} elite 1",
-                "0.1|Legendary|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player} spawner 1",
-                "10.0|Junk|&8Old Boot|entity.item.break|give {player} leather_boots 1"
+                "60.0|Uncommon|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1",
+                "26.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1",
+                "10.0|Epic|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player} potions 1",
+                "2.0|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player} elite 1",
+                "2.0|Mythical|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player} spawner 1"
             ));
+            configChanged = true;
+        }
+        if (!this.config.contains("treasure.base-chance")) {
+            this.config.set("treasure.base-chance", 2.0);
+            configChanged = true;
+        }
+        if (!this.config.contains("treasure.pond-multiplier")) {
+            this.config.set("treasure.pond-multiplier", 1.5);
+            configChanged = true;
+        }
+        if (!this.config.contains("junk.base-chance")) {
+            this.config.set("junk.base-chance", 4.0);
             configChanged = true;
         }
         if (configChanged) {
@@ -913,116 +924,110 @@ TabCompleter {
                 ++data.legendaryPity;
             }
 
-            // 4. Roll Treasure / Rewards (StringList format)
-            List rewards = this.config.getStringList("rewards");
-            for (String rewardStr : (java.util.List<String>)(java.util.List<?>)rewards) {
-                String cleanStr = rewardStr.replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
-                String[] parts = cleanStr.split("\\|", -1);
-                if (parts.length < 4) continue;
-                try {
-                    double chance = Double.parseDouble(parts[0]);
-                    String rarity = parts[1];
-                    String name = parts[2];
-                    String soundStr = parts[3];
-                    String cmd = parts.length > 4 ? parts[4] : "";
-                    double actualChance = chance * mult;
-                    actualChance *= (1.0 + (double)treasureLvl * 0.2 * tierMult) * eventRewardMult;
-                    if (!(this.random.nextDouble() * 100.0 <= actualChance)) continue;
-                    if (rarity.equalsIgnoreCase("junk")) {
-                        String catchMsg = this.config.getString("messages.junk-catch-message", "&7You caught {name}&7... not exactly treasure.");
-                        TextUtil.sendActionBar(player, catchMsg.replace("{name}", name));
-                        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.8f);
-                        if (event.getCaught() != null) {
-                            event.getCaught().remove();
-                        }
-                        if (!cmd.isEmpty()) {
-                            Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), cmd.replace("{player}", player.getName()));
-                        }
-                        return;
+            // 4. Roll Treasure / Rewards (Single Weighted Roll, MMO Balanced)
+            double baseTreasureChance = this.config.getDouble("treasure.base-chance", 2.0);
+            double enchantBonus = ((double)treasureLvl * 0.35 * (0.8 + 0.2 * tierMult)) + ((double)luck * 0.20) + Math.min(0.25, streakBonus * 0.5);
+            double finalTreasureChance = (baseTreasureChance + enchantBonus) * fatigueMult;
+            if (inPond) {
+                double pondMult = this.config.getDouble("treasure.pond-multiplier", 1.5);
+                finalTreasureChance *= pondMult;
+            }
+            if (eventRewardMult > 1.0) {
+                finalTreasureChance *= eventRewardMult;
+            }
+            finalTreasureChance = Math.min(finalTreasureChance, 10.0);
+
+            if ((inPond || event.getHook() == null || this.isOpenWater(event.getHook().getLocation()))
+                    && this.random.nextDouble() * 100.0 <= finalTreasureChance) {
+                List rawRewards = this.config.getStringList("rewards");
+                List<CrateReward> validRewards = new ArrayList<>();
+                double totalRewardWeight = 0.0;
+                if (rawRewards != null) {
+                    for (String rewardStr : (java.util.List<String>)(java.util.List<?>)rawRewards) {
+                        String cleanStr = rewardStr.replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
+                        String[] parts = cleanStr.split("\\|", -1);
+                        if (parts.length < 4) continue;
+                        try {
+                            double w = Double.parseDouble(parts[0]);
+                            String r = parts[1];
+                            String name = parts[2];
+                            String soundStr = parts[3];
+                            String cmd = parts.length > 4 ? parts[4] : "";
+                            if (r.equalsIgnoreCase("junk") || name.toLowerCase().contains("boot")) continue;
+                            validRewards.add(new CrateReward(w, r, name, soundStr, cmd));
+                            totalRewardWeight += w;
+                        } catch (NumberFormatException ignored) {}
                     }
-                    if (!inPond && event.getHook() != null && !this.isOpenWater(event.getHook().getLocation())) continue;
-                    if (!cmd.isEmpty()) {
-                        String parsedCmd = cmd.replace("{player}", player.getName());
-                        Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), (String)parsedCmd);
+                }
+
+                if (!validRewards.isEmpty() && totalRewardWeight > 0.0) {
+                    double roll = this.random.nextDouble() * totalRewardWeight;
+                    double cumulative = 0.0;
+                    CrateReward chosenReward = validRewards.get(validRewards.size() - 1);
+                    for (CrateReward cr : validRewards) {
+                        cumulative += cr.weight;
+                        if (roll <= cumulative) {
+                            chosenReward = cr;
+                            break;
+                        }
+                    }
+
+                    if (!chosenReward.command.isEmpty()) {
+                        String parsedCmd = chosenReward.command.replace("{player}", player.getName());
+                        Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), parsedCmd);
                     }
                     try {
-                        Sound sound = Sound.valueOf((String)soundStr.toUpperCase().replace(".", "_"));
+                        Sound sound = Sound.valueOf(chosenReward.sound.toUpperCase().replace(".", "_"));
                         player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
-                    }
-                    catch (IllegalArgumentException sound) {
-                    }
+                    } catch (IllegalArgumentException ignored) {}
+
                     String prefix = this.config.getString("prefix", "&8[&b&lFishing&8] &r");
-                    if (rarity.equalsIgnoreCase("rare") || rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("mythical")) {
-                        TextUtil.sendTitle(player, "&d&l✦ Legendary Catch ✦", name + "&7!", 10, 100, 20);
-                        Bukkit.broadcast((Component)TextUtil.colorize(prefix + "&f" + player.getName() + " &7just reeled in " + name + "&7! &8(&b" + rarity + "&8)"));
+                    if (chosenReward.rarity.equalsIgnoreCase("legendary") || chosenReward.rarity.equalsIgnoreCase("mythical")) {
+                        TextUtil.sendTitle(player, "&d&l✦ Legendary Treasure ✦", chosenReward.name + "&7!", 10, 100, 20);
+                        Bukkit.broadcast((Component)TextUtil.colorize(prefix + "&f" + player.getName() + " &7reeled in a " + chosenReward.name + "&7 from the deep! &8(&d" + chosenReward.rarity + "&8)"));
+                    } else if (chosenReward.rarity.equalsIgnoreCase("epic")) {
+                        TextUtil.sendTitle(player, "&5&l✦ Epic Treasure ✦", chosenReward.name + "&7!", 10, 80, 20);
                     } else {
-                        TextUtil.sendTitle(player, "&a&l✦ Reward Found ✦", name + "&7!", 10, 80, 20);
+                        TextUtil.sendTitle(player, "&a&l✦ Reward Found ✦", chosenReward.name + "&7!", 10, 80, 20);
                     }
                     if (event.getCaught() != null) {
                         event.getCaught().remove();
                     }
                     return;
                 }
-                catch (NumberFormatException chance) {
-                }
             }
 
-            // 5. Fallback for ConfigurationSection format (e.g. rewards.treasure / rewards.junk)
-            if (this.config.isConfigurationSection("rewards")) {
-                org.bukkit.configuration.ConfigurationSection rewSec = this.config.getConfigurationSection("rewards");
-                if (rewSec != null) {
-                    if (rewSec.isConfigurationSection("junk") && !inPond) {
-                        double junkChance = rewSec.getDouble("junk.chance", 0.15);
-                        if (junkChance <= 1.0) junkChance *= 100.0;
-                        if (this.random.nextDouble() * 100.0 <= junkChance) {
-                            List<Map<?, ?>> items = rewSec.getMapList("junk.items");
-                            String junkName = "Old Boot";
-                            if (items != null && !items.isEmpty()) {
-                                Map<?, ?> chosen = items.get(this.random.nextInt(items.size()));
-                                String matName = chosen.get("material") != null ? chosen.get("material").toString() : "LEATHER_BOOTS";
-                                int amt = chosen.get("amount") instanceof Number ? ((Number)chosen.get("amount")).intValue() : 1;
-                                Material m = Material.matchMaterial(matName);
-                                if (m != null) {
-                                    player.getInventory().addItem(new ItemStack(m, amt));
-                                    junkName = m.name().replace("_", " ").toLowerCase();
-                                }
-                            }
-                            String catchMsg = this.config.getString("messages.junk-catch-message", "&7You caught {name}&7... not exactly treasure.");
-                            TextUtil.sendActionBar(player, catchMsg.replace("{name}", junkName));
-                            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.8f);
-                            if (event.getCaught() != null) {
-                                event.getCaught().remove();
-                            }
-                            return;
-                        }
-                    }
-                    if (rewSec.isConfigurationSection("treasure")) {
-                        double tChance = rewSec.getDouble("treasure.chance", 0.05);
-                        if (tChance <= 1.0) tChance *= 100.0;
-                        double actualChance = tChance * mult * (1.0 + (double)treasureLvl * 0.2 * tierMult) * eventRewardMult;
-                        if ((inPond || event.getHook() == null || this.isOpenWater(event.getHook().getLocation()))
-                                && this.random.nextDouble() * 100.0 <= actualChance) {
-                            List<Map<?, ?>> items = rewSec.getMapList("treasure.items");
-                            String itemName = "Treasure";
-                            if (items != null && !items.isEmpty()) {
-                                Map<?, ?> chosen = items.get(this.random.nextInt(items.size()));
-                                String matName = chosen.get("material") != null ? chosen.get("material").toString() : "DIAMOND";
-                                int amt = chosen.get("amount") instanceof Number ? ((Number)chosen.get("amount")).intValue() : 1;
-                                Material m = Material.matchMaterial(matName);
-                                if (m != null) {
-                                    player.getInventory().addItem(new ItemStack(m, amt));
-                                    itemName = amt + "x " + m.name().replace("_", " ").toLowerCase();
-                                }
-                            }
-                            TextUtil.sendTitle(player, "&a&l✦ Reward Found ✦", itemName + "&7!", 10, 80, 20);
-                            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
-                            if (event.getCaught() != null) {
-                                event.getCaught().remove();
-                            }
-                            return;
-                        }
-                    }
+            // 5. Junk Roll (Old Boot) - only in open water/wild, never in pond, suppressed to 0 with good rods
+            double junkChance = 0.0;
+            if (!inPond) {
+                double baseJunkChance = this.config.getDouble("junk.base-chance", 4.0);
+                double junkReduction = ((double)luck * 1.5) + ((double)treasureLvl * 1.5) + ((tierMult - 1.0) * 5.0);
+                junkChance = Math.max(0.0, baseJunkChance - junkReduction);
+            }
+
+            if (junkChance > 0.0 && this.random.nextDouble() * 100.0 <= junkChance) {
+                ItemStack junkItem = new ItemStack(Material.LEATHER, 1);
+                ItemMeta meta = junkItem.getItemMeta();
+                if (meta != null) {
+                    meta.displayName(TextUtil.colorize("&8Old Boot"));
+                    meta.lore(Arrays.asList(
+                        TextUtil.colorize("&7A waterlogged, muddy boot dredged from the deep."),
+                        TextUtil.colorize("&8[Junk Item - Sell to Fishmonger]"),
+                        TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(5.0))
+                    ));
+                    meta.getPersistentDataContainer().set(this.speciesKey, PersistentDataType.STRING, "old_boot");
+                    meta.getPersistentDataContainer().set(this.weightKey, PersistentDataType.DOUBLE, 1.0);
+                    meta.getPersistentDataContainer().set(this.priceKey, PersistentDataType.DOUBLE, 5.0);
+                    junkItem.setItemMeta(meta);
                 }
+                player.getInventory().addItem(junkItem);
+                String catchMsg = this.config.getString("messages.junk-catch-message", "&7You caught an &8Old Boot&7... not exactly treasure.");
+                TextUtil.sendActionBar(player, catchMsg.replace("{name}", "Old Boot"));
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.8f);
+                if (event.getCaught() != null) {
+                    event.getCaught().remove();
+                }
+                return;
             }
 
             // 6. Roll and Generate Custom Fish Species
@@ -2449,6 +2454,22 @@ TabCompleter {
             this.level = l;
             this.xp = x;
             this.totalCatches = c;
+        }
+    }
+
+    public static class CrateReward {
+        public final double weight;
+        public final String rarity;
+        public final String name;
+        public final String sound;
+        public final String command;
+
+        public CrateReward(double weight, String rarity, String name, String sound, String command) {
+            this.weight = weight;
+            this.rarity = rarity;
+            this.name = name;
+            this.sound = sound;
+            this.command = command;
         }
     }
 }
