@@ -14,7 +14,7 @@ config-version: 2
 # ==========================================
 # The prefix shown before all fishing chat messages.
 prefix: '&8[&b&lFishing&8] &r'
-max-fish-price: 50000.0
+max-fish-price: -1.0
 
 # ═══════════════════════════════════════════════════
 # STREAK & FATIGUE

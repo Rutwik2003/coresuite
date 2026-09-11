@@ -1,5 +1,5 @@
 prefix: '&8[&b&lFishing&8] &r'
-max-fish-price: 50000.0
+max-fish-price: -1.0
 streak-timeout: 45
 streak:
   multiplier-cap: 5.0

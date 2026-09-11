@@ -259,8 +259,8 @@ TabCompleter {
             this.config.set("pond-event.leave-message", "&7✦ You moved away from the Legendary Fishing Pond.");
             configChanged = true;
         }
-        if (!this.config.contains("max-fish-price")) {
-            this.config.set("max-fish-price", 50000.0);
+        if (!this.config.contains("max-fish-price") || this.config.getDouble("max-fish-price") == 50000.0) {
+            this.config.set("max-fish-price", -1.0);
             configChanged = true;
         }
         List<String> cthulhuBiomes = this.config.getStringList("species.the_fish_of_cthulu.biomes");
@@ -275,7 +275,7 @@ TabCompleter {
 
     public double getFishValue(double weight, double pricePerKg) {
         double total = weight * pricePerKg;
-        double maxPrice = this.config.getDouble("max-fish-price", 50000.0);
+        double maxPrice = this.config.getDouble("max-fish-price", -1.0);
         if (maxPrice > 0.0 && total > maxPrice) {
             return maxPrice;
         }
