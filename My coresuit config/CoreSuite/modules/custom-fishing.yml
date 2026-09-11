@@ -195,7 +195,7 @@ pond-event:
   radius: 5.0
   reward-multiplier: 2.0
   weight-multiplier: 2.0
-  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for\nbonus rewards!'
+  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!'
   leave-message: '&7✦ You left the Legendary Fishing Pond area.'
 
 # ═══════════════════════════════════════════════════

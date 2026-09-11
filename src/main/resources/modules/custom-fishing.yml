@@ -23,11 +23,8 @@ pond-event:
   radius: 5.0
   reward-multiplier: 2.0
   weight-multiplier: 1.25
-  enter-message: '&aâœ¦ You entered the Legendary Fishing Pond! Cast your rod here
-    for
-
-    bonus rewards!'
-  leave-message: '&7âœ¦ You left the Legendary Fishing Pond area.'
+  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!'
+  leave-message: '&7✦ You left the Legendary Fishing Pond area.'
 enchants:
   lure_of_the_deep:
     name: '&bLure of the Deep'

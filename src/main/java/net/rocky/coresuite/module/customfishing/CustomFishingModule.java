@@ -611,7 +611,7 @@ TabCompleter {
             lore.add(TextUtil.colorize("&7Weight: &b" + weight + " kg"));
             double val = Math.min(50000.0, weight * pricePerKg);
             if (pricePerKg > 0.0) {
-                lore.add(TextUtil.colorize("&7Value: &a$" + String.format("%.2f", val)));
+                lore.add(TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(val)));
             }
             meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
             if (itemModel != null && !itemModel.isEmpty()) {
@@ -1238,7 +1238,7 @@ TabCompleter {
                     }
                     double bal = this.plugin.getEconomyManager().getBalance((OfflinePlayer)player);
                     if (bal < cost) {
-                        TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money. Cost: &a$" + String.format("%.2f", cost));
+                        TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money. Cost: &a" + this.plugin.getEconomyManager().format(cost));
                         return true;
                     }
                     this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
@@ -1247,7 +1247,7 @@ TabCompleter {
                     }
                     bData.bagPages = nextPage;
                     this.playerData.put(player.getUniqueId(), bData);
-                    TextUtil.sendMessage((CommandSender)player, "&aSuccessfully purchased Fish Bag Page " + nextPage + " for $" + String.format("%.2f", cost) + "!");
+                    TextUtil.sendMessage((CommandSender)player, "&aSuccessfully purchased Fish Bag Page " + nextPage + " for &e" + this.plugin.getEconomyManager().format(cost) + "!");
                     player.closeInventory();
                     return true;
                 }
@@ -1740,7 +1740,7 @@ TabCompleter {
         double total = this.sellFishSilent(player, fish);
         if (total > 0.0) {
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
-            player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7Sold fish for &a$" + String.format("%.2f", total) + "&7!"));
+            player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7Sold fish for &a" + this.plugin.getEconomyManager().format(total) + "&7!"));
         }
     }
 
@@ -1777,7 +1777,7 @@ TabCompleter {
                 }
                 lore.add(TextUtil.colorize("&7Weight: &b" + weight + " kg"));
                 if (confPrice > 0.0) {
-                    lore.add(TextUtil.colorize("&7Value: &a$" + String.format("%.2f", weight * confPrice)));
+                    lore.add(TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(weight * confPrice)));
                 }
                 meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
                 fish.setItemMeta(meta);
@@ -1832,14 +1832,14 @@ TabCompleter {
             double price = (Double)meta.getPersistentDataContainer().getOrDefault(this.priceKey, PersistentDataType.DOUBLE, 0.0);
             totalValue += weight * price * (double)fish.getAmount();
         }
-        gui.setItem(49, GuiButton.of(Material.EMERALD, "&a&lSell All", Arrays.asList("&7Click to sell all fish in your inventory.", "&7Total Value: &a$" + String.format("%.2f", totalValue)), e -> {
+        gui.setItem(49, GuiButton.of(Material.EMERALD, "&a&lSell All", Arrays.asList("&7Click to sell all fish in your inventory.", "&7Total Value: &a" + this.plugin.getEconomyManager().format(totalValue)), e -> {
             double total = 0.0;
             for (ItemStack fish : fishItems) {
                 total += this.sellFishSilent(player, fish);
             }
             if (total > 0.0) {
                 player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
-                player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7Sold all fish for &a$" + String.format("%.2f", total) + "&7!"));
+                player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7Sold all fish for &a" + this.plugin.getEconomyManager().format(total) + "&7!"));
             }
             this.fishBagManager.compactBag(player.getUniqueId());
             this.openSellGUI(player, page);

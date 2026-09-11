@@ -446,7 +446,7 @@ implements Listener {
                                 
                             }
                             this.plugin.getEconomyManager().deposit((OfflinePlayer)player, totalValue);
-                            TextUtil.sendMessage((CommandSender)player, "&aSold 1x " + coloredName + " &ato the Angler for &d$" + String.format("%.2f", totalValue) + "&a!");
+                            TextUtil.sendMessage((CommandSender)player, "&aSold 1x " + coloredName + " &ato the Angler for &d" + this.plugin.getEconomyManager().format(totalValue) + "&a!");
                             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
                             sold = true;
                             break;

@@ -806,8 +806,8 @@ implements Listener {
         TextUtil.sendMessage((CommandSender)player, "&e[Ancient Angler]&f " + riddlePrompt);
         TextUtil.sendMessage((CommandSender)player, "");
         this.sendClickableOption(player, "&a&l[\u2726 Offer the Catch]", "&7Click to present your fish to the Angler", "1");
-        this.sendClickableOption(player, "&e&l[\u2727 I Cannot Decipher]", "&7Click to admit confusion (no penalty)", "2");
-        this.sendClickableOption(player, "&c&l[\u2717 Sacrifice for Answer]", "&7Click to pay $25,000 + a rare fish for a direct hint", "3");
+        double sacCost = this.module.getConfig().getDouble("legendary-quest.sacrifice-cost", 25000.0);
+        this.sendClickableOption(player, "&c&l[\u2717 Sacrifice for Answer]", "&7Click to pay " + this.plugin.getEconomyManager().format(sacCost) + " + a rare fish for a direct hint", "3");
         TextUtil.sendMessage((CommandSender)player, "");
         TextUtil.sendMessage((CommandSender)player, "&8&oClick an option above or type 1, 2, or 3 in chat.");
         TextUtil.sendMessage((CommandSender)player, "&8&oType 'cancel' to walk away. Expires in 2 minutes.");
@@ -1250,7 +1250,7 @@ implements Listener {
         }
         this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, penalty);
         player.playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
-        TextUtil.sendMessage((CommandSender)player, "&c[System] You lied to the Angler. $" + String.format("%,.0f", penalty) + " deducted. (Fail #" + fails + ")");
+        TextUtil.sendMessage((CommandSender)player, "&c[System] You lied to the Angler. " + this.plugin.getEconomyManager().format(penalty) + " deducted. (Fail #" + fails + ")");
         TextUtil.sendMessage((CommandSender)player, "&e[Ancient Angler]&f " + failMessage);
         this.setChatState(player.getUniqueId(), state);
     }
@@ -1261,7 +1261,7 @@ implements Listener {
         double cost = this.module.getConfig().getDouble("legendary-quest.sacrifice-cost", 25000.0);
         boolean allowDebt = this.module.getConfig().getBoolean("legendary-quest.fail-penalty-allow-debt", true);
         if (!allowDebt && !this.plugin.getEconomyManager().has((OfflinePlayer)player, cost)) {
-            TextUtil.sendMessage((CommandSender)player, "&c[System] You need $" + String.format("%,.0f", cost) + " for a hint.");
+            TextUtil.sendMessage((CommandSender)player, "&c[System] You need " + this.plugin.getEconomyManager().format(cost) + " for a hint.");
             return false;
         }
         boolean found = false;
@@ -1340,7 +1340,7 @@ implements Listener {
         }
         if (found) {
             this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
-            TextUtil.sendMessage((CommandSender)player, "&a[System] Paid $" + String.format("%,.0f", cost) + " and 1x " + deductedFishName + " for a hint.");
+            TextUtil.sendMessage((CommandSender)player, "&a[System] Paid " + this.plugin.getEconomyManager().format(cost) + " and 1x " + deductedFishName + " for a hint.");
             return true;
         }
         double seizure = this.module.getConfig().getDouble("legendary-quest.sacrifice-no-fish-seizure", 50000.0);
@@ -1348,19 +1348,19 @@ implements Listener {
         if (rouletteRoll == 0) {
             this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 3600, 1));
-            TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! Paid $" + String.format("%,.0f", cost) + " and cursed with Slowness (3m) for the hint.");
+            TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! Paid " + this.plugin.getEconomyManager().format(cost) + " and cursed with Slowness (3m) for the hint.");
             player.playSound(player.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.0f);
             return true;
         }
         if (rouletteRoll == 1) {
             this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
             player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 3600, 1));
-            TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! Paid $" + String.format("%,.0f", cost) + " and cursed with Fatigue (3m) for the hint.");
+            TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! Paid " + this.plugin.getEconomyManager().format(cost) + " and cursed with Fatigue (3m) for the hint.");
             player.playSound(player.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.0f, 1.0f);
             return true;
         }
         this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, seizure);
-        TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! The Angler seized $" + String.format("%,.0f", seizure) + " instead for the hint.");
+        TextUtil.sendMessage((CommandSender)player, "&c[System] Lacked fish tribute! The Angler seized " + this.plugin.getEconomyManager().format(seizure) + " instead for the hint.");
         player.playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 1.0f);
         return true;
     }
@@ -1495,7 +1495,7 @@ implements Listener {
                         TextUtil.sendMessage((CommandSender)player, "&cThe Angler violently seized your " + bestFish + "!");
                     } else {
                         LegendaryQuestManager.this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, 50000.0);
-                        TextUtil.sendMessage((CommandSender)player, "&cThe Angler seized $50,000 from you!");
+                        TextUtil.sendMessage((CommandSender)player, "&cThe Angler seized " + LegendaryQuestManager.this.plugin.getEconomyManager().format(50000.0) + " from you!");
                     }
                     LegendaryQuestManager.this.finishQuest(player);
                     this.cancel();
@@ -1530,7 +1530,7 @@ implements Listener {
                     player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 600, 2));
                     player.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 2400, 2));
                     player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 1200, 1));
-                    TextUtil.sendMessage((CommandSender)player, "&cThe Angler stole " + stolen + " fish and $50,000 from you!");
+                    TextUtil.sendMessage((CommandSender)player, "&cThe Angler stole " + stolen + " fish and " + LegendaryQuestManager.this.plugin.getEconomyManager().format(50000.0) + " from you!");
                     LegendaryQuestManager.this.finishQuest(player);
                     this.cancel();
                 }
@@ -1683,7 +1683,7 @@ implements Listener {
                     }
                     if (stolen == 0) {
                         LegendaryQuestManager.this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, 25000.0);
-                        TextUtil.sendMessage((CommandSender)player, "&cThe Angler stole $25,000 from you!");
+                        TextUtil.sendMessage((CommandSender)player, "&cThe Angler stole " + LegendaryQuestManager.this.plugin.getEconomyManager().format(25000.0) + " from you!");
                     } else {
                         TextUtil.sendMessage((CommandSender)player, "&cThe Angler violently stole " + stolen + " fish from you!");
                     }

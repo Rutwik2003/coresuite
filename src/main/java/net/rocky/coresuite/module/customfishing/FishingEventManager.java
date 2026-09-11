@@ -272,28 +272,40 @@ public class FishingEventManager {
                     this.cancel();
                     return;
                 }
-                double checkRadius = config.getDouble("pond-event.radius", 5.0);
-                double radSq = checkRadius * checkRadius;
+                double pondRadius = config.getDouble("pond-event.radius", 5.0);
+                double enterRadius = pondRadius + 3.0;
+                double leaveRadius = enterRadius + 2.5;
+                double enterRadSq = enterRadius * enterRadius;
+                double leaveRadSq = leaveRadius * leaveRadius;
                 String pondPrefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-                String enterMsg = config.getString("pond-event.enter-message", "&a\u2726 You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!");
-                String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.");
+                String enterMsg = config.getString("pond-event.enter-message", "&a\u2726 You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!")
+                        .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
+                String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.")
+                        .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (!p.getWorld().getName().equals(FishingEventManager.this.activePond.getWorld().getName())) {
-                        if (!FishingEventManager.this.playersInPond.remove(p.getUniqueId())) continue;
-                        TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
+                        if (FishingEventManager.this.playersInPond.remove(p.getUniqueId())) {
+                            TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
+                        }
                         continue;
                     }
                     double dx = p.getLocation().getX() - FishingEventManager.this.activePond.getX();
                     double dz = p.getLocation().getZ() - FishingEventManager.this.activePond.getZ();
                     double dy = Math.abs(p.getLocation().getY() - FishingEventManager.this.activePond.getY());
-                    if (dx * dx + dz * dz <= radSq && dy <= 10.0) {
-                        if (!FishingEventManager.this.playersInPond.add(p.getUniqueId())) continue;
-                        TextUtil.sendMessage((CommandSender)p, pondPrefix + enterMsg);
-                        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
-                        continue;
+                    double distSq = dx * dx + dz * dz;
+
+                    if (FishingEventManager.this.playersInPond.contains(p.getUniqueId())) {
+                        if (distSq > leaveRadSq || dy > 10.0) {
+                            FishingEventManager.this.playersInPond.remove(p.getUniqueId());
+                            TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
+                        }
+                    } else {
+                        if (distSq <= enterRadSq && dy <= 10.0) {
+                            FishingEventManager.this.playersInPond.add(p.getUniqueId());
+                            TextUtil.sendMessage((CommandSender)p, pondPrefix + enterMsg);
+                            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
+                        }
                     }
-                    if (!FishingEventManager.this.playersInPond.remove(p.getUniqueId())) continue;
-                    TextUtil.sendMessage((CommandSender)p, pondPrefix + leaveMsg);
                 }
             }
         }.runTaskTimer((Plugin)this.plugin, 0L, 20L);
@@ -305,7 +317,8 @@ public class FishingEventManager {
         }
         FileConfiguration config = this.module.getConfig();
         String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-        String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.");
+        String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.")
+                .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
         for (UUID uuid : this.playersInPond) {
             Player p = Bukkit.getPlayer((UUID)uuid);
             if (p == null) continue;
