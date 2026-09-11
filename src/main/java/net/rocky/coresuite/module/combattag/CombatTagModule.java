@@ -146,12 +146,40 @@ public class CombatTagModule extends Module implements Listener {
         if (combatTimers.containsKey(player.getUniqueId())) {
             long remainingMillis = combatTimers.get(player.getUniqueId()) - System.currentTimeMillis();
             if (remainingMillis > 0) {
-                String cmd = event.getMessage().split(" ")[0].toLowerCase();
-                java.util.List<String> blocked = config.getStringList("blocked-commands");
-                if (blocked.isEmpty()) {
-                    blocked = java.util.Arrays.asList("/home", "/tpa", "/spawn", "/warp", "/hub");
+                String rawMsg = event.getMessage().trim();
+                String rawCmd = rawMsg.split(" ")[0].toLowerCase();
+                while (rawCmd.startsWith("/")) {
+                    rawCmd = rawCmd.substring(1);
                 }
-                if (blocked.contains(cmd)) {
+                if (rawCmd.contains(":")) {
+                    rawCmd = rawCmd.substring(rawCmd.indexOf(':') + 1);
+                }
+                
+                java.util.List<String> blocked = config.getStringList("blocked-commands");
+                if (blocked == null || blocked.isEmpty()) {
+                    blocked = java.util.Arrays.asList(
+                        "home", "tpa", "spawn", "warp", "warps", "hub", "lobby", 
+                        "back", "wild", "rtp", "is", "island", "clan", "f", "town",
+                        "etpa", "etpaccept", "ehome", "espawn", "ewarp", "eback", "pv", "vault"
+                    );
+                }
+                
+                boolean isBlocked = false;
+                for (String b : blocked) {
+                    String cleanB = b.trim().toLowerCase();
+                    while (cleanB.startsWith("/")) {
+                        cleanB = cleanB.substring(1);
+                    }
+                    if (cleanB.contains(":")) {
+                        cleanB = cleanB.substring(cleanB.indexOf(':') + 1);
+                    }
+                    if (rawCmd.equalsIgnoreCase(cleanB)) {
+                        isBlocked = true;
+                        break;
+                    }
+                }
+                
+                if (isBlocked) {
                     int secs = (int) Math.ceil(remainingMillis / 1000.0);
                     event.setCancelled(true);
                     String msg = config.getString("messages.command-blocked", "&cYou cannot use commands while in combat! &7({time}s remaining)");
@@ -171,6 +199,7 @@ public class CombatTagModule extends Module implements Listener {
                 String prefix = config.getString("prefix", "&8[&c&lCombat&8] &r");
                 String broadcastMsg = config.getString("messages.combat-log-broadcast", "&c&l☠ &c{player} &flogged out while fighting &c{opponent}&f!");
                 
+                Player killer = opp != null ? Bukkit.getPlayerExact(opp) : null;
                 if (opp != null) {
                     broadcastMsg = broadcastMsg.replace("{player}", player.getName()).replace("{opponent}", opp);
                 } else {
@@ -180,7 +209,12 @@ public class CombatTagModule extends Module implements Listener {
                     .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(net.kyori.adventure.text.Component.text("Click to view stats")))
                     .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/stats " + player.getName()));
                 Bukkit.broadcast(comp);
-                player.setHealth(0); // kill them
+
+                if (killer != null && killer.isOnline() && killer.isValid()) {
+                    player.damage(player.getHealth() + 100.0, killer);
+                } else {
+                    player.setHealth(0); // kill them
+                }
             }
             clearCombat(player);
         }

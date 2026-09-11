@@ -19,6 +19,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -238,6 +240,16 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        updateActivity(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        updateActivity(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
         updateActivity(event.getPlayer());
     }
 

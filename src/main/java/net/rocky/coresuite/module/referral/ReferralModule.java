@@ -414,15 +414,40 @@ public class ReferralModule extends Module implements CommandExecutor, Listener,
                     }
 
                     String myIp = player.getAddress() != null ? player.getAddress().getAddress().getHostAddress() : "";
-                    if (ownerIp != null && !ownerIp.isEmpty() && ownerIp.equals(myIp)) {
-                        String flag = "ALT SUSPECTED: " + player.getName() + " and " + ownerName + " share IP " + myIp;
+                    boolean sameSubnet = false;
+                    if (ownerIp != null && !ownerIp.isEmpty() && !myIp.isEmpty()) {
+                        if (ownerIp.equals(myIp)) {
+                            sameSubnet = true;
+                        } else {
+                            int lastDotOwner = ownerIp.lastIndexOf('.');
+                            int lastDotMy = myIp.lastIndexOf('.');
+                            if (lastDotOwner != -1 && lastDotMy != -1 && 
+                                ownerIp.substring(0, lastDotOwner).equals(myIp.substring(0, lastDotMy))) {
+                                sameSubnet = true;
+                            }
+                        }
+                    }
+
+                    int ipReferralCount = 0;
+                    if (!myIp.isEmpty()) {
+                        try (PreparedStatement stmt = conn.prepareStatement("SELECT COUNT(*) FROM coresuite_referrals WHERE ip = ? AND referred_by = ?")) {
+                            stmt.setString(1, myIp);
+                            stmt.setString(2, ownerName);
+                            try (ResultSet rs = stmt.executeQuery()) {
+                                if (rs.next()) ipReferralCount = rs.getInt(1);
+                            }
+                        }
+                    }
+
+                    if (sameSubnet || ipReferralCount > 0) {
+                        String flag = "ALT SUSPECTED: " + player.getName() + " and " + ownerName + " share network " + myIp;
                         plugin.getDatabaseManager().execute("INSERT INTO coresuite_referral_flags (message) VALUES (?)", flag);
                         final String finalOwnerName = ownerName;
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             TextUtil.sendMessage(player, prefix + "&cThis referral could not be completed. Contact staff if this is a mistake.");
                             for (Player p : Bukkit.getOnlinePlayers()) {
                                 if (p.hasPermission("coresuite.referral.admin")) {
-                                    TextUtil.sendMessage(p, prefix + "&c[Alert] Blocked referral: " + player.getName() + " -> " + finalOwnerName + " (same IP)");
+                                    TextUtil.sendMessage(p, prefix + "&c[Alert] Blocked referral: " + player.getName() + " -> " + finalOwnerName + " (alt account detected)");
                                 }
                             }
                         });

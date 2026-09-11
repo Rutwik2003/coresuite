@@ -186,10 +186,6 @@ commands:
     description: Manage creator features
     usage: /<command> [grant|code|redeem]
     permission: coresuite.creator.use
-  treasurehunt:
-    description: Treasure hunt admin/player command
-    usage: /<command> [give|verify|setlocation|resetclaim]
-    permission: coresuite.treasurehunt.use
   link:
     description: Link your Minecraft account to Discord
     usage: /<command>
@@ -323,12 +319,6 @@ permissions:
   coresuite.gambling.use:
     description: Access to gambling module
     default: true
-  coresuite.treasurehunt.use:
-    description: Use treasure hunt verify command
-    default: true
-  coresuite.treasurehunt.admin:
-    description: Admin treasure hunt commands
-    default: op
   coresuite.creator.use:
     description: Use creator redeem and code commands
     default: true

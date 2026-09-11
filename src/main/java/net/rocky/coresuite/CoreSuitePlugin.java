@@ -184,7 +184,6 @@ public final class CoreSuitePlugin extends JavaPlugin {
         moduleManager.registerModule(new net.rocky.coresuite.module.gambling.GamblingModule(this));
 
         // Phase 10 — Website Integration & System
-        moduleManager.registerModule(new net.rocky.coresuite.module.treasurehunt.TreasureHuntModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.website.WebsiteModule(this));
         
         // Phase 11 — Creator

@@ -76,8 +76,14 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
                 "player_name TEXT, " +
                 "code TEXT, " +
                 "time INTEGER, " +
+                "ip TEXT, " +
                 "PRIMARY KEY(uuid, code))";
         plugin.getDatabaseManager().execute(sql);
+        try {
+            plugin.getDatabaseManager().execute("ALTER TABLE coresuite_reward_codes ADD COLUMN ip TEXT");
+        } catch (Exception ignored) {
+            // Column already exists
+        }
     }
 
     private boolean hasRedeemed(OfflinePlayer player, String code) {
@@ -94,9 +100,24 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
         }
     }
 
-    private void markRedeemed(OfflinePlayer player, String code) {
-        String sql = "INSERT OR IGNORE INTO coresuite_reward_codes (uuid, player_name, code, time) VALUES (?, ?, ?, ?)";
-        plugin.getDatabaseManager().execute(sql, player.getUniqueId().toString(), player.getName(), code.toLowerCase(), System.currentTimeMillis());
+    private boolean hasIpRedeemed(String ip, String code) {
+        if (ip == null || ip.isEmpty()) return false;
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT 1 FROM coresuite_reward_codes WHERE ip = ? AND code = ?")) {
+            stmt.setString(1, ip);
+            stmt.setString(2, code.toLowerCase());
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to check reward IP status", e);
+            return false;
+        }
+    }
+
+    private void markRedeemed(OfflinePlayer player, String code, String ip) {
+        String sql = "INSERT OR REPLACE INTO coresuite_reward_codes (uuid, player_name, code, time, ip) VALUES (?, ?, ?, ?, ?)";
+        plugin.getDatabaseManager().execute(sql, player.getUniqueId().toString(), player.getName(), code.toLowerCase(), System.currentTimeMillis(), ip);
     }
 
     private void removeRedeemed(OfflinePlayer player, String code) {
@@ -135,6 +156,9 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
                 return true;
             }
 
+            String playerIp = player.getAddress() != null ? player.getAddress().getAddress().getHostAddress() : "";
+            boolean bypassIp = player.hasPermission("coresuite.reward.bypassip");
+
             plugin.getDatabaseManager().executeAsync(() -> {
                 if (hasRedeemed(player, expectedCode)) {
                     Bukkit.getScheduler().runTask(plugin, () -> 
@@ -142,7 +166,13 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
                     return;
                 }
 
-                markRedeemed(player, expectedCode);
+                if (!bypassIp && hasIpRedeemed(playerIp, expectedCode)) {
+                    Bukkit.getScheduler().runTask(plugin, () -> 
+                        TextUtil.sendMessage(player, "&cThis reward code has already been redeemed from your IP address!"));
+                    return;
+                }
+
+                markRedeemed(player, expectedCode, playerIp);
                 
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     giveReward(player);
