@@ -231,7 +231,7 @@ baits:
     duration-seconds: 300
     catch-chance-bonus: 0.55
     weight-bonus: 0.5
-    rarity-bias: epic
+    rarity-bias: mythical
 rewards:
   - '5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1'
   - '3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1'

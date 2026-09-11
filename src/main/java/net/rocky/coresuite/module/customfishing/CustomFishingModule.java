@@ -1052,28 +1052,57 @@ TabCompleter {
                     }
                 }
 
-                // Stage 1: Roll Rarity Tier with bounded diminishing gear multipliers
+                // Stage 1: Balanced MMO relative weights (Hypixel / OSRS style rarity distribution)
                 double mythicalWeight = 0.10;
-                double legendaryWeight = 1.40;
-                double epicWeight = 4.50;
-                double rareWeight = 12.00;
-                double uncommonWeight = 28.00;
+                double legendaryWeight = 1.20;
+                double epicWeight = 5.00;
+                double rareWeight = 16.00;
+                double uncommonWeight = 32.00;
+                double commonWeight = 55.00;
 
-                double gearBoost = ((double)luck * 0.05) + ((double)lureLvl * 0.06 * tierMult) + (streakBonus * 0.5) + (baitCatchBonus * 0.5);
+                double gearBoost = ((double)luck * 0.06)
+                        + ((double)lureLvl * 0.07 * tierMult)
+                        + (Math.sqrt(Math.max(0, (double)streak)) * 0.03)
+                        + (baitCatchBonus * 0.30);
 
                 if (activeBait != null && activeBait.rarityBias != null && !activeBait.rarityBias.isEmpty()) {
                     String bias = activeBait.rarityBias.toLowerCase();
-                    if (bias.equals("mythical")) mythicalWeight *= 1.5;
-                    else if (bias.equals("legendary")) legendaryWeight *= 1.5;
-                    else if (bias.equals("epic")) epicWeight *= 1.5;
-                    else if (bias.equals("rare")) rareWeight *= 1.5;
+                    if (bias.equals("mythical")) {
+                        mythicalWeight *= 1.8;
+                        legendaryWeight *= 1.4;
+                    } else if (bias.equals("legendary")) {
+                        legendaryWeight *= 1.8;
+                        epicWeight *= 1.3;
+                    } else if (bias.equals("epic")) {
+                        epicWeight *= 1.6;
+                        legendaryWeight *= 1.2;
+                    } else if (bias.equals("rare")) {
+                        rareWeight *= 1.5;
+                        epicWeight *= 1.2;
+                    }
                 }
 
-                mythicalWeight = Math.min(0.35, mythicalWeight * (1.0 + gearBoost));
-                legendaryWeight = Math.min(3.50, legendaryWeight * (1.0 + gearBoost));
-                epicWeight = Math.min(8.00, epicWeight * (1.0 + gearBoost));
-                rareWeight = Math.min(18.00, rareWeight * (1.0 + gearBoost * 0.5));
+                // Gear boost scaling with diminishing returns
+                mythicalWeight *= (1.0 + gearBoost * 1.2);
+                legendaryWeight *= (1.0 + gearBoost * 1.0);
+                epicWeight *= (1.0 + gearBoost * 0.8);
+                rareWeight *= (1.0 + gearBoost * 0.5);
 
+                // Common and uncommon gently compressed (never eliminated)
+                commonWeight /= (1.0 + gearBoost * 0.45);
+                uncommonWeight /= (1.0 + gearBoost * 0.15);
+
+                // Pond bonus: upper tiers boosted, common reduced by 35% (preserving ~25% common in pond)
+                if (inPond) {
+                    mythicalWeight *= 2.0;
+                    legendaryWeight *= 2.0;
+                    epicWeight *= 1.8;
+                    rareWeight *= 1.5;
+                    commonWeight *= 0.65;
+                    uncommonWeight *= 0.85;
+                }
+
+                // Fatigue degradation
                 if (data.fatigueScore >= 80.0) {
                     mythicalWeight = 0.0;
                     legendaryWeight = 0.0;
@@ -1085,7 +1114,9 @@ TabCompleter {
                     epicWeight *= Math.max(0.0, 0.3 + 0.7 * scale);
                 }
 
-                double roll = this.random.nextDouble() * 100.0;
+                // Dynamic normalized relative roll
+                double totalWeight = mythicalWeight + legendaryWeight + epicWeight + rareWeight + uncommonWeight + commonWeight;
+                double roll = this.random.nextDouble() * totalWeight;
                 String targetRarity;
                 double cumulative = 0.0;
                 if (roll < (cumulative += mythicalWeight)) {
