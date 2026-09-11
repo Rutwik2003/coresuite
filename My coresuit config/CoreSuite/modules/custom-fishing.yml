@@ -14,6 +14,7 @@ config-version: 2
 # ==========================================
 # The prefix shown before all fishing chat messages.
 prefix: '&8[&b&lFishing&8] &r'
+max-fish-price: 50000.0
 
 # ═══════════════════════════════════════════════════
 # STREAK & FATIGUE
@@ -195,8 +196,8 @@ pond-event:
   radius: 5.0
   reward-multiplier: 2.0
   weight-multiplier: 2.0
-  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!'
-  leave-message: '&7✦ You left the Legendary Fishing Pond area.'
+  enter-message: '&a✦ Legendary Fishing Pond Nearby! Cast your bobber into the glowing ring for bonus rewards!'
+  leave-message: '&7✦ You moved away from the Legendary Fishing Pond.'
 
 # ═══════════════════════════════════════════════════
 # BAG PAGES
@@ -5583,7 +5584,11 @@ species:
 
     item-model: barely_default:fish_the_fish_of_cthulu
 
-    biomes: []
+    biomes:
+    - OCEAN
+    - DEEP_OCEAN
+    - WARM_OCEAN
+    - DEEP_DARK
 
   the_great_hogfish:
 

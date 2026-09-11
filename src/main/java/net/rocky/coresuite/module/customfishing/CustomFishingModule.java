@@ -186,6 +186,7 @@ TabCompleter {
         this.priceKey = new NamespacedKey((Plugin)this.plugin, "fish_price");
         this.initDatabase();
         this.cleanupRemovedFish();
+        this.migratePondConfig();
         this.fishBagManager = new FishBagManager(this.plugin);
         this.eventManager = new FishingEventManager(this.plugin, this);
         this.leaderboardManager = new FishingLeaderboardManager(this.plugin, this);
@@ -244,6 +245,41 @@ TabCompleter {
                 this.plugin.getDatabaseManager().execute("DELETE FROM coresuite_fish_logbook WHERE species_id = ?", f);
             }
         });
+    }
+
+    private void migratePondConfig() {
+        boolean configChanged = false;
+        String enter = this.config.getString("pond-event.enter-message", "");
+        if (enter.contains("â") || enter.contains("\n") || enter.contains("You entered")) {
+            this.config.set("pond-event.enter-message", "&a✦ Legendary Fishing Pond Nearby! Cast your bobber into the glowing ring for bonus rewards!");
+            configChanged = true;
+        }
+        String leave = this.config.getString("pond-event.leave-message", "");
+        if (leave.contains("â") || leave.contains("\n") || leave.contains("You left")) {
+            this.config.set("pond-event.leave-message", "&7✦ You moved away from the Legendary Fishing Pond.");
+            configChanged = true;
+        }
+        if (!this.config.contains("max-fish-price")) {
+            this.config.set("max-fish-price", 50000.0);
+            configChanged = true;
+        }
+        List<String> cthulhuBiomes = this.config.getStringList("species.the_fish_of_cthulu.biomes");
+        if (cthulhuBiomes.isEmpty()) {
+            this.config.set("species.the_fish_of_cthulu.biomes", Arrays.asList("OCEAN", "DEEP_OCEAN", "WARM_OCEAN", "DEEP_DARK"));
+            configChanged = true;
+        }
+        if (configChanged) {
+            this.saveConfig();
+        }
+    }
+
+    public double getFishValue(double weight, double pricePerKg) {
+        double total = weight * pricePerKg;
+        double maxPrice = this.config.getDouble("max-fish-price", 50000.0);
+        if (maxPrice > 0.0 && total > maxPrice) {
+            return maxPrice;
+        }
+        return total;
     }
 
     @Override
@@ -609,7 +645,7 @@ TabCompleter {
             meta.displayName(TextUtil.colorize(name));
             ArrayList<Component> lore = new ArrayList<Component>();
             lore.add(TextUtil.colorize("&7Weight: &b" + weight + " kg"));
-            double val = Math.min(50000.0, weight * pricePerKg);
+            double val = this.getFishValue(weight, pricePerKg);
             if (pricePerKg > 0.0) {
                 lore.add(TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(val)));
             }
@@ -669,6 +705,29 @@ TabCompleter {
 
     @EventHandler(ignoreCancelled=true)
     public void onFish(PlayerFishEvent event) {
+        if (event.getState() == PlayerFishEvent.State.FISHING) {
+            if (this.eventManager != null && this.eventManager.getActivePond() != null) {
+                Player player = event.getPlayer();
+                Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
+                    if (event.getHook() != null && event.getHook().isValid() && player.isOnline()) {
+                        Location hookLoc = event.getHook().getLocation();
+                        Location pondLoc = this.eventManager.getActivePond();
+                        if (pondLoc != null && hookLoc.getWorld() != null && hookLoc.getWorld().getName().equals(pondLoc.getWorld().getName())) {
+                            double dx = hookLoc.getX() - pondLoc.getX();
+                            double dz = hookLoc.getZ() - pondLoc.getZ();
+                            double dy = Math.abs(hookLoc.getY() - pondLoc.getY());
+                            double radius = this.config.getDouble("pond-event.radius", 5.0);
+                            if (dx * dx + dz * dz <= radius * radius && dy <= 10.0) {
+                                this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
+                                TextUtil.sendActionBar(player, "&b✦ Bobber in Legendary Pond! &a(2x Catch & Weight Active)");
+                                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
+                            }
+                        }
+                    }
+                }, 15L);
+            }
+            return;
+        }
         if (event.getState() == PlayerFishEvent.State.CAUGHT_FISH) {
             double multCap;
             Player player = event.getPlayer();
@@ -865,8 +924,12 @@ TabCompleter {
                 Biome hookBiome = event.getHook() != null ? event.getHook().getLocation().getBlock().getBiome() : null;
 
                 Map<String, List<String>> biomeSpeciesByRarity = new HashMap<>();
+                Map<String, List<String>> globalSpeciesByRarity = new HashMap<>();
                 for (String key : this.config.getConfigurationSection("species").getKeys(false)) {
                     String spPath = "species." + key + ".";
+                    String r = this.config.getString(spPath + "rarity", "Common").toLowerCase();
+                    globalSpeciesByRarity.computeIfAbsent(r, k -> new ArrayList<>()).add(key);
+
                     List<String> biomes = this.config.getStringList(spPath + "biomes");
                     boolean matchesBiome = true;
                     if (!inPond && biomes != null && !biomes.isEmpty() && hookBiome != null) {
@@ -879,14 +942,6 @@ TabCompleter {
                         }
                     }
                     if (matchesBiome) {
-                        String r = this.config.getString(spPath + "rarity", "Common").toLowerCase();
-                        biomeSpeciesByRarity.computeIfAbsent(r, k -> new ArrayList<>()).add(key);
-                    }
-                }
-
-                if (biomeSpeciesByRarity.isEmpty()) {
-                    for (String key : this.config.getConfigurationSection("species").getKeys(false)) {
-                        String r = this.config.getString("species." + key + ".rarity", "Common").toLowerCase();
                         biomeSpeciesByRarity.computeIfAbsent(r, k -> new ArrayList<>()).add(key);
                     }
                 }
@@ -916,7 +971,12 @@ TabCompleter {
                 if (data.fatigueScore >= 80.0) {
                     mythicalWeight = 0.0;
                     legendaryWeight = 0.0;
-                    epicWeight *= 0.5;
+                    epicWeight = 0.0;
+                } else if (data.fatigueScore >= 50.0) {
+                    double scale = 1.0 - ((data.fatigueScore - 50.0) / 30.0);
+                    mythicalWeight *= Math.max(0.0, scale);
+                    legendaryWeight *= Math.max(0.0, scale);
+                    epicWeight *= Math.max(0.0, 0.3 + 0.7 * scale);
                 }
 
                 double roll = this.random.nextDouble() * 100.0;
@@ -936,8 +996,11 @@ TabCompleter {
                     targetRarity = "common";
                 }
 
-                // Stage 2: Pick species in target rarity, with graceful fallback ladder
+                // Stage 2: Pick species in target rarity, with graceful fallback ladder (downgrade only)
                 List<String> candidates = biomeSpeciesByRarity.get(targetRarity);
+                if (candidates == null || candidates.isEmpty()) {
+                    candidates = globalSpeciesByRarity.get(targetRarity);
+                }
                 if (candidates == null || candidates.isEmpty()) {
                     String[] fallbackHierarchy = new String[]{"mythical", "legendary", "epic", "rare", "uncommon", "common"};
                     int startIdx = 0;
@@ -948,20 +1011,19 @@ TabCompleter {
                         }
                     }
                     for (int i = startIdx + 1; i < fallbackHierarchy.length; i++) {
-                        candidates = biomeSpeciesByRarity.get(fallbackHierarchy[i]);
+                        String lowerRarity = fallbackHierarchy[i];
+                        candidates = biomeSpeciesByRarity.get(lowerRarity);
+                        if (candidates == null || candidates.isEmpty()) {
+                            candidates = globalSpeciesByRarity.get(lowerRarity);
+                        }
                         if (candidates != null && !candidates.isEmpty()) break;
                     }
-                    if (candidates == null || candidates.isEmpty()) {
-                        for (List<String> spList : biomeSpeciesByRarity.values()) {
-                            if (!spList.isEmpty()) {
-                                candidates = spList;
-                                break;
-                            }
-                        }
-                    }
-                    if (candidates == null || candidates.isEmpty()) {
-                        candidates = new ArrayList<>(this.config.getConfigurationSection("species").getKeys(false));
-                    }
+                }
+                if (candidates == null || candidates.isEmpty()) {
+                    candidates = globalSpeciesByRarity.get("common");
+                }
+                if (candidates == null || candidates.isEmpty()) {
+                    candidates = new ArrayList<>(this.config.getConfigurationSection("species").getKeys(false));
                 }
 
                 if (!candidates.isEmpty()) {
@@ -1069,7 +1131,10 @@ TabCompleter {
                         player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7You caught a &e" + name + " &8(&b" + weight + " kg&8)" + (String)fatigueMsg));
                         ++data.totalCatches;
 
-                        if (!inPond && data.fatigueScore > (double)thresholdCheck) {
+                        if (inPond) {
+                            this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
+                            TextUtil.sendActionBar(player, "&a✦ Legendary Pond Catch! &e(2x Weight & Rewards Applied)");
+                        } else if (data.fatigueScore > (double)thresholdCheck) {
                             this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
                             TextUtil.sendActionBar(player, "&cYou are too fatigued to gain XP! Rest or find a Legendary Pond.");
                         } else {
@@ -1278,7 +1343,7 @@ TabCompleter {
                         return true;
                     }
                     if (args.length < 2) {
-                        TextUtil.sendMessage((CommandSender)player, "&cUsage: /fish admin <setlevel|addxp|fatigue|clearlog|forcepond|give> [player] [args]");
+                        TextUtil.sendMessage((CommandSender)player, "&cUsage: /fish admin <setlevel|addxp|fatigue|setcatches|clearlog|forcepond|give> [player] [args]");
                         return true;
                     }
                     String sub = args[1].toLowerCase();
@@ -1429,15 +1494,23 @@ TabCompleter {
                     if (sub.equals("setlevel")) {
                         tData.level = amount;
                         this.playerData.put(tUuid, tData);
+                        this.saveDataAsync(tUuid);
                         TextUtil.sendMessage((CommandSender)player, "&aSet " + target.getName() + "'s fishing level to " + amount + ".");
                     } else if (sub.equals("addxp")) {
                         tData.xp += amount;
                         this.playerData.put(tUuid, tData);
+                        this.saveDataAsync(tUuid);
                         TextUtil.sendMessage((CommandSender)player, "&aAdded " + amount + " XP to " + target.getName() + ".");
                     } else if (sub.equals("fatigue")) {
                         tData.fatigueScore = Math.max(0.0, Math.min(100.0, (double)amount));
                         this.playerData.put(tUuid, tData);
+                        this.saveDataAsync(tUuid);
                         TextUtil.sendMessage((CommandSender)player, "&aSet " + target.getName() + "'s fatigue to " + amount + "%.");
+                    } else if (sub.equals("setcatches")) {
+                        tData.totalCatches = Math.max(0, amount);
+                        this.playerData.put(tUuid, tData);
+                        this.saveDataAsync(tUuid);
+                        TextUtil.sendMessage((CommandSender)player, "&aSet " + target.getName() + "'s total fish catches to " + tData.totalCatches + ".");
                     } else {
                         TextUtil.sendMessage((CommandSender)player, "&cUnknown admin action.");
                     }
@@ -1730,7 +1803,7 @@ TabCompleter {
         }
         double weight = (Double)meta.getPersistentDataContainer().getOrDefault(this.weightKey, PersistentDataType.DOUBLE, 0.0);
         double price = (Double)meta.getPersistentDataContainer().getOrDefault(this.priceKey, PersistentDataType.DOUBLE, 0.0);
-        double singleVal = Math.min(50000.0, weight * price);
+        double singleVal = this.getFishValue(weight, price);
         double total = singleVal * (double)fish.getAmount();
         this.plugin.getEconomyManager().deposit((OfflinePlayer)player, total);
         return total;
@@ -1777,7 +1850,8 @@ TabCompleter {
                 }
                 lore.add(TextUtil.colorize("&7Weight: &b" + weight + " kg"));
                 if (confPrice > 0.0) {
-                    lore.add(TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(weight * confPrice)));
+                    double val = this.getFishValue(weight, confPrice);
+                    lore.add(TextUtil.colorize("&7Value: &a" + this.plugin.getEconomyManager().format(val)));
                 }
                 meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
                 fish.setItemMeta(meta);
@@ -1830,7 +1904,7 @@ TabCompleter {
             if (meta == null) continue;
             double weight = (Double)meta.getPersistentDataContainer().getOrDefault(this.weightKey, PersistentDataType.DOUBLE, 0.0);
             double price = (Double)meta.getPersistentDataContainer().getOrDefault(this.priceKey, PersistentDataType.DOUBLE, 0.0);
-            totalValue += weight * price * (double)fish.getAmount();
+            totalValue += this.getFishValue(weight, price) * (double)fish.getAmount();
         }
         gui.setItem(49, GuiButton.of(Material.EMERALD, "&a&lSell All", Arrays.asList("&7Click to sell all fish in your inventory.", "&7Total Value: &a" + this.plugin.getEconomyManager().format(totalValue)), e -> {
             double total = 0.0;
@@ -2101,7 +2175,7 @@ TabCompleter {
             if (args.length > 1 && args[0].equalsIgnoreCase("admin") && (sender.hasPermission("coresuite.customfishing.admin") || sender.hasPermission("coresuite.admin"))) {
                 ArrayList<String> result = new ArrayList<String>();
                 if (args.length == 2) {
-                    StringUtil.copyPartialMatches((String)args[1], Arrays.asList("setlevel", "addxp", "clearlog", "forcepond", "give", "givebait", "legendary", "clearanglers", "spawnangler", "fatigue"), result);
+                    StringUtil.copyPartialMatches((String)args[1], Arrays.asList("setlevel", "addxp", "setcatches", "clearlog", "forcepond", "give", "givebait", "legendary", "clearanglers", "spawnangler", "fatigue"), result);
                 } else if (args.length == 3) {
                     if (args[1].equalsIgnoreCase("legendary")) {
                         StringUtil.copyPartialMatches((String)args[2], Arrays.asList("givemap"), result);
@@ -2124,6 +2198,8 @@ TabCompleter {
                         }
                     } else if (args[1].equalsIgnoreCase("fatigue")) {
                         StringUtil.copyPartialMatches((String)args[3], Arrays.asList("set", "reset"), result);
+                    } else if (args[1].equalsIgnoreCase("setcatches")) {
+                        StringUtil.copyPartialMatches((String)args[3], Arrays.asList("10", "50", "100", "250", "500", "1000"), result);
                     } else if (args[1].equalsIgnoreCase("legendary") && args[2].equalsIgnoreCase("givemap")) {
                         for (Player p : Bukkit.getOnlinePlayers()) {
                             if (!p.getName().toLowerCase().startsWith(args[3].toLowerCase())) continue;

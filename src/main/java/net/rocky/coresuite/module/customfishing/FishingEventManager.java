@@ -278,9 +278,11 @@ public class FishingEventManager {
                 double enterRadSq = enterRadius * enterRadius;
                 double leaveRadSq = leaveRadius * leaveRadius;
                 String pondPrefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-                String enterMsg = config.getString("pond-event.enter-message", "&a\u2726 You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!")
+                String enterMsg = config.getString("pond-event.enter-message", "&a\u2726 Legendary Fishing Pond Nearby! Cast your bobber into the glowing ring for bonus rewards!")
+                        .replace("âœ¦", "\u2726").replace("\u00e2\u0153\u00a6", "\u2726").replace("â", "").replace("œ", "").replace("¦", "")
                         .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
-                String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.")
+                String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You moved away from the Legendary Fishing Pond.")
+                        .replace("âœ¦", "\u2726").replace("\u00e2\u0153\u00a6", "\u2726").replace("â", "").replace("œ", "").replace("¦", "")
                         .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     if (!p.getWorld().getName().equals(FishingEventManager.this.activePond.getWorld().getName())) {
@@ -317,7 +319,8 @@ public class FishingEventManager {
         }
         FileConfiguration config = this.module.getConfig();
         String prefix = config.getString("prefix", "&8[&b&lFishing&8] &r");
-        String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You left the Legendary Fishing Pond area.")
+        String leaveMsg = config.getString("pond-event.leave-message", "&7\u2726 You moved away from the Legendary Fishing Pond.")
+                .replace("âœ¦", "\u2726").replace("\u00e2\u0153\u00a6", "\u2726").replace("â", "").replace("œ", "").replace("¦", "")
                 .replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
         for (UUID uuid : this.playersInPond) {
             Player p = Bukkit.getPlayer((UUID)uuid);

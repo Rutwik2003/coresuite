@@ -1,4 +1,5 @@
 prefix: '&8[&b&lFishing&8] &r'
+max-fish-price: 50000.0
 streak-timeout: 45
 streak:
   multiplier-cap: 5.0
@@ -23,8 +24,8 @@ pond-event:
   radius: 5.0
   reward-multiplier: 2.0
   weight-multiplier: 1.25
-  enter-message: '&a✦ You entered the Legendary Fishing Pond! Cast your rod here for bonus rewards!'
-  leave-message: '&7✦ You left the Legendary Fishing Pond area.'
+  enter-message: '&a✦ Legendary Fishing Pond Nearby! Cast your bobber into the glowing ring for bonus rewards!'
+  leave-message: '&7✦ You moved away from the Legendary Fishing Pond.'
 enchants:
   lure_of_the_deep:
     name: '&bLure of the Deep'
@@ -2925,7 +2926,11 @@ species:
     price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_the_fish_of_cthulu
-    biomes: []
+    biomes:
+    - OCEAN
+    - DEEP_OCEAN
+    - WARM_OCEAN
+    - DEEP_DARK
   the_great_hogfish:
     name: '&7The Great Hogfish'
     rarity: Common

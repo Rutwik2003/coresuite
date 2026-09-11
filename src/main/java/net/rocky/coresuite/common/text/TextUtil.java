@@ -48,6 +48,13 @@ public final class TextUtil {
     public static Component colorize(String text) {
         if (text == null || text.isEmpty()) return Component.empty();
         
+        // Clean any CP1252/UTF-8 decompiler artifacts
+        text = text.replace("âœ¦", "\u2726")
+                   .replace("\u00e2\u0153\u00a6", "\u2726")
+                   .replace("â", "")
+                   .replace("œ", "")
+                   .replace("¦", "");
+
         // Translate legacy hex format &#RRGGBB to <#RRGGBB>
         text = text.replaceAll("&#([0-9a-fA-F]{6})", "<#$1>");
         // Normalize <##RRGGBB> to <#RRGGBB>
@@ -101,6 +108,11 @@ public final class TextUtil {
      */
     public static String legacyColorize(String text) {
         if (text == null) return "";
+        text = text.replace("âœ¦", "\u2726")
+                   .replace("\u00e2\u0153\u00a6", "\u2726")
+                   .replace("â", "")
+                   .replace("œ", "")
+                   .replace("¦", "");
         return org.bukkit.ChatColor.translateAlternateColorCodes('&', text);
     }
 
