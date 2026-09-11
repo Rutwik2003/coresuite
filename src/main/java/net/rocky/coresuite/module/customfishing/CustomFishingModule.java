@@ -1533,7 +1533,7 @@ TabCompleter {
         if ((reqLevel = this.config.getInt("bag-pages." + (currentPages + 1) + ".level-required", -1)) == -1) {
             reqLevel = (currentPages + 1) * 5;
         }
-        gui.setItem(11, GuiButton.of(Material.LIME_DYE, "&a&lYes, Purchase", Arrays.asList("&7Cost: &a$" + String.format("%.2f", cost), "", "&7Click to purchase!"), e -> player.performCommand("fish buybag")));
+        gui.setItem(11, GuiButton.of(Material.LIME_DYE, "&a&lYes, Purchase", Arrays.asList("&7Cost: &a" + this.plugin.getEconomyManager().format(cost), "", "&7Click to purchase!"), e -> player.performCommand("fish buybag")));
         gui.setItem(15, GuiButton.of(Material.RED_DYE, "&c&lCancel", Arrays.asList("&7Nevermind."), e -> player.closeInventory()));
         gui.open(player);
     }
@@ -1558,8 +1558,6 @@ TabCompleter {
         int[] slots = new int[]{10, 12, 14, 16};
         FishingEnchantManager.CustomEnchant[] enchants = FishingEnchantManager.CustomEnchant.values();
         for (int i = 0; i < enchants.length && i < slots.length; ++i) {
-            String color;
-            int pCatches;
             FishingEnchantManager.CustomEnchant ce = enchants[i];
             int level = this.enchantManager.getEnchantLevel(rod, ce);
             String configBase = "enchants." + ce.getConfigKey() + ".";
@@ -1572,24 +1570,23 @@ TabCompleter {
             int reqCatches = (level + 1) * this.config.getInt(configBase + "catches-required", 0);
             FishData pData = this.playerData.get(player.getUniqueId());
             int pXp = player.getLevel();
-            pCatches = 0;
-            int n = pCatches;
+            int pCatches = pData != null ? pData.totalCatches : 0;
             if (level >= maxLevel) {
                 gui.setItem(slots[i], GuiButton.of(Material.ENCHANTED_BOOK, name, Arrays.asList("&7" + desc, "", "&c&lMAX LEVEL REACHED"), e -> TextUtil.sendMessage((CommandSender)player, "&cThat enchantment is already at max level.")));
                 continue;
             }
             double cost = basePrice * Math.pow(priceMult, level);
-            ArrayList<String> lore = new ArrayList<String>(Arrays.asList("&7" + desc, "", "&7Current Level: &b" + level, "&7Next Level: &b" + (level + 1), "&7Cost: &a$" + String.format("%.2f", cost)));
+            ArrayList<String> lore = new ArrayList<String>(Arrays.asList("&7" + desc, "", "&7Current Level: &b" + level, "&7Next Level: &b" + (level + 1), "&7Cost: &a" + this.plugin.getEconomyManager().format(cost)));
             boolean meetsReq = true;
             if (reqXp > 0) {
-                color = pXp >= reqXp ? "&a" : "&c";
+                String color = pXp >= reqXp ? "&a" : "&c";
                 lore.add(color + "Required XP Levels: " + reqXp + " &8(" + pXp + ")");
                 if (pXp < reqXp) {
                     meetsReq = false;
                 }
             }
             if (reqCatches > 0) {
-                color = pCatches >= reqCatches ? "&a" : "&c";
+                String color = pCatches >= reqCatches ? "&a" : "&c";
                 lore.add(color + "Required Catches: " + reqCatches + " &8(" + pCatches + ")");
                 if (pCatches < reqCatches) {
                     meetsReq = false;
@@ -1602,7 +1599,10 @@ TabCompleter {
                 lore.add("&cRequirements not met!");
             }
             gui.setItem(slots[i], GuiButton.of(Material.ENCHANTED_BOOK, name, lore, e -> {
-                if (pXp < reqXp || pCatches < reqCatches) {
+                FishData liveData = this.playerData.get(player.getUniqueId());
+                int liveCatches = liveData != null ? liveData.totalCatches : 0;
+                int liveXp = player.getLevel();
+                if (liveXp < reqXp || liveCatches < reqCatches) {
                     TextUtil.sendMessage((CommandSender)player, "&cYou do not meet the requirements to upgrade this.");
                     return;
                 }
@@ -1640,7 +1640,7 @@ TabCompleter {
                     tierLore.add(Component.empty());
                     tierLore.add(TextUtil.colorize("&7Enchant Power: &b" + String.format("%.0f", currentTier.getEnchantMultiplier() * 100.0) + "% &8\u2192 &a" + String.format("%.0f", nextTier.getEnchantMultiplier() * 100.0) + "%"));
                     tierLore.add(Component.empty());
-                    tierLore.add(TextUtil.colorize("&7Cost: &e$" + this.plugin.getEconomyManager().format(tierCost)));
+                    tierLore.add(TextUtil.colorize("&7Cost: &e" + this.plugin.getEconomyManager().format(tierCost)));
                     tierLore.add(TextUtil.colorize("&7Level Required: &b" + tierLevelReq));
                     tierLore.add(Component.empty());
                     boolean canAfford = this.plugin.getEconomyManager().has((OfflinePlayer)player, tierCost);

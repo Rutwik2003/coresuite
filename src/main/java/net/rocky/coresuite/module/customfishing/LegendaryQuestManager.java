@@ -1435,12 +1435,20 @@ implements Listener {
         ItemStack trident = new ItemStack(Material.TRIDENT);
         ItemMeta meta = trident.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(TextUtil.legacyColorize("&e&lStormcaller's Trident"));
-            meta.addEnchant(Enchantment.LURE, 1, true);
-            meta.addItemFlags(new ItemFlag[]{ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE});
+            meta.setDisplayName(TextUtil.legacyColorize("&e&l⚡ Stormcaller's Trident"));
+            meta.addEnchant(Enchantment.LOYALTY, 3, true);
+            meta.addEnchant(Enchantment.CHANNELING, 1, true);
+            meta.addEnchant(Enchantment.IMPALING, 5, true);
             meta.setUnbreakable(true);
-            meta.addAttributeModifier(Attribute.ATTACK_DAMAGE, new AttributeModifier(new NamespacedKey((Plugin)this.plugin, "no_damage"), -999.0, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.HAND));
-            meta.setLore(Arrays.asList(TextUtil.legacyColorize("&7A relic of the storm..."), TextUtil.legacyColorize("&7Proof that you faced the tempest and survived."), TextUtil.legacyColorize(""), TextUtil.legacyColorize("&c&oThis ancient relic cannot be used as a weapon."), TextUtil.legacyColorize("&c&oIt serves only as a trophy of your courage.")));
+            meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+            meta.setLore(Arrays.asList(
+                TextUtil.legacyColorize("&7A legendary relic forged by the tempest..."),
+                TextUtil.legacyColorize("&7Proof that you faced the storm and conquered it."),
+                TextUtil.legacyColorize("&8&m────────────────────────"),
+                TextUtil.legacyColorize("&6✦ Stormcaller's Wrath"),
+                TextUtil.legacyColorize("&7Binds lightning, tides, and eternal loyalty."),
+                TextUtil.legacyColorize("&8[Ancient Quest Relic]")
+            ));
             meta.getPersistentDataContainer().set(new NamespacedKey((Plugin)this.plugin, "trophy_item"), PersistentDataType.STRING, "stormcaller_trident");
             trident.setItemMeta(meta);
             HashMap leftover = player.getInventory().addItem(new ItemStack[]{trident});

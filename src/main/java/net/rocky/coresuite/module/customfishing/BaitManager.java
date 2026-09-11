@@ -339,7 +339,7 @@ implements Listener {
             }
             ArrayList<String> lore = new ArrayList<String>(sec.getStringList("lore"));
             lore.add("");
-            lore.add("&7Price: &e$" + this.plugin.getEconomyManager().format(price));
+            lore.add("&7Price: &e" + this.plugin.getEconomyManager().format(price));
             if (dailyLimit > 0) {
                 int left = Math.max(0, dailyLimit - stock.boughtAmount);
                 lore.add("&7Daily Stock: " + (left > 0 ? "&a" : "&c") + left + "&8/&7" + dailyLimit);
@@ -376,7 +376,7 @@ implements Listener {
                         if (!leftover.isEmpty()) {
                             player.getWorld().dropItem(player.getLocation(), (ItemStack)leftover.get(0));
                         }
-                        TextUtil.sendMessage((CommandSender)player, "&aYou purchased " + name + " &afor $" + this.plugin.getEconomyManager().format(price) + "!");
+                        TextUtil.sendMessage((CommandSender)player, "&aYou purchased " + name + " &afor " + this.plugin.getEconomyManager().format(price) + "!");
                         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
                         this.openBaitShopGUIInternal(player, stockMap);
                     }
@@ -392,7 +392,7 @@ implements Listener {
             gui.setItem(slot++, button);
         }
         double forcePrice = this.module.getConfig().getDouble("bait-shop.force-restock-price", 250000.0);
-        gui.setItem(rows * 9 - 5, GuiButton.of(Material.GOLD_INGOT, "&6&lForce Restock", Arrays.asList("&7Pay &e$" + this.plugin.getEconomyManager().format(forcePrice) + " &7to instantly", "&7restore half of your daily stock", "&7for all limited baits."), e -> {
+        gui.setItem(rows * 9 - 5, GuiButton.of(Material.GOLD_INGOT, "&6&lForce Restock", Arrays.asList("&7Pay &e" + this.plugin.getEconomyManager().format(forcePrice) + " &7to instantly", "&7restore half of your daily stock", "&7for all limited baits."), e -> {
             e.setCancelled(true);
             if (this.plugin.getEconomyManager().has((OfflinePlayer)player, forcePrice)) {
                 this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, forcePrice);
@@ -401,11 +401,11 @@ implements Listener {
                     stock.boughtAmount = Math.max(0, stock.boughtAmount / 2);
                     this.plugin.getDatabaseManager().executeAsync(() -> this.plugin.getDatabaseManager().execute("INSERT INTO coresuite_bait_stock (uuid, bait_id, bought_amount, last_restock) VALUES (?, ?, ?, ?) ON CONFLICT(uuid, bait_id) DO UPDATE SET bought_amount = excluded.bought_amount, last_restock = excluded.last_restock", player.getUniqueId().toString(), baitId, stock.boughtAmount, stock.lastRestock));
                 }
-                TextUtil.sendMessage((CommandSender)player, "&aYou forcefully restocked the bait shop for $" + this.plugin.getEconomyManager().format(forcePrice) + "!");
+                TextUtil.sendMessage((CommandSender)player, "&aYou forcefully restocked the bait shop for " + this.plugin.getEconomyManager().format(forcePrice) + "!");
                 player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
                 this.openBaitShopGUIInternal(player, stockMap);
             } else {
-                TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money to force restock! ($" + this.plugin.getEconomyManager().format(forcePrice) + " required)");
+                TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money to force restock! (" + this.plugin.getEconomyManager().format(forcePrice) + " required)");
                 player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             }
         }));
