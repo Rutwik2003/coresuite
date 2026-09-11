@@ -98,6 +98,34 @@ public class FishingEventManager {
         return this.formingPond;
     }
 
+    public Set<UUID> getPlayersInPond() {
+        return this.playersInPond;
+    }
+
+    public boolean isLocationInPond(Location loc, double padding) {
+        if (this.activePond == null || loc == null || loc.getWorld() == null) {
+            return false;
+        }
+        if (!loc.getWorld().getName().equals(this.activePond.getWorld().getName())) {
+            return false;
+        }
+        double radius = this.module.getConfig().getDouble("pond-event.radius", 5.0) + padding;
+        double dx = loc.getX() - this.activePond.getX();
+        double dz = loc.getZ() - this.activePond.getZ();
+        double dy = Math.abs(loc.getY() - this.activePond.getY());
+        return (dx * dx + dz * dz <= radius * radius) && dy <= 10.0;
+    }
+
+    public boolean isPlayerInOrNearPond(Player player) {
+        if (this.activePond == null || player == null) {
+            return false;
+        }
+        if (this.playersInPond.contains(player.getUniqueId())) {
+            return true;
+        }
+        return this.isLocationInPond(player.getLocation(), 3.5);
+    }
+
     private void startTimer() {
         final FileConfiguration config = this.module.getConfig();
         if (!config.getBoolean("pond-event.enabled", true)) {

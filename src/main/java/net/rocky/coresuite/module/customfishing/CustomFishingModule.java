@@ -210,11 +210,11 @@ TabCompleter {
         this.registerTask(Bukkit.getScheduler().runTaskTimerAsynchronously((Plugin)this.plugin, () -> {
             for (Map<Long, AtomicInteger> worldMap : this.chunkCatches.values()) {
                 for (Map.Entry<Long, AtomicInteger> entry : worldMap.entrySet()) {
-                    if (entry.getValue().decrementAndGet() > 0) continue;
+                    if (entry.getValue().addAndGet(-5) > 0) continue;
                     worldMap.remove(entry.getKey());
                 }
             }
-        }, 1200L, 1200L));
+        }, 600L, 600L));
         this.registerTask(Bukkit.getScheduler().runTaskTimer((Plugin)this.plugin, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 ItemStack mainHand = player.getInventory().getItemInMainHand();
@@ -266,6 +266,27 @@ TabCompleter {
         List<String> cthulhuBiomes = this.config.getStringList("species.the_fish_of_cthulu.biomes");
         if (cthulhuBiomes.isEmpty()) {
             this.config.set("species.the_fish_of_cthulu.biomes", Arrays.asList("OCEAN", "DEEP_OCEAN", "WARM_OCEAN", "DEEP_DARK"));
+            configChanged = true;
+        }
+        List<String> rewards = this.config.getStringList("rewards");
+        boolean needsRewardsFix = false;
+        if (rewards != null && !rewards.isEmpty()) {
+            for (String r : rewards) {
+                if (r.contains("\n") || r.contains("\r")) {
+                    needsRewardsFix = true;
+                    break;
+                }
+            }
+        }
+        if (needsRewardsFix) {
+            this.config.set("rewards", Arrays.asList(
+                "5.0|Rare|&a&lUncommon Crate Key|entity.player.levelup|crate key give {player} uncommon 1",
+                "3.0|Rare|&b&lRare Crate Key|entity.player.levelup|crate key give {player} rare 1",
+                "0.5|Legendary|&d&lPotions Crate Key|ui.toast.challenge_complete|crate key give {player} potions 1",
+                "0.1|Legendary|&6&lElite Crate Key|ui.toast.challenge_complete|crate key give {player} elite 1",
+                "0.1|Legendary|&c&lSpawner Crate Key|ui.toast.challenge_complete|crate key give {player} spawner 1",
+                "10.0|Junk|&8Old Boot|entity.item.break|give {player} leather_boots 1"
+            ));
             configChanged = true;
         }
         if (configChanged) {
@@ -711,17 +732,10 @@ TabCompleter {
                 Bukkit.getScheduler().runTaskLater(this.plugin, () -> {
                     if (event.getHook() != null && event.getHook().isValid() && player.isOnline()) {
                         Location hookLoc = event.getHook().getLocation();
-                        Location pondLoc = this.eventManager.getActivePond();
-                        if (pondLoc != null && hookLoc.getWorld() != null && hookLoc.getWorld().getName().equals(pondLoc.getWorld().getName())) {
-                            double dx = hookLoc.getX() - pondLoc.getX();
-                            double dz = hookLoc.getZ() - pondLoc.getZ();
-                            double dy = Math.abs(hookLoc.getY() - pondLoc.getY());
-                            double radius = this.config.getDouble("pond-event.radius", 5.0);
-                            if (dx * dx + dz * dz <= radius * radius && dy <= 10.0) {
-                                this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
-                                TextUtil.sendActionBar(player, "&b✦ Bobber in Legendary Pond! &a(2x Catch & Weight Active)");
-                                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
-                            }
+                        if (this.eventManager.isLocationInPond(hookLoc, 1.5) || this.eventManager.isPlayerInOrNearPond(player)) {
+                            this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
+                            TextUtil.sendActionBar(player, "&b✦ Bobber in Legendary Pond! &a(2x Catch & Weight Active)");
+                            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0f, 1.5f);
                         }
                     }
                 }, 15L);
@@ -732,28 +746,67 @@ TabCompleter {
             double multCap;
             Player player = event.getPlayer();
             UUID uuid = player.getUniqueId();
-            Chunk pChunk = player.getLocation().getChunk();
-            Map worldMap = this.chunkCatches.computeIfAbsent(player.getWorld().getUID(), k -> new ConcurrentHashMap());
-            long pKey = (long)pChunk.getX() & 0xFFFFFFFFL | ((long)pChunk.getZ() & 0xFFFFFFFFL) << 32;
-            ((java.util.concurrent.atomic.AtomicInteger)worldMap.computeIfAbsent(pKey, k -> new java.util.concurrent.atomic.AtomicInteger(0))).incrementAndGet();
-            int radiusSum = 0;
-            for (int dx = -5; dx <= 5; ++dx) {
-                for (int dz = -5; dz <= 5; ++dz) {
-                    long ck = (long)(pChunk.getX() + dx) & 0xFFFFFFFFL | ((long)(pChunk.getZ() + dz) & 0xFFFFFFFFL) << 32;
-                    AtomicInteger count = (AtomicInteger)worldMap.get(ck);
-                    if (count == null) continue;
-                    radiusSum += count.get();
+
+            // 1. Determine Legendary Pond status first
+            double eventRewardMult = 1.0;
+            double eventWeightMult = 1.0;
+            boolean inPond = false;
+            if (this.eventManager != null && this.eventManager.getActivePond() != null) {
+                Location hookLoc = event.getHook() != null ? event.getHook().getLocation() : null;
+                Location playerLoc = player.getLocation();
+                Location pondLoc = this.eventManager.getActivePond();
+                if (pondLoc != null && pondLoc.getWorld() != null) {
+                    double radius = this.config.getDouble("pond-event.radius", 5.0);
+                    boolean hookIn = hookLoc != null && hookLoc.getWorld().getName().equals(pondLoc.getWorld().getName())
+                            && (Math.pow(hookLoc.getX() - pondLoc.getX(), 2) + Math.pow(hookLoc.getZ() - pondLoc.getZ(), 2) <= Math.pow(radius + 1.5, 2))
+                            && Math.abs(hookLoc.getY() - pondLoc.getY()) <= 10.0;
+                    boolean playerIn = playerLoc.getWorld().getName().equals(pondLoc.getWorld().getName())
+                            && (Math.pow(playerLoc.getX() - pondLoc.getX(), 2) + Math.pow(playerLoc.getZ() - pondLoc.getZ(), 2) <= Math.pow(radius + 3.5, 2))
+                            && Math.abs(playerLoc.getY() - pondLoc.getY()) <= 10.0;
+                    boolean setIn = this.eventManager.getPlayersInPond() != null && this.eventManager.getPlayersInPond().contains(uuid);
+
+                    if (hookIn || playerIn || setIn) {
+                        inPond = true;
+                        eventRewardMult = this.config.getDouble("pond-event.reward-multiplier", 2.0);
+                        eventWeightMult = this.config.getDouble("pond-event.weight-multiplier", 2.0);
+                    }
                 }
             }
-            if (radiusSum > 50) {
-                this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
-                TextUtil.sendActionBar(player, "&c[!] These waters are overfished! Move away!");
-                return;
+
+            // 2. Anti-AFK Overfishing check (ONLY when NOT in a Legendary Pond)
+            if (!inPond) {
+                Chunk pChunk = player.getLocation().getChunk();
+                Map worldMap = this.chunkCatches.computeIfAbsent(player.getWorld().getUID(), k -> new ConcurrentHashMap());
+                long pKey = (long)pChunk.getX() & 0xFFFFFFFFL | ((long)pChunk.getZ() & 0xFFFFFFFFL) << 32;
+                ((java.util.concurrent.atomic.AtomicInteger)worldMap.computeIfAbsent(pKey, k -> new java.util.concurrent.atomic.AtomicInteger(0))).incrementAndGet();
+                int radiusSum = 0;
+                for (int dx = -2; dx <= 2; ++dx) {
+                    for (int dz = -2; dz <= 2; ++dz) {
+                        long ck = (long)(pChunk.getX() + dx) & 0xFFFFFFFFL | ((long)(pChunk.getZ() + dz) & 0xFFFFFFFFL) << 32;
+                        AtomicInteger count = (AtomicInteger)worldMap.get(ck);
+                        if (count == null) continue;
+                        radiusSum += count.get();
+                    }
+                }
+                int maxCatches = this.config.getInt("anti-afk.max-catches-per-area", 60);
+                if (radiusSum > maxCatches) {
+                    this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
+                    TextUtil.sendActionBar(player, "&c[!] These waters are overfished! Move to a new spot or wait for fish to return.");
+                    player.playSound(player.getLocation(), Sound.ENTITY_FISH_SWIM, 1.0f, 0.5f);
+                    if (event.getCaught() != null) {
+                        event.getCaught().remove();
+                    }
+                    return;
+                }
             }
+
+            // 3. Ensure player data is present
             FishData data = this.playerData.get(uuid);
             if (data == null) {
-                return;
+                data = new FishData(1, 0, 0, 0);
+                this.playerData.put(uuid, data);
             }
+
             int streakCap = 6;
             if (data.level >= 10) {
                 streakCap = 15;
@@ -770,22 +823,7 @@ TabCompleter {
                 streak = streakCap;
             }
             this.fishStreak.put(uuid, streak);
-            double eventRewardMult = 1.0;
-            double eventWeightMult = 1.0;
-            if (this.eventManager != null && this.eventManager.getActivePond() != null) {
-                Location hookLoc = event.getHook().getLocation();
-                Location pondLoc = this.eventManager.getActivePond();
-                if (hookLoc.getWorld().getName().equals(pondLoc.getWorld().getName())) {
-                    double dx = hookLoc.getX() - pondLoc.getX();
-                    double dz = hookLoc.getZ() - pondLoc.getZ();
-                    double dy = Math.abs(hookLoc.getY() - pondLoc.getY());
-                    double radius = this.config.getDouble("pond-event.radius", 5.0);
-                    if (dx * dx + dz * dz <= radius * radius && dy <= 10.0) {
-                        eventRewardMult = this.config.getDouble("pond-event.reward-multiplier", 2.0);
-                        eventWeightMult = this.config.getDouble("pond-event.weight-multiplier", 2.0);
-                    }
-                }
-            }
+
             double fatiguePercent = this.calculateFatigue(player, data);
             double fatigueMult = 1.0 - fatiguePercent;
             if (data.fatigueScore >= 85.0) {
@@ -874,9 +912,12 @@ TabCompleter {
             } else if (fatiguePercent < 0.75) {
                 ++data.legendaryPity;
             }
+
+            // 4. Roll Treasure / Rewards (StringList format)
             List rewards = this.config.getStringList("rewards");
             for (String rewardStr : (java.util.List<String>)(java.util.List<?>)rewards) {
-                String[] parts = rewardStr.split("\\|", -1);
+                String cleanStr = rewardStr.replace("\r", "").replace("\n", " ").replaceAll("\\s+", " ").trim();
+                String[] parts = cleanStr.split("\\|", -1);
                 if (parts.length < 4) continue;
                 try {
                     double chance = Double.parseDouble(parts[0]);
@@ -890,9 +931,16 @@ TabCompleter {
                     if (rarity.equalsIgnoreCase("junk")) {
                         String catchMsg = this.config.getString("messages.junk-catch-message", "&7You caught {name}&7... not exactly treasure.");
                         TextUtil.sendActionBar(player, catchMsg.replace("{name}", name));
+                        player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.8f);
+                        if (event.getCaught() != null) {
+                            event.getCaught().remove();
+                        }
+                        if (!cmd.isEmpty()) {
+                            Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), cmd.replace("{player}", player.getName()));
+                        }
                         return;
                     }
-                    if (event.getHook() != null && !this.isOpenWater(event.getHook().getLocation())) continue;
+                    if (!inPond && event.getHook() != null && !this.isOpenWater(event.getHook().getLocation())) continue;
                     if (!cmd.isEmpty()) {
                         String parsedCmd = cmd.replace("{player}", player.getName());
                         Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), (String)parsedCmd);
@@ -902,14 +950,13 @@ TabCompleter {
                         player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
                     }
                     catch (IllegalArgumentException sound) {
-                        // empty catch block
                     }
                     String prefix = this.config.getString("prefix", "&8[&b&lFishing&8] &r");
-                    if (rarity.equalsIgnoreCase("rare") || rarity.equalsIgnoreCase("legendary")) {
-                        TextUtil.sendTitle(player, "&d&l\u2726 Legendary Catch \u2726", name + "&7!", 10, 100, 20);
+                    if (rarity.equalsIgnoreCase("rare") || rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("mythical")) {
+                        TextUtil.sendTitle(player, "&d&l✦ Legendary Catch ✦", name + "&7!", 10, 100, 20);
                         Bukkit.broadcast((Component)TextUtil.colorize(prefix + "&f" + player.getName() + " &7just reeled in " + name + "&7! &8(&b" + rarity + "&8)"));
                     } else {
-                        TextUtil.sendTitle(player, "&a&l\u2726 Reward Found \u2726", name + "&7!", 10, 80, 20);
+                        TextUtil.sendTitle(player, "&a&l✦ Reward Found ✦", name + "&7!", 10, 80, 20);
                     }
                     if (event.getCaught() != null) {
                         event.getCaught().remove();
@@ -919,8 +966,67 @@ TabCompleter {
                 catch (NumberFormatException chance) {
                 }
             }
+
+            // 5. Fallback for ConfigurationSection format (e.g. rewards.treasure / rewards.junk)
+            if (this.config.isConfigurationSection("rewards")) {
+                org.bukkit.configuration.ConfigurationSection rewSec = this.config.getConfigurationSection("rewards");
+                if (rewSec != null) {
+                    if (rewSec.isConfigurationSection("junk") && !inPond) {
+                        double junkChance = rewSec.getDouble("junk.chance", 0.15);
+                        if (junkChance <= 1.0) junkChance *= 100.0;
+                        if (this.random.nextDouble() * 100.0 <= junkChance) {
+                            List<Map<?, ?>> items = rewSec.getMapList("junk.items");
+                            String junkName = "Old Boot";
+                            if (items != null && !items.isEmpty()) {
+                                Map<?, ?> chosen = items.get(this.random.nextInt(items.size()));
+                                String matName = chosen.get("material") != null ? chosen.get("material").toString() : "LEATHER_BOOTS";
+                                int amt = chosen.get("amount") instanceof Number ? ((Number)chosen.get("amount")).intValue() : 1;
+                                Material m = Material.matchMaterial(matName);
+                                if (m != null) {
+                                    player.getInventory().addItem(new ItemStack(m, amt));
+                                    junkName = m.name().replace("_", " ").toLowerCase();
+                                }
+                            }
+                            String catchMsg = this.config.getString("messages.junk-catch-message", "&7You caught {name}&7... not exactly treasure.");
+                            TextUtil.sendActionBar(player, catchMsg.replace("{name}", junkName));
+                            player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 0.8f);
+                            if (event.getCaught() != null) {
+                                event.getCaught().remove();
+                            }
+                            return;
+                        }
+                    }
+                    if (rewSec.isConfigurationSection("treasure")) {
+                        double tChance = rewSec.getDouble("treasure.chance", 0.05);
+                        if (tChance <= 1.0) tChance *= 100.0;
+                        double actualChance = tChance * mult * (1.0 + (double)treasureLvl * 0.2 * tierMult) * eventRewardMult;
+                        if ((inPond || event.getHook() == null || this.isOpenWater(event.getHook().getLocation()))
+                                && this.random.nextDouble() * 100.0 <= actualChance) {
+                            List<Map<?, ?>> items = rewSec.getMapList("treasure.items");
+                            String itemName = "Treasure";
+                            if (items != null && !items.isEmpty()) {
+                                Map<?, ?> chosen = items.get(this.random.nextInt(items.size()));
+                                String matName = chosen.get("material") != null ? chosen.get("material").toString() : "DIAMOND";
+                                int amt = chosen.get("amount") instanceof Number ? ((Number)chosen.get("amount")).intValue() : 1;
+                                Material m = Material.matchMaterial(matName);
+                                if (m != null) {
+                                    player.getInventory().addItem(new ItemStack(m, amt));
+                                    itemName = amt + "x " + m.name().replace("_", " ").toLowerCase();
+                                }
+                            }
+                            TextUtil.sendTitle(player, "&a&l✦ Reward Found ✦", itemName + "&7!", 10, 80, 20);
+                            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.2f);
+                            if (event.getCaught() != null) {
+                                event.getCaught().remove();
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // 6. Roll and Generate Custom Fish Species
             if (this.config.getConfigurationSection("species") != null) {
-                boolean inPond = eventRewardMult > 1.0;
                 Biome hookBiome = event.getHook() != null ? event.getHook().getLocation().getBlock().getBiome() : null;
 
                 Map<String, List<String>> biomeSpeciesByRarity = new HashMap<>();
@@ -1032,8 +1138,11 @@ TabCompleter {
                     try {
                         ItemStack[] bag;
                         String rarity = this.config.getString(spPath + "rarity", "Common");
-                        String name = this.config.getString(spPath + "name");
-                        if (name != null && !name.contains("&")) {
+                        String name = this.config.getString(spPath + "name", selectedKey);
+                        if (name == null || name.isEmpty()) {
+                            name = selectedKey;
+                        }
+                        if (!name.contains("&")) {
                             String color = "&7";
                             switch (rarity.toLowerCase()) {
                                 case "uncommon": color = "&a"; break;
@@ -1190,9 +1299,17 @@ TabCompleter {
                         this.playerData.put(uuid, data);
                         return;
                     }
-                    catch (NumberFormatException numberFormatException) {
+                    catch (Exception ex) {
+                        this.plugin.getLogger().warning("Error catching custom fish: " + ex.getMessage());
+                        ex.printStackTrace();
+                        if (event.getCaught() != null) {
+                            event.getCaught().remove();
+                        }
                     }
                 }
+            }
+            if (event.getCaught() != null) {
+                event.getCaught().remove();
             }
             this.saveDataAsync(uuid);
             this.playerData.put(uuid, data);
@@ -2041,15 +2158,17 @@ TabCompleter {
     }
 
     private boolean isOpenWater(Location hookLoc) {
-        if (hookLoc.getWorld().getHighestBlockYAt(hookLoc) > hookLoc.getBlockY()) {
+        if (hookLoc == null || hookLoc.getWorld() == null) {
             return false;
         }
-        for (int i = 0; i <= 4; ++i) {
-            Block b = hookLoc.clone().subtract(0.0, (double)i, 0.0).getBlock();
-            if (b.getType() == Material.WATER) continue;
-            return false;
+        int waterCount = 0;
+        for (int dy = 0; dy <= 2; ++dy) {
+            Block b = hookLoc.clone().subtract(0.0, (double)dy, 0.0).getBlock();
+            if (b.getType() == Material.WATER) {
+                waterCount++;
+            }
         }
-        return true;
+        return waterCount >= 2;
     }
 
     public int getTotalExperience(Player player) {
