@@ -1123,9 +1123,13 @@ TabCompleter {
 
                         Object fatigueMsg = "";
                         int thresholdCheck = this.config.getInt("fatigue.threshold", 50);
-                        if (inPond && addFatigue < 0.0) {
-                            fatigueMsg = " &a(" + String.format("%.1f", addFatigue) + "% Fatigue)";
-                        } else if (!inPond) {
+                        if (inPond) {
+                            if (addFatigue < 0.0) {
+                                fatigueMsg = " &a(" + String.format("%.1f", addFatigue) + "% Fatigue &8| &aTotal: " + String.format("%.1f", data.fatigueScore) + "%&a)";
+                            } else {
+                                fatigueMsg = " &a(0.0% Fatigue &8| &aWell Rested!)";
+                            }
+                        } else {
                             fatigueMsg = " &8(&c+" + String.format("%.1f", addFatigue) + "% Fatigue &8| &cTotal: " + String.format("%.1f", data.fatigueScore) + "%&8)";
                         }
                         player.sendMessage(TextUtil.colorize(this.config.getString("prefix", "&8[&b&lFishing&8] &r") + "&7You caught a &e" + name + " &8(&b" + weight + " kg&8)" + (String)fatigueMsg));
@@ -1133,7 +1137,8 @@ TabCompleter {
 
                         if (inPond) {
                             this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
-                            TextUtil.sendActionBar(player, "&a✦ Legendary Pond Catch! &e(2x Weight & Rewards Applied)");
+                            int displayFatigue = (int)Math.round(data.fatigueScore);
+                            TextUtil.sendActionBar(player, "&a✦ Legendary Pond Catch! &e(2x Bonus & &b-5% Fatigue &8| &b" + displayFatigue + "%&e)");
                         } else if (data.fatigueScore > (double)thresholdCheck) {
                             this.actionbarOverride.put(player.getUniqueId(), System.currentTimeMillis() + 3000L);
                             TextUtil.sendActionBar(player, "&cYou are too fatigued to gain XP! Rest or find a Legendary Pond.");
