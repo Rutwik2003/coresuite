@@ -3,8 +3,8 @@ streak-timeout: 45
 streak:
   multiplier-cap: 5.0
 fatigue:
-  recovery-time-minutes: 60
-  threshold: 75
+  recovery-time-minutes: 45
+  threshold: 50
   message: '&c&oGetting tired...'
 messages:
   streak-message: '&7Streak: &b{streak}x&8/&7{cap} &8- &7Angler Lv.&b{level}'
@@ -22,7 +22,7 @@ pond-event:
   spawn-radius: 8000
   radius: 5.0
   reward-multiplier: 2.0
-  weight-multiplier: 2.0
+  weight-multiplier: 1.25
   enter-message: '&aâœ¦ You entered the Legendary Fishing Pond! Cast your rod here
     for
 
@@ -113,27 +113,27 @@ tournament:
 rod-tiers:
   bronze:
     name: '&6Bronze'
-    enchant-multiplier: 1.15
+    enchant-multiplier: 1.1
     price: 50000.0
     level-required: 5
   silver:
     name: '&fSilver'
-    enchant-multiplier: 1.3
+    enchant-multiplier: 1.2
     price: 150000.0
     level-required: 15
   gold:
     name: '&eGold'
-    enchant-multiplier: 1.5
+    enchant-multiplier: 1.3
     price: 350000.0
     level-required: 25
   diamond:
     name: '&bDiamond'
-    enchant-multiplier: 1.75
+    enchant-multiplier: 1.45
     price: 750000.0
     level-required: 40
   netherite:
     name: '&4Netherite'
-    enchant-multiplier: 2.0
+    enchant-multiplier: 1.6
     price: 1500000.0
     level-required: 60
 baits:
@@ -261,7 +261,7 @@ species:
     chance: 26.23
     min-weight: 1.84
     max-weight: 4.01
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_alexpaima
     biomes:
@@ -277,7 +277,7 @@ species:
     chance: 6.89
     min-weight: 1.2
     max-weight: 12.65
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_alpha_spiderfish
     biomes:
@@ -293,7 +293,7 @@ species:
     chance: 6.44
     min-weight: 3.33
     max-weight: 45.18
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_amanita_fungifin
     biomes:
@@ -308,7 +308,7 @@ species:
     chance: 25.58
     min-weight: 4.5
     max-weight: 34.32
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_anchovy
     biomes:
@@ -324,7 +324,7 @@ species:
     chance: 15.99
     min-weight: 4.86
     max-weight: 40.87
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_angelfish
     biomes:
@@ -340,7 +340,7 @@ species:
     chance: 6.8
     min-weight: 2.1
     max-weight: 43.65
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_arapaima
     biomes:
@@ -356,7 +356,7 @@ species:
     chance: 26.42
     min-weight: 3.3
     max-weight: 29.97
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_arch_wyverntail
     biomes:
@@ -372,7 +372,7 @@ species:
     chance: 16.1
     min-weight: 3.98
     max-weight: 48.22
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_ariwana
     biomes:
@@ -388,7 +388,7 @@ species:
     chance: 25.84
     min-weight: 0.79
     max-weight: 30.1
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_armored_cavefish
     biomes:
@@ -403,7 +403,7 @@ species:
     chance: 26.01
     min-weight: 3.25
     max-weight: 26.63
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_armor_trimfish
     biomes:
@@ -418,7 +418,7 @@ species:
     chance: 25.21
     min-weight: 0.87
     max-weight: 37.8
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_arowana
     biomes:
@@ -433,7 +433,7 @@ species:
     chance: 25.39
     min-weight: 1.16
     max-weight: 16.72
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_ash_soul_gaper
     biomes:
@@ -450,7 +450,7 @@ species:
     chance: 25.4
     min-weight: 1.16
     max-weight: 18.05
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_atlantic_cod
     biomes:
@@ -465,7 +465,7 @@ species:
     chance: 16.06
     min-weight: 2.15
     max-weight: 37.97
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_barbel_steed
     biomes:
@@ -481,7 +481,7 @@ species:
     chance: 3.2
     min-weight: 3.31
     max-weight: 64.16
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_barred_knifejaw
     biomes:
@@ -497,7 +497,7 @@ species:
     chance: 25.28
     min-weight: 1.32
     max-weight: 5.76
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_barreleye
     biomes:
@@ -513,7 +513,7 @@ species:
     chance: 4.01
     min-weight: 2.95
     max-weight: 74.84
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_batfish
     biomes:
@@ -529,7 +529,7 @@ species:
     chance: 26.06
     min-weight: 2.63
     max-weight: 34.48
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_betta
     biomes:
@@ -545,7 +545,7 @@ species:
     chance: 26.13
     min-weight: 0.65
     max-weight: 49.6
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_bitterling
     biomes:
@@ -561,7 +561,7 @@ species:
     chance: 16.43
     min-weight: 0.69
     max-weight: 20.22
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_black_bass
     biomes:
@@ -576,7 +576,7 @@ species:
     chance: 15.7
     min-weight: 4.25
     max-weight: 24.57
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_black_minnow
     biomes:
@@ -592,7 +592,7 @@ species:
     chance: 6.56
     min-weight: 3.61
     max-weight: 12.72
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_blowfish
     biomes:
@@ -608,7 +608,7 @@ species:
     chance: 15.85
     min-weight: 4.95
     max-weight: 34.93
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_bluegill
     biomes:
@@ -624,7 +624,7 @@ species:
     chance: 16.61
     min-weight: 3.07
     max-weight: 28.54
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_blue_marlin
     biomes:
@@ -640,7 +640,7 @@ species:
     chance: 6.98
     min-weight: 4.19
     max-weight: 20.58
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_bonefish
     biomes:
@@ -657,7 +657,7 @@ species:
     chance: 26.82
     min-weight: 0.76
     max-weight: 48.98
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_bumblebee_tuna
     biomes:
@@ -673,7 +673,7 @@ species:
     chance: 7.74
     min-weight: 0.99
     max-weight: 41.08
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_butterfly_fish
     biomes:
@@ -689,7 +689,7 @@ species:
     chance: 26.16
     min-weight: 2.81
     max-weight: 8.98
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_capn_tunabeard
     biomes:
@@ -705,7 +705,7 @@ species:
     chance: 25.48
     min-weight: 1.35
     max-weight: 30.57
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_carp
     biomes:
@@ -720,7 +720,7 @@ species:
     chance: 26.29
     min-weight: 4.27
     max-weight: 40.67
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_catfish
     biomes:
@@ -736,7 +736,7 @@ species:
     chance: 26.19
     min-weight: 3.81
     max-weight: 8.9
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_catfishfish
     biomes:
@@ -752,7 +752,7 @@ species:
     chance: 25.17
     min-weight: 1.36
     max-weight: 7.31
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_cat_fish
     biomes:
@@ -768,7 +768,7 @@ species:
     chance: 25.76
     min-weight: 1.6
     max-weight: 7.38
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_chaos_fish
     biomes:
@@ -784,7 +784,7 @@ species:
     chance: 1.23
     min-weight: 1.61
     max-weight: 50.82
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_char
     biomes:
@@ -800,7 +800,7 @@ species:
     chance: 26.79
     min-weight: 3.05
     max-weight: 37.74
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_cheep_cheep
     biomes:
@@ -816,7 +816,7 @@ species:
     chance: 1.53
     min-weight: 1.29
     max-weight: 64.58
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_cherry_salmon
     biomes:
@@ -832,7 +832,7 @@ species:
     chance: 6.33
     min-weight: 1.05
     max-weight: 21.36
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_chickenfish
     biomes:
@@ -848,7 +848,7 @@ species:
     chance: 26.22
     min-weight: 0.75
     max-weight: 45.14
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_chicken_jockeyfish
     biomes:
@@ -863,7 +863,7 @@ species:
     chance: 26.48
     min-weight: 0.67
     max-weight: 3.6
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_cloudfish
     biomes:
@@ -879,7 +879,7 @@ species:
     chance: 7.04
     min-weight: 3.99
     max-weight: 48.63
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_coelacanth
     biomes:
@@ -895,7 +895,7 @@ species:
     chance: 15.32
     min-weight: 0.53
     max-weight: 39.85
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_corrupted_slimefish
     biomes:
@@ -911,7 +911,7 @@ species:
     chance: 15.36
     min-weight: 3.55
     max-weight: 40.46
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_crimson_tigerfish
     biomes:
@@ -927,7 +927,7 @@ species:
     chance: 26.95
     min-weight: 1.78
     max-weight: 41.11
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_crucian_carp
     biomes:
@@ -943,7 +943,7 @@ species:
     chance: 16.82
     min-weight: 3.88
     max-weight: 33.59
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_cursedfish
     biomes:
@@ -959,7 +959,7 @@ species:
     chance: 25.25
     min-weight: 4.55
     max-weight: 16.79
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_cykloppsfish
     biomes:
@@ -975,7 +975,7 @@ species:
     chance: 26.81
     min-weight: 1.23
     max-weight: 37.45
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_dab
     biomes:
@@ -991,7 +991,7 @@ species:
     chance: 25.31
     min-weight: 0.61
     max-weight: 20.04
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_dace
     biomes:
@@ -1006,7 +1006,7 @@ species:
     chance: 26.95
     min-weight: 3.77
     max-weight: 11.73
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_damselfish
     biomes:
@@ -1022,7 +1022,7 @@ species:
     chance: 25.63
     min-weight: 3.34
     max-weight: 14.62
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_deathly_fin
     biomes:
@@ -1038,7 +1038,7 @@ species:
     chance: 7.23
     min-weight: 4.32
     max-weight: 24.55
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_demonic_netherfish
     biomes:
@@ -1055,7 +1055,7 @@ species:
     chance: 25.95
     min-weight: 3.81
     max-weight: 16.16
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_derpfish
     biomes:
@@ -1071,7 +1071,7 @@ species:
     chance: 26.57
     min-weight: 2.35
     max-weight: 22.32
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_dirtfish
     biomes:
@@ -1087,7 +1087,7 @@ species:
     chance: 7.17
     min-weight: 4.09
     max-weight: 50.0
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_dorado
     biomes:
@@ -1103,7 +1103,7 @@ species:
     chance: 16.43
     min-weight: 1.05
     max-weight: 9.01
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_double_cod
     biomes:
@@ -1119,7 +1119,7 @@ species:
     chance: 26.76
     min-weight: 2.45
     max-weight: 10.4
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_eater_of_plankton
     biomes:
@@ -1135,7 +1135,7 @@ species:
     chance: 6.93
     min-weight: 1.45
     max-weight: 15.95
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_ebonkoi
     biomes:
@@ -1151,7 +1151,7 @@ species:
     chance: 25.21
     min-weight: 4.74
     max-weight: 37.49
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_eel
     biomes:
@@ -1167,7 +1167,7 @@ species:
     chance: 26.27
     min-weight: 3.81
     max-weight: 49.75
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_efelounder
     biomes:
@@ -1184,7 +1184,7 @@ species:
     chance: 0.05
     min-weight: 4.93
     max-weight: 42.39
-    price-per-kg: 10000.0
+    price-per-kg: 850.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish
     biomes:
@@ -1201,7 +1201,7 @@ species:
     chance: 0.05
     min-weight: 3.41
     max-weight: 45.45
-    price-per-kg: 10000.0
+    price-per-kg: 850.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish_christmas
     biomes:
@@ -1218,7 +1218,7 @@ species:
     chance: 0.05
     min-weight: 4.24
     max-weight: 13.47
-    price-per-kg: 10000.0
+    price-per-kg: 850.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish_halloween
     biomes:
@@ -1234,7 +1234,7 @@ species:
     chance: 25.75
     min-weight: 4.22
     max-weight: 39.03
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_fallen_starfish
     biomes:
@@ -1250,7 +1250,7 @@ species:
     chance: 25.92
     min-weight: 0.7
     max-weight: 37.11
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_filet_o_fish
     biomes:
@@ -1266,7 +1266,7 @@ species:
     chance: 26.3
     min-weight: 4.08
     max-weight: 8.67
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_fish
     biomes:
@@ -1282,7 +1282,7 @@ species:
     chance: 25.8
     min-weight: 1.64
     max-weight: 22.05
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_fishbrine
     biomes:
@@ -1298,7 +1298,7 @@ species:
     chance: 1.49
     min-weight: 1.02
     max-weight: 91.98
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_fishing_rod_fish
     biomes:
@@ -1314,7 +1314,7 @@ species:
     chance: 16.42
     min-weight: 4.38
     max-weight: 32.24
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_fishlin
     biomes:
@@ -1330,7 +1330,7 @@ species:
     chance: 26.04
     min-weight: 4.08
     max-weight: 46.33
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_fishotron
     biomes:
@@ -1346,7 +1346,7 @@ species:
     chance: 15.92
     min-weight: 3.6
     max-weight: 30.16
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_fishotron_prime
     biomes:
@@ -1361,7 +1361,7 @@ species:
     chance: 25.5
     min-weight: 3.57
     max-weight: 12.87
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_fishron
     biomes:
@@ -1377,7 +1377,7 @@ species:
     chance: 26.15
     min-weight: 3.76
     max-weight: 10.22
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_flarefin_koi
     biomes:
@@ -1393,7 +1393,7 @@ species:
     chance: 16.12
     min-weight: 1.81
     max-weight: 30.15
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_flint_and_steelfish
     biomes:
@@ -1409,7 +1409,7 @@ species:
     chance: 26.72
     min-weight: 2.89
     max-weight: 45.14
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_flying_fish
     biomes:
@@ -1425,7 +1425,7 @@ species:
     chance: 15.67
     min-weight: 4.46
     max-weight: 38.55
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_football_fish
     biomes:
@@ -1441,7 +1441,7 @@ species:
     chance: 16.1
     min-weight: 3.11
     max-weight: 46.33
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_freshwater_goby
     biomes:
@@ -1457,7 +1457,7 @@ species:
     chance: 15.19
     min-weight: 2.16
     max-weight: 44.67
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_frost_minnow
     biomes:
@@ -1474,7 +1474,7 @@ species:
     chance: 15.31
     min-weight: 0.53
     max-weight: 14.68
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_gar
     biomes:
@@ -1490,7 +1490,7 @@ species:
     chance: 3.99
     min-weight: 0.62
     max-weight: 13.94
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_giant_snakehead
     biomes:
@@ -1506,7 +1506,7 @@ species:
     chance: 26.78
     min-weight: 4.83
     max-weight: 31.74
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_giant_trevally
     biomes:
@@ -1521,7 +1521,7 @@ species:
     chance: 25.23
     min-weight: 1.31
     max-weight: 32.85
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_golden_carp
     biomes:
@@ -1537,7 +1537,7 @@ species:
     chance: 25.1
     min-weight: 0.98
     max-weight: 43.68
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_golden_trout
     biomes:
@@ -1553,7 +1553,7 @@ species:
     chance: 26.67
     min-weight: 1.27
     max-weight: 21.84
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_goldfish
     biomes:
@@ -1569,7 +1569,7 @@ species:
     chance: 16.53
     min-weight: 1.82
     max-weight: 26.65
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_guppy
     biomes:
@@ -1585,7 +1585,7 @@ species:
     chance: 15.59
     min-weight: 1.89
     max-weight: 16.8
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_harpyfish
     biomes:
@@ -1601,7 +1601,7 @@ species:
     chance: 25.99
     min-weight: 1.54
     max-weight: 45.78
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_heartfish
     biomes:
@@ -1617,7 +1617,7 @@ species:
     chance: 26.63
     min-weight: 2.96
     max-weight: 44.82
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_hemopiranha
     biomes:
@@ -1634,7 +1634,7 @@ species:
     chance: 15.2
     min-weight: 2.36
     max-weight: 38.49
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_honeyfin
     biomes:
@@ -1650,7 +1650,7 @@ species:
     chance: 6.65
     min-weight: 3.03
     max-weight: 40.5
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_horse_mackerel
     biomes:
@@ -1665,7 +1665,7 @@ species:
     chance: 26.37
     min-weight: 2.17
     max-weight: 35.3
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_hungerfish
     biomes:
@@ -1681,7 +1681,7 @@ species:
     chance: 26.75
     min-weight: 3.87
     max-weight: 34.89
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_infected_scabbardfish
     biomes:
@@ -1697,7 +1697,7 @@ species:
     chance: 25.67
     min-weight: 0.87
     max-weight: 37.78
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_i_am_stevefish
     biomes:
@@ -1713,7 +1713,7 @@ species:
     chance: 26.63
     min-weight: 3.22
     max-weight: 6.87
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_jack_o_fish
     biomes:
@@ -1729,7 +1729,7 @@ species:
     chance: 15.88
     min-weight: 2.21
     max-weight: 51.39
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_jake_the_fish
     biomes:
@@ -1744,7 +1744,7 @@ species:
     chance: 25.53
     min-weight: 1.26
     max-weight: 10.83
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_jewelfish
     biomes:
@@ -1760,7 +1760,7 @@ species:
     chance: 16.08
     min-weight: 0.76
     max-weight: 9.59
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_kai_carp
     biomes:
@@ -1776,7 +1776,7 @@ species:
     chance: 26.5
     min-weight: 4.47
     max-weight: 47.97
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_killifish
     biomes:
@@ -1792,7 +1792,7 @@ species:
     chance: 16.33
     min-weight: 2.87
     max-weight: 21.59
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_king_of_the_pond
     biomes:
@@ -1808,7 +1808,7 @@ species:
     chance: 25.37
     min-weight: 3.28
     max-weight: 52.34
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_king_salmon
     biomes:
@@ -1824,7 +1824,7 @@ species:
     chance: 6.43
     min-weight: 1.64
     max-weight: 42.2
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_koi
     biomes:
@@ -1839,7 +1839,7 @@ species:
     chance: 16.61
     min-weight: 2.86
     max-weight: 36.47
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_lavager
     biomes:
@@ -1856,7 +1856,7 @@ species:
     chance: 1.23
     min-weight: 2.77
     max-weight: 74.32
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_lava_particle
     biomes:
@@ -1873,7 +1873,7 @@ species:
     chance: 26.62
     min-weight: 2.78
     max-weight: 46.05
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_laviathan_fry
     biomes:
@@ -1889,7 +1889,7 @@ species:
     chance: 15.31
     min-weight: 2.73
     max-weight: 36.32
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_loach
     biomes:
@@ -1904,7 +1904,7 @@ species:
     chance: 25.85
     min-weight: 0.67
     max-weight: 41.21
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_loovar
     biomes:
@@ -1920,7 +1920,7 @@ species:
     chance: 25.96
     min-weight: 2.55
     max-weight: 20.41
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_mahi_mahi
     biomes:
@@ -1937,7 +1937,7 @@ species:
     chance: 15.45
     min-weight: 1.91
     max-weight: 29.35
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_makenarel
     biomes:
@@ -1952,7 +1952,7 @@ species:
     chance: 6.42
     min-weight: 4.25
     max-weight: 48.87
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_mickey_joefish
     biomes:
@@ -1968,7 +1968,7 @@ species:
     chance: 15.11
     min-weight: 2.18
     max-weight: 29.61
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_mirage_fish
     biomes:
@@ -1984,7 +1984,7 @@ species:
     chance: 15.49
     min-weight: 0.51
     max-weight: 24.48
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_moray_eel
     biomes:
@@ -2000,7 +2000,7 @@ species:
     chance: 25.61
     min-weight: 2.69
     max-weight: 49.4
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_mudfish
     biomes:
@@ -2016,7 +2016,7 @@ species:
     chance: 25.46
     min-weight: 3.07
     max-weight: 25.9
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_mutant_flinxfin
     biomes:
@@ -2032,7 +2032,7 @@ species:
     chance: 26.96
     min-weight: 1.92
     max-weight: 19.44
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_mutated_cod
     biomes:
@@ -2047,7 +2047,7 @@ species:
     chance: 16.77
     min-weight: 4.3
     max-weight: 6.65
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_mystery_fish
     biomes:
@@ -2063,7 +2063,7 @@ species:
     chance: 6.41
     min-weight: 0.54
     max-weight: 25.71
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_napoleonfish
     biomes:
@@ -2079,7 +2079,7 @@ species:
     chance: 16.45
     min-weight: 1.53
     max-weight: 6.26
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_neon_tetra
     biomes:
@@ -2095,7 +2095,7 @@ species:
     chance: 26.08
     min-weight: 4.54
     max-weight: 31.56
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_neptoona
     biomes:
@@ -2111,7 +2111,7 @@ species:
     chance: 4.36
     min-weight: 3.82
     max-weight: 105.38
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_netherwrasse
     biomes:
@@ -2128,7 +2128,7 @@ species:
     chance: 25.23
     min-weight: 2.07
     max-weight: 43.04
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_nibbler
     biomes:
@@ -2143,7 +2143,7 @@ species:
     chance: 25.38
     min-weight: 2.76
     max-weight: 31.26
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_nibble_fish
     biomes:
@@ -2159,7 +2159,7 @@ species:
     chance: 16.16
     min-weight: 1.76
     max-weight: 45.15
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_noor_tetra
     biomes:
@@ -2175,7 +2175,7 @@ species:
     chance: 15.31
     min-weight: 2.11
     max-weight: 36.33
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_oarfish
     biomes:
@@ -2191,7 +2191,7 @@ species:
     chance: 16.53
     min-weight: 3.71
     max-weight: 21.37
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_obsidifish
     biomes:
@@ -2208,7 +2208,7 @@ species:
     chance: 26.76
     min-weight: 2.9
     max-weight: 15.97
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_ocean_sunfish
     biomes:
@@ -2224,7 +2224,7 @@ species:
     chance: 26.9
     min-weight: 1.47
     max-weight: 34.42
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_olive_flounder
     biomes:
@@ -2240,7 +2240,7 @@ species:
     chance: 15.31
     min-weight: 1.72
     max-weight: 20.64
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_pale_chub
     biomes:
@@ -2256,7 +2256,7 @@ species:
     chance: 26.26
     min-weight: 4.24
     max-weight: 7.55
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_pamf
     biomes:
@@ -2272,7 +2272,7 @@ species:
     chance: 16.66
     min-weight: 4.81
     max-weight: 16.5
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_pengfish
     biomes:
@@ -2289,7 +2289,7 @@ species:
     chance: 7.91
     min-weight: 0.66
     max-weight: 14.57
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_pike
     biomes:
@@ -2305,7 +2305,7 @@ species:
     chance: 16.82
     min-weight: 2.78
     max-weight: 11.03
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_piranha
     biomes:
@@ -2322,7 +2322,7 @@ species:
     chance: 25.48
     min-weight: 3.67
     max-weight: 30.19
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_pixiefish
     biomes:
@@ -2338,7 +2338,7 @@ species:
     chance: 25.71
     min-weight: 4.35
     max-weight: 36.32
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_plain_ol_fish
     biomes:
@@ -2354,7 +2354,7 @@ species:
     chance: 25.26
     min-weight: 4.81
     max-weight: 51.55
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_plankton
     biomes:
@@ -2370,7 +2370,7 @@ species:
     chance: 7.67
     min-weight: 1.03
     max-weight: 20.83
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_pond_smelt
     biomes:
@@ -2386,7 +2386,7 @@ species:
     chance: 25.52
     min-weight: 0.75
     max-weight: 27.83
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_popeyed_goldfish
     biomes:
@@ -2402,7 +2402,7 @@ species:
     chance: 16.74
     min-weight: 0.8
     max-weight: 39.06
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_princess_fish
     biomes:
@@ -2418,7 +2418,7 @@ species:
     chance: 26.89
     min-weight: 0.59
     max-weight: 19.91
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_prismite
     biomes:
@@ -2434,7 +2434,7 @@ species:
     chance: 26.69
     min-weight: 3.39
     max-weight: 22.18
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_rabbitfish
     biomes:
@@ -2449,7 +2449,7 @@ species:
     chance: 25.14
     min-weight: 4.64
     max-weight: 11.7
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_rainbowfish
     biomes:
@@ -2464,7 +2464,7 @@ species:
     chance: 6.35
     min-weight: 2.45
     max-weight: 13.71
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_rainbow_trout
     biomes:
@@ -2480,7 +2480,7 @@ species:
     chance: 4.17
     min-weight: 3.66
     max-weight: 45.0
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_ranchu_goldfish
     biomes:
@@ -2495,7 +2495,7 @@ species:
     chance: 15.6
     min-weight: 1.08
     max-weight: 9.44
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_red_snapper
     biomes:
@@ -2511,7 +2511,7 @@ species:
     chance: 4.71
     min-weight: 3.77
     max-weight: 46.1
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_resinfish
     biomes:
@@ -2527,7 +2527,7 @@ species:
     chance: 25.46
     min-weight: 4.09
     max-weight: 17.14
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_ribbon_eel
     biomes:
@@ -2543,7 +2543,7 @@ species:
     chance: 7.61
     min-weight: 2.05
     max-weight: 15.33
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_rusty_marlin
     biomes:
@@ -2559,7 +2559,7 @@ species:
     chance: 25.69
     min-weight: 4.25
     max-weight: 50.49
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_saddled_bichir
     biomes:
@@ -2575,7 +2575,7 @@ species:
     chance: 15.9
     min-weight: 3.55
     max-weight: 34.54
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_scarab_fish
     biomes:
@@ -2591,7 +2591,7 @@ species:
     chance: 25.39
     min-weight: 2.97
     max-weight: 45.69
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_scorpio_fish
     biomes:
@@ -2607,7 +2607,7 @@ species:
     chance: 1.54
     min-weight: 1.46
     max-weight: 25.5
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_sea_bass
     biomes:
@@ -2623,7 +2623,7 @@ species:
     chance: 25.36
     min-weight: 2.34
     max-weight: 33.48
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_seven_finned_death
     biomes:
@@ -2639,7 +2639,7 @@ species:
     chance: 26.61
     min-weight: 3.35
     max-weight: 18.65
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_skippyjack
     biomes:
@@ -2654,7 +2654,7 @@ species:
     chance: 15.69
     min-weight: 2.73
     max-weight: 21.53
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_slimefish
     biomes:
@@ -2670,7 +2670,7 @@ species:
     chance: 6.97
     min-weight: 2.41
     max-weight: 20.33
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_small_fry
     biomes:
@@ -2686,7 +2686,7 @@ species:
     chance: 26.2
     min-weight: 4.34
     max-weight: 53.93
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_soulfish
     biomes:
@@ -2703,7 +2703,7 @@ species:
     chance: 25.16
     min-weight: 3.19
     max-weight: 35.2
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_specular_fish
     biomes:
@@ -2719,7 +2719,7 @@ species:
     chance: 7.31
     min-weight: 3.43
     max-weight: 46.89
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_spiderfish
     biomes:
@@ -2735,7 +2735,7 @@ species:
     chance: 4.67
     min-weight: 3.32
     max-weight: 39.48
-    price-per-kg: 500.0
+    price-per-kg: 120.0
     material: COD
     item-model: barely_default:fish_spiderfish_queen
     biomes:
@@ -2751,7 +2751,7 @@ species:
     chance: 26.74
     min-weight: 4.17
     max-weight: 53.45
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_stevelapia
     biomes:
@@ -2767,7 +2767,7 @@ species:
     chance: 25.21
     min-weight: 1.87
     max-weight: 37.37
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_stinkfish
     biomes:
@@ -2783,7 +2783,7 @@ species:
     chance: 26.34
     min-weight: 2.31
     max-weight: 31.01
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_stowfish
     biomes:
@@ -2799,7 +2799,7 @@ species:
     chance: 15.81
     min-weight: 1.9
     max-weight: 49.97
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_stringfish
     biomes:
@@ -2815,7 +2815,7 @@ species:
     chance: 26.91
     min-weight: 4.1
     max-weight: 47.99
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_sturgeon
     biomes:
@@ -2831,7 +2831,7 @@ species:
     chance: 26.06
     min-weight: 1.12
     max-weight: 11.42
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_suckerfish
     biomes:
@@ -2846,7 +2846,7 @@ species:
     chance: 25.33
     min-weight: 2.39
     max-weight: 47.58
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_sunnyfish
     biomes:
@@ -2862,7 +2862,7 @@ species:
     chance: 7.91
     min-weight: 3.55
     max-weight: 9.95
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_surgeonfish
     biomes:
@@ -2878,7 +2878,7 @@ species:
     chance: 16.16
     min-weight: 2.65
     max-weight: 16.96
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_sweetfish
     biomes:
@@ -2893,7 +2893,7 @@ species:
     chance: 16.59
     min-weight: 0.93
     max-weight: 22.03
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_testifish
     biomes:
@@ -2909,7 +2909,7 @@ species:
     chance: 26.23
     min-weight: 2.22
     max-weight: 4.56
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_the_beastfish
     biomes:
@@ -2925,7 +2925,7 @@ species:
     chance: 0.76
     min-weight: 4.7
     max-weight: 103.38
-    price-per-kg: 2000.0
+    price-per-kg: 350.0
     material: COD
     item-model: barely_default:fish_the_fish_of_cthulu
     biomes: []
@@ -2938,7 +2938,7 @@ species:
     chance: 26.27
     min-weight: 3.39
     max-weight: 38.17
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_the_great_hogfish
     biomes:
@@ -2954,7 +2954,7 @@ species:
     chance: 15.42
     min-weight: 4.82
     max-weight: 44.29
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_the_nibbler
     biomes:
@@ -2971,7 +2971,7 @@ species:
     chance: 0.05
     min-weight: 2.18
     max-weight: 22.44
-    price-per-kg: 10000.0
+    price-per-kg: 850.0
     material: COD
     item-model: barely_default:fish_the_uncatchable
     biomes:
@@ -2987,7 +2987,7 @@ species:
     chance: 16.88
     min-weight: 2.22
     max-weight: 7.11
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_tilapia
     biomes:
@@ -3002,7 +3002,7 @@ species:
     chance: 25.93
     min-weight: 4.44
     max-weight: 36.63
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_tnt_fish
     biomes:
@@ -3018,7 +3018,7 @@ species:
     chance: 26.72
     min-weight: 3.12
     max-weight: 35.63
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_touchy_fish
     biomes:
@@ -3034,7 +3034,7 @@ species:
     chance: 25.53
     min-weight: 3.75
     max-weight: 45.54
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_tropical_barracuda
     biomes:
@@ -3051,7 +3051,7 @@ species:
     chance: 16.29
     min-weight: 3.06
     max-weight: 43.55
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_tropical_slimefish
     biomes:
@@ -3068,7 +3068,7 @@ species:
     chance: 25.7
     min-weight: 3.96
     max-weight: 36.28
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_tuna
     biomes:
@@ -3083,7 +3083,7 @@ species:
     chance: 6.93
     min-weight: 3.04
     max-weight: 51.24
-    price-per-kg: 100.0
+    price-per-kg: 40.0
     material: COD
     item-model: barely_default:fish_tundra_trout
     biomes:
@@ -3100,7 +3100,7 @@ species:
     chance: 16.01
     min-weight: 1.39
     max-weight: 25.74
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_unicorn_fish
     biomes:
@@ -3116,7 +3116,7 @@ species:
     chance: 25.96
     min-weight: 3.5
     max-weight: 15.26
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_variegated_lardfish
     biomes:
@@ -3132,7 +3132,7 @@ species:
     chance: 25.34
     min-weight: 3.39
     max-weight: 36.57
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_volcanic_bass
     biomes:
@@ -3149,7 +3149,7 @@ species:
     chance: 15.71
     min-weight: 3.27
     max-weight: 6.12
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_voodoo_dollfin
     biomes:
@@ -3165,7 +3165,7 @@ species:
     chance: 25.75
     min-weight: 2.91
     max-weight: 29.74
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_wither_bonefish
     biomes:
@@ -3182,7 +3182,7 @@ species:
     chance: 26.18
     min-weight: 2.35
     max-weight: 31.24
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_wolf_fish
     biomes:
@@ -3198,7 +3198,7 @@ species:
     chance: 16.23
     min-weight: 2.57
     max-weight: 27.24
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_wyverntail
     biomes:
@@ -3214,7 +3214,7 @@ species:
     chance: 16.22
     min-weight: 3.95
     max-weight: 49.5
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_yellow_perch
     biomes:
@@ -3230,7 +3230,7 @@ species:
     chance: 25.36
     min-weight: 2.51
     max-weight: 31.84
-    price-per-kg: 10.0
+    price-per-kg: 6.0
     material: COD
     item-model: barely_default:fish_zebra_turkeyfish
     biomes:
@@ -3246,7 +3246,7 @@ species:
     chance: 15.14
     min-weight: 2.72
     max-weight: 38.89
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_zishlin
     biomes:
@@ -3262,7 +3262,7 @@ species:
     chance: 16.4
     min-weight: 4.38
     max-weight: 39.18
-    price-per-kg: 25.0
+    price-per-kg: 14.0
     material: COD
     item-model: barely_default:fish_zurigeon
     biomes:

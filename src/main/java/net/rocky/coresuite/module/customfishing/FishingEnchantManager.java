@@ -172,11 +172,11 @@ public class FishingEnchantManager {
 
     public static enum RodTier {
         BASIC("&7Basic", 1.0, 0),
-        BRONZE("&6Bronze", 1.15, 1),
-        SILVER("&fSilver", 1.3, 2),
-        GOLD("&eGold", 1.5, 3),
-        DIAMOND("&bDiamond", 1.75, 4),
-        NETHERITE("&4Netherite", 2.0, 5);
+        BRONZE("&6Bronze", 1.10, 1),
+        SILVER("&fSilver", 1.20, 2),
+        GOLD("&eGold", 1.30, 3),
+        DIAMOND("&bDiamond", 1.45, 4),
+        NETHERITE("&4Netherite", 1.60, 5);
 
         private final String displayName;
         private final double enchantMultiplier;
