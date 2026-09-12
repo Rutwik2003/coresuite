@@ -170,6 +170,39 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
             case "roulette" -> rouletteGUI.openColorSelect(player);
             case "slots" -> slotsGUI.openBetSelect(player);
             case "top", "leaderboard" -> CasinoLeaderboardGUI.open(plugin, statsManager, player, () -> mainGUI.open(player));
+            case "audit", "testmode" -> {
+                if (!player.hasPermission("coresuite.admin") && !isConfiguredAuditAccount(config, player.getUniqueId(), player.getName())) {
+                    mainGUI.open(player);
+                    return;
+                }
+                UUID pUuid = player.getUniqueId();
+                if (!isConfiguredAuditAccount(config, pUuid, player.getName())) {
+                    TextUtil.sendMessage(player, "&8[&6&lCasino&8] &cYour account is not listed in gambling.yml audit-accounts.");
+                    return;
+                }
+                if (args.length >= 2) {
+                    if (args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("enable") || args[1].equalsIgnoreCase("true")) {
+                        disabledAudits.remove(pUuid);
+                        TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &a&lENABLED &7(85% win boost active)");
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
+                        return;
+                    } else if (args[1].equalsIgnoreCase("off") || args[1].equalsIgnoreCase("disable") || args[1].equalsIgnoreCase("false")) {
+                        disabledAudits.add(pUuid);
+                        TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &c&lDISABLED &7(Standard fair odds)");
+                        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                        return;
+                    }
+                }
+                if (disabledAudits.contains(pUuid)) {
+                    disabledAudits.remove(pUuid);
+                    TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &a&lENABLED &7(85% win boost active)");
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
+                } else {
+                    disabledAudits.add(pUuid);
+                    TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &c&lDISABLED &7(Standard fair odds)");
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                }
+            }
             case "help" -> sendHelp(player);
             default -> mainGUI.open(player);
         }
@@ -291,7 +324,9 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         if (slotsGUI != null) slotsGUI.cleanup(uuid);
     }
 
-    public static boolean isAuditPlayer(FileConfiguration config, UUID uuid, String name) {
+    private static final Set<UUID> disabledAudits = Collections.synchronizedSet(new HashSet<>());
+
+    public static boolean isConfiguredAuditAccount(FileConfiguration config, UUID uuid, String name) {
         if (config == null) return false;
         List<String> auditList = config.getStringList("admin.audit-accounts");
         if (auditList == null || auditList.isEmpty()) {
@@ -309,6 +344,11 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
             }
         }
         return false;
+    }
+
+    public static boolean isAuditPlayer(FileConfiguration config, UUID uuid, String name) {
+        if (uuid != null && disabledAudits.contains(uuid)) return false;
+        return isConfiguredAuditAccount(config, uuid, name);
     }
 
     public static double getAuditWinRate(FileConfiguration config) {
