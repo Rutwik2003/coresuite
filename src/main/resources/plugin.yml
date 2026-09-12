@@ -158,12 +158,6 @@ commands:
     description: Open the store GUI
     usage: /<command>
     aliases: [crate]
-  rank:
-    description: Get a link to the store website
-    usage: /<command>
-  link:
-    description: Link your Minecraft account to Discord
-    usage: /<command>
   profile:
     description: View your player profile and stats
     usage: /<command>
