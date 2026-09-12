@@ -49,10 +49,20 @@ import org.bukkit.util.io.BukkitObjectOutputStream;
 
 public class FishBagManager {
     private final CoreSuitePlugin plugin;
+    private CustomFishingModule module;
     private final Map<UUID, ItemStack[]> cache = new ConcurrentHashMap<UUID, ItemStack[]>();
 
     public FishBagManager(CoreSuitePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    public FishBagManager(CoreSuitePlugin plugin, CustomFishingModule module) {
+        this.plugin = plugin;
+        this.module = module;
+    }
+
+    public void setModule(CustomFishingModule module) {
+        this.module = module;
     }
 
     public void loadBag(UUID uuid) {
@@ -260,7 +270,11 @@ public class FishBagManager {
         int start = currentPage * 45;
         for (int i = 0; i < 45; ++i) {
             if (start + i >= items.length) continue;
-            bagInv.setItem(i, items[start + i]);
+            ItemStack it = items[start + i];
+            if (it != null && this.module != null) {
+                this.module.syncFishItemConfig(it);
+            }
+            bagInv.setItem(i, it);
         }
         ItemStack filler = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
         ItemMeta fillerMeta = filler.getItemMeta();

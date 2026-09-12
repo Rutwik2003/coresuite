@@ -1176,7 +1176,7 @@ species:
     chance: 0.05
     min-weight: 4.93
     max-weight: 42.39
-    price-per-kg: 850.0
+    price-per-kg: 8000.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish
     biomes:
@@ -1193,7 +1193,7 @@ species:
     chance: 0.05
     min-weight: 3.41
     max-weight: 45.45
-    price-per-kg: 850.0
+    price-per-kg: 8000.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish_christmas
     biomes:
@@ -1210,7 +1210,7 @@ species:
     chance: 0.05
     min-weight: 4.24
     max-weight: 13.47
-    price-per-kg: 850.0
+    price-per-kg: 8000.0
     material: COD
     item-model: barely_default:fish_enchanted_bookfish_halloween
     biomes:
@@ -2967,7 +2967,7 @@ species:
     chance: 0.05
     min-weight: 2.18
     max-weight: 22.44
-    price-per-kg: 850.0
+    price-per-kg: 8000.0
     material: COD
     item-model: barely_default:fish_the_uncatchable
     biomes:

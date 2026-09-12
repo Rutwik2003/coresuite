@@ -187,7 +187,7 @@ TabCompleter {
         this.initDatabase();
         this.cleanupRemovedFish();
         this.migratePondConfig();
-        this.fishBagManager = new FishBagManager(this.plugin);
+        this.fishBagManager = new FishBagManager(this.plugin, this);
         this.eventManager = new FishingEventManager(this.plugin, this);
         this.leaderboardManager = new FishingLeaderboardManager(this.plugin, this);
         this.wanderingAnglerManager = new WanderingAnglerManager(this.plugin, this);
@@ -298,6 +298,24 @@ TabCompleter {
         }
         if (!this.config.contains("junk.base-chance")) {
             this.config.set("junk.base-chance", 4.0);
+            configChanged = true;
+        }
+        if (this.config.getConfigurationSection("species") != null) {
+            for (String key : this.config.getConfigurationSection("species").getKeys(false)) {
+                String spPath = "species." + key + ".";
+                String rarity = this.config.getString(spPath + "rarity", "");
+                if ("Mythical".equalsIgnoreCase(rarity)) {
+                    double ppk = this.config.getDouble(spPath + "price-per-kg", 10.0);
+                    if (ppk < 2000.0) {
+                        this.config.set(spPath + "price-per-kg", 8000.0);
+                        configChanged = true;
+                    }
+                }
+            }
+        }
+        if (this.config.contains("baits.mythic_chum.rarity-bias") &&
+            "epic".equalsIgnoreCase(this.config.getString("baits.mythic_chum.rarity-bias"))) {
+            this.config.set("baits.mythic_chum.rarity-bias", "mythical");
             configChanged = true;
         }
         if (configChanged) {
