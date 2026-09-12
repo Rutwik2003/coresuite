@@ -79,11 +79,26 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
                 "ip TEXT, " +
                 "PRIMARY KEY(uuid, code))";
         plugin.getDatabaseManager().execute(sql);
-        try {
-            plugin.getDatabaseManager().execute("ALTER TABLE coresuite_reward_codes ADD COLUMN ip TEXT");
-        } catch (Exception ignored) {
-            // Column already exists
-        }
+
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement ps = conn.prepareStatement("PRAGMA table_info(coresuite_reward_codes)");
+                 ResultSet rs = ps.executeQuery()) {
+                boolean hasIp = false;
+                while (rs.next()) {
+                    if ("ip".equalsIgnoreCase(rs.getString("name"))) {
+                        hasIp = true;
+                        break;
+                    }
+                }
+                if (!hasIp) {
+                    try (PreparedStatement alter = conn.prepareStatement("ALTER TABLE coresuite_reward_codes ADD COLUMN ip TEXT")) {
+                        alter.executeUpdate();
+                    }
+                }
+            } catch (SQLException ignored) {
+            }
+        });
     }
 
     private boolean hasRedeemed(OfflinePlayer player, String code) {
