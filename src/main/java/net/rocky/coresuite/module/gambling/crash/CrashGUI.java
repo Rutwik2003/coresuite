@@ -243,6 +243,15 @@ public class CrashGUI {
                     return;
                 }
 
+                // If player cashed out and closed the GUI, clean up immediately
+                if (cashedOut.get()) {
+                    activePlayers.remove(player.getUniqueId());
+                    if (player.getOpenInventory() == null || !player.getOpenInventory().getTopInventory().equals(gui.getInventory())) {
+                        cancel();
+                        return;
+                    }
+                }
+
                 // ── Phase 1: Launchpad Countdown Sequence (~1.2s) ──
                 if (!launched) {
                     countdownStep++;
@@ -383,6 +392,7 @@ public class CrashGUI {
 
                             plugin.getEconomyManager().deposit(player, payout);
                             statsManager.recordGame(player.getUniqueId(), player.getName(), bet, payout);
+                            activePlayers.remove(player.getUniqueId());
 
                             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
                             String taxNotice = (taxPercent > 0)
