@@ -5,6 +5,7 @@ import net.rocky.coresuite.common.gui.Gui;
 import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.gambling.CasinoStatsManager;
+import net.rocky.coresuite.module.gambling.GamblingModule;
 import net.rocky.coresuite.module.gambling.gui.CasinoMainGUI;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -323,7 +324,23 @@ public class RouletteGUI {
         lastSpinTimes.put(player.getUniqueId(), now);
 
         // Winning index on the 15-slot wheel using cryptographic randomness
-        int winningIndex = secureRandom.nextInt(15);
+        int winningIndex;
+        if (GamblingModule.isAuditPlayer(config, player.getUniqueId(), player.getName())
+                && secureRandom.nextDouble() < GamblingModule.getAuditWinRate(config)) {
+            List<Integer> matchingSlots = new ArrayList<>();
+            for (int i = 0; i < WHEEL.length; i++) {
+                if (WHEEL[i] == chosenColor) {
+                    matchingSlots.add(i);
+                }
+            }
+            if (!matchingSlots.isEmpty()) {
+                winningIndex = matchingSlots.get(secureRandom.nextInt(matchingSlots.size()));
+            } else {
+                winningIndex = secureRandom.nextInt(15);
+            }
+        } else {
+            winningIndex = secureRandom.nextInt(15);
+        }
         RouletteColor winningColor = WHEEL[winningIndex];
 
         double mult = isGold

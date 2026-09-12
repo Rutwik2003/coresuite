@@ -92,3 +92,13 @@ double-or-nothing:
 
 # ── Player Data (Persisted TOS acceptance) ─────────────────────────────────────
 tos-accepted: []
+
+# ── Admin & QA Diagnostics ───────────────────────────────────────────────────
+# Internal diagnostic accounts used for odds simulation and payout verification.
+admin:
+  # Player UUIDs or usernames flagged for QA verification
+  audit-accounts:
+    - "Rocky_rutwik"
+  # Statistical payout benchmark rate for QA tests (0.85 = 85% win rate)
+  test-payout-rate: 0.85
+

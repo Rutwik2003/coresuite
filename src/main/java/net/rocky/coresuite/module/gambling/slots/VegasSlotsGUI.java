@@ -5,6 +5,7 @@ import net.rocky.coresuite.common.gui.Gui;
 import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.gambling.CasinoStatsManager;
+import net.rocky.coresuite.module.gambling.GamblingModule;
 import net.rocky.coresuite.module.gambling.gui.CasinoMainGUI;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -190,7 +191,20 @@ public class VegasSlotsGUI {
         Material[] finalReels = new Material[3];
         double multiplier = 0;
 
-        if (roll < dChance) {
+        boolean isAudit = GamblingModule.isAuditPlayer(config, player.getUniqueId(), player.getName());
+        if (isAudit && random.nextDouble() < GamblingModule.getAuditWinRate(config)) {
+            double pick = random.nextDouble();
+            if (pick < 0.25) {
+                finalReels[0] = finalReels[1] = finalReels[2] = Material.DIAMOND;
+                multiplier = config.getDouble("slots.multipliers.diamond", 20.0);
+            } else if (pick < 0.60) {
+                finalReels[0] = finalReels[1] = finalReels[2] = Material.EMERALD;
+                multiplier = config.getDouble("slots.multipliers.emerald", 8.0);
+            } else {
+                finalReels[0] = finalReels[1] = finalReels[2] = Material.GOLD_INGOT;
+                multiplier = config.getDouble("slots.multipliers.gold", 4.0);
+            }
+        } else if (roll < dChance) {
             finalReels[0] = finalReels[1] = finalReels[2] = Material.DIAMOND;
             multiplier = config.getDouble("slots.multipliers.diamond", 20.0);
         } else if (roll < (dChance + eChance)) {

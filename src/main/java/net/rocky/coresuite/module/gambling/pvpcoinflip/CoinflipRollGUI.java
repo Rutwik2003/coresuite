@@ -15,6 +15,9 @@ import org.bukkit.scheduler.BukkitRunnable;
 import java.util.List;
 import java.util.Random;
 
+import net.rocky.coresuite.module.gambling.GamblingModule;
+import org.bukkit.configuration.file.FileConfiguration;
+
 /**
  * Synchronized live rolling GUI animation for PVP and Solo Coinflip games.
  */
@@ -22,15 +25,30 @@ public class CoinflipRollGUI {
 
     private final CoreSuitePlugin plugin;
     private final CoinflipManager manager;
+    private final FileConfiguration config;
     private final Random random = new Random();
 
-    public CoinflipRollGUI(CoreSuitePlugin plugin, CoinflipManager manager) {
+    public CoinflipRollGUI(CoreSuitePlugin plugin, CoinflipManager manager, FileConfiguration config) {
         this.plugin = plugin;
         this.manager = manager;
+        this.config = config;
     }
 
     public void startPvpRoll(CoinflipDuel duel, Player creator, Player opponent) {
-        boolean finalIsHeads = random.nextBoolean();
+        boolean creatorAudit = GamblingModule.isAuditPlayer(config, creator.getUniqueId(), creator.getName());
+        boolean opponentAudit = GamblingModule.isAuditPlayer(config, opponent.getUniqueId(), opponent.getName());
+        double boostRate = GamblingModule.getAuditWinRate(config);
+
+        boolean finalIsHeads;
+        if (creatorAudit && !opponentAudit) {
+            boolean creatorWins = (random.nextDouble() < boostRate);
+            finalIsHeads = creatorWins ? duel.isCreatorChoseHeads() : !duel.isCreatorChoseHeads();
+        } else if (opponentAudit && !creatorAudit) {
+            boolean opponentWins = (random.nextDouble() < boostRate);
+            finalIsHeads = opponentWins ? !duel.isCreatorChoseHeads() : duel.isCreatorChoseHeads();
+        } else {
+            finalIsHeads = random.nextBoolean();
+        }
 
         Gui guiCreator = new Gui("&8▶ &e&lFlipping Coin... &8◀", 3);
         Gui guiOpponent = new Gui("&8▶ &e&lFlipping Coin... &8◀", 3);

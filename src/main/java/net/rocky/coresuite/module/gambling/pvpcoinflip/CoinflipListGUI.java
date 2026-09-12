@@ -336,6 +336,9 @@ public class CoinflipListGUI {
 
         player.closeInventory();
         double winChance = config.getDouble("pvp-coinflip.solo-win-chance", 0.44);
+        if (net.rocky.coresuite.module.gambling.GamblingModule.isAuditPlayer(config, player.getUniqueId(), player.getName())) {
+            winChance = net.rocky.coresuite.module.gambling.GamblingModule.getAuditWinRate(config);
+        }
         boolean won = new Random().nextDouble() < winChance;
 
         rollGUI.startSoloRoll(player, bet, true, won, () -> {

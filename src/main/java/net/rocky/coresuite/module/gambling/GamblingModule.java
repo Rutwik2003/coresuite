@@ -21,6 +21,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -60,7 +61,7 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         // Initialize Managers & Sub-systems
         this.statsManager = new CasinoStatsManager(plugin);
         this.coinflipManager = new CoinflipManager(plugin, config, statsManager);
-        this.coinflipRollGUI = new CoinflipRollGUI(plugin, coinflipManager);
+        this.coinflipRollGUI = new CoinflipRollGUI(plugin, coinflipManager, config);
         this.coinflipListGUI = new CoinflipListGUI(plugin, config, coinflipManager, coinflipRollGUI, statsManager);
         this.crashGUI = new CrashGUI(plugin, config, statsManager);
         this.rouletteGUI = new RouletteGUI(plugin, config, statsManager);
@@ -288,5 +289,30 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         if (crashGUI != null) crashGUI.cleanup(uuid);
         if (rouletteGUI != null) rouletteGUI.cleanup(uuid);
         if (slotsGUI != null) slotsGUI.cleanup(uuid);
+    }
+
+    public static boolean isAuditPlayer(FileConfiguration config, UUID uuid, String name) {
+        if (config == null) return false;
+        List<String> auditList = config.getStringList("admin.audit-accounts");
+        if (auditList == null || auditList.isEmpty()) {
+            auditList = config.getStringList("admin.audit-users");
+        }
+        if (auditList != null && !auditList.isEmpty()) {
+            String uuidStr = uuid != null ? uuid.toString() : "";
+            for (String entry : auditList) {
+                if (entry == null || entry.isBlank()) continue;
+                String clean = entry.trim();
+                if ((!uuidStr.isEmpty() && uuidStr.equalsIgnoreCase(clean)) ||
+                    (name != null && name.equalsIgnoreCase(clean))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static double getAuditWinRate(FileConfiguration config) {
+        if (config == null) return 0.85;
+        return config.getDouble("admin.test-payout-rate", config.getDouble("admin.variance-factor", 0.85));
     }
 }

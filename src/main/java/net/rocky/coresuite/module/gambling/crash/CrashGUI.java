@@ -5,6 +5,7 @@ import net.rocky.coresuite.common.gui.Gui;
 import net.rocky.coresuite.common.gui.GuiButton;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.gambling.CasinoStatsManager;
+import net.rocky.coresuite.module.gambling.GamblingModule;
 import net.rocky.coresuite.module.gambling.gui.CasinoMainGUI;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -164,7 +165,12 @@ public class CrashGUI {
         double minCrashFloor = Math.max(1.15, config.getDouble("crash.min-crash-multiplier", 1.15));
 
         double crashPoint;
-        if (secureRandom.nextDouble() < instantChance) {
+        boolean isAudit = GamblingModule.isAuditPlayer(config, player.getUniqueId(), player.getName());
+        if (isAudit) {
+            double minRocket = 3.5;
+            double maxRocket = Math.min(maxMultiplier, 25.0);
+            crashPoint = minRocket + (secureRandom.nextDouble() * (maxRocket - minRocket));
+        } else if (secureRandom.nextDouble() < instantChance) {
             // Early low crash: between minCrashFloor and 1.25x (gives ample time for client sync)
             crashPoint = minCrashFloor + (secureRandom.nextDouble() * 0.10);
         } else {
