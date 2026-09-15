@@ -59,9 +59,9 @@ public class ValeriusBoss extends WorldBoss {
             eq.setItemInMainHandDropChance(0f);
         }
 
-        applyAttributeSafely(entity, Attribute.SCALE, config.getDouble("valerius.scale", 1.35));
-        applyAttributeSafely(entity, Attribute.MOVEMENT_SPEED, config.getDouble("valerius.movement-speed", 0.28));
-        applyAttributeSafely(entity, Attribute.MAX_HEALTH, this.maxHealth);
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.SCALE, config.getDouble("valerius.scale", 1.35));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, config.getDouble("valerius.movement-speed", 0.28));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, this.maxHealth);
     }
 
     @Override
@@ -130,7 +130,7 @@ public class ValeriusBoss extends WorldBoss {
                         if (tickCount % 2 == 0) {
                             Block under = p.getLocation().getBlock();
                             if (under.getType() == Material.AIR && under.getRelative(0, -1, 0).getType().isSolid()) {
-                                under.setType(Material.FIRE);
+                                if (net.rocky.coresuite.common.integration.BossProtectionGate.allows(under.getLocation())) under.setType(Material.FIRE);
                             }
                         }
 
@@ -329,7 +329,7 @@ public class ValeriusBoss extends WorldBoss {
             if (p.hasPotionEffect(PotionEffectType.WITHER)) {
                 if (totalHealed < maxHealPerPulse) {
                     double actualHeal = Math.min(healAmt, maxHealPerPulse - totalHealed);
-                    setCurrentHealth(currentHealth + actualHeal);
+                    heal(actualHeal);
                     totalHealed += actualHeal;
                 }
                 p.damage(drainDmg, entity);

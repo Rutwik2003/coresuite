@@ -3271,3 +3271,8 @@ legendary-quest:
   pity-threshold: 2500
 bait-shop:
   force-restock-price: 500000.0
+
+# Destructive legacy cleanup: deletes retired species and their logbook records.
+# Enable only deliberately after backing up configuration and the database.
+maintenance:
+  remove-retired-fish: false

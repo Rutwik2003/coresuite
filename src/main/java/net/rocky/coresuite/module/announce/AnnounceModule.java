@@ -69,7 +69,7 @@ public class AnnounceModule extends Module implements CommandExecutor, TabComple
         String soundStr = config.getString("sound", "ENTITY_ENDER_DRAGON_GROWL");
         Sound sound = null;
         try {
-            sound = Sound.valueOf(soundStr);
+            sound = net.rocky.coresuite.common.compat.PaperCompat.sound(soundStr);
         } catch (IllegalArgumentException ignored) {}
 
         for (Player player : Bukkit.getOnlinePlayers()) {

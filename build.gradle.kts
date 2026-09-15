@@ -8,10 +8,14 @@ plugins {
 group = project.property("group") as String
 version = project.property("version") as String
 
-// Configure Java toolchain to use Java 21
+// Compile the release against the oldest supported Paper API.
+val paperApiVersion = providers.gradleProperty("paperApiVersion").orElse("1.21-R0.1-SNAPSHOT")
+val apiJavaVersion = if (paperApiVersion.get().startsWith("26.")) 25 else 21
+
+// Keep release bytecode compatible with Java 21.
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(apiJavaVersion))
     }
 }
 
@@ -26,10 +30,16 @@ repositories {
     maven("https://repo.luckperms.net/repository/maven-public/")
 }
 
+configurations.configureEach {
+    if (isCanBeResolved) {
+        attributes.attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, apiJavaVersion)
+    }
+}
+
 dependencies {
     // Core Paper API
-    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
-    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:${paperApiVersion.get()}")
+    testImplementation("io.papermc.paper:paper-api:${paperApiVersion.get()}")
     
     // Soft dependencies (transitive = false: these are server plugins, we only need compile-time API)
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
@@ -41,12 +51,59 @@ dependencies {
     // Implementations to be shadowed
     implementation("com.zaxxer:HikariCP:6.2.1")
     testImplementation("com.zaxxer:HikariCP:6.2.1")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.mockito:mockito-core:5.15.2")
+    testImplementation("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+    testRuntimeOnly("org.xerial:sqlite-jdbc:3.47.1.0")
+}
+
+val smokeSourceSet = sourceSets.create("smoke") {
+    compileClasspath += sourceSets.main.get().output + configurations.compileClasspath.get()
+}
+tasks.register<Jar>("smokeJar") {
+    group = "verification"
+    description = "Builds the test-only Paper compatibility probe; never included in the release JAR."
+    dependsOn(tasks.named("smokeClasses"))
+    from(smokeSourceSet.output)
+    archiveFileName.set("CoreSuite-SmokeProbe.jar")
 }
 
 tasks {
+    register("writeCompatibilityClasspath") {
+        doLast {
+            val output = layout.buildDirectory.file("compatibility/${paperApiVersion.get()}.classpath").get().asFile
+            output.parentFile.mkdirs()
+            output.writeText(configurations.compileClasspath.get().files.joinToString("\n") { it.absolutePath })
+        }
+    }
+
+    test {
+        javaLauncher.set(project.extensions.getByType<org.gradle.jvm.toolchain.JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(apiJavaVersion))
+        })
+        useJUnitPlatform()
+    }
+
+    register<JavaExec>("e2eTest") {
+        group = "verification"
+        description = "Runs the existing boss regression suite using the declared test classpath."
+        dependsOn(testClasses)
+        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set("net.rocky.coresuite.test.E2ETestRunner")
+        javaLauncher.set(project.extensions.getByType<org.gradle.jvm.toolchain.JavaToolchainService>().launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(apiJavaVersion))
+        })
+    }
+
+    named("check") {
+        dependsOn("e2eTest")
+    }
+
     // Set encoding to UTF-8
     withType<JavaCompile> {
         options.encoding = "UTF-8"
+        options.release.set(21)
     }
 
     // Process resources task to expand version in plugin.yml

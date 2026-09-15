@@ -156,7 +156,7 @@ public class JumpPadModule extends Module implements Listener, CommandExecutor, 
         TextUtil.sendActionBar(player, config.getString("launch-message", "&b&lLaunching..."));
         
         try {
-            Sound sound = Sound.valueOf(config.getString("launch-sound", "ENTITY_FIREWORK_ROCKET_LAUNCH"));
+            Sound sound = net.rocky.coresuite.common.compat.PaperCompat.sound(config.getString("launch-sound", "ENTITY_FIREWORK_ROCKET_LAUNCH"));
             player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
         } catch (IllegalArgumentException e) {
             // Invalid sound in config

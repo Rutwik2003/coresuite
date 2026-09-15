@@ -83,12 +83,18 @@ public final class ModuleManager {
     public boolean reloadModule(String configKey) {
         Module module = modules.get(configKey.toLowerCase());
         if (module != null) {
-            if (module.isEnabled()) {
-                module.onReload();
-            } else {
-                module.enable();
+            try {
+                if (module.isEnabled()) {
+                    module.onReload();
+                } else {
+                    module.enable();
+                }
+                return module.isEnabled();
+            } catch (Exception | LinkageError e) {
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "Failed to reload module: " + module.getName(), e);
+                module.disable();
+                return false;
             }
-            return true;
         }
         return false;
     }

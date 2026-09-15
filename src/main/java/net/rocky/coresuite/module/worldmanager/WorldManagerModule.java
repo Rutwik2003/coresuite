@@ -96,6 +96,7 @@ public class WorldManagerModule extends Module implements Listener, CommandExecu
     }
 
     private void savePlayerLocation(Player player) {
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
         String survivalWorld = config.getString("survival-world", "world");
         if (player.getWorld().getName().equals(survivalWorld)) {
             Location loc = player.getLocation();
@@ -122,7 +123,8 @@ public class WorldManagerModule extends Module implements Listener, CommandExecu
 
     @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST)
     public void onJoin(PlayerJoinEvent event) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, event.getPlayer(), () -> {
+            if (!isEnabled()) return;
             if (lobbySpawn != null) {
                 event.getPlayer().teleport(lobbySpawn);
             } else {
@@ -131,7 +133,7 @@ public class WorldManagerModule extends Module implements Listener, CommandExecu
                     event.getPlayer().teleport(spawnWorld.getSpawnLocation());
                 }
             }
-        }, 10L); // Delay by 10 ticks to guarantee override of EssentialsSpawn
+        });
     }
 
     @EventHandler
@@ -169,6 +171,7 @@ public class WorldManagerModule extends Module implements Listener, CommandExecu
         }
 
         Player player = (Player) sender;
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) { TextUtil.sendMessage(player, "&cPlease log in before teleporting."); return true; }
         String cmd = command.getName().toLowerCase();
 
         String prefix = config.getString("prefix", "&8[&a&lWorld&8] &r");

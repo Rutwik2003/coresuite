@@ -91,7 +91,7 @@ public class MentionModule extends Module implements Listener, CommandExecutor, 
                     
                     try {
                         String soundName = config.getString("mention-sound", "BLOCK_NOTE_BLOCK_BIT");
-                        Sound sound = Sound.valueOf(soundName.toUpperCase());
+                        Sound sound = net.rocky.coresuite.common.compat.PaperCompat.sound(soundName.toUpperCase());
                         float volume = (float) config.getDouble("sound-volume", 1.0);
                         float pitch = (float) config.getDouble("sound-pitch", 1.5);
                         p.playSound(p.getLocation(), sound, volume, pitch);

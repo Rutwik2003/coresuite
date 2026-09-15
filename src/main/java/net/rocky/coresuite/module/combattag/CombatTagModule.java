@@ -52,7 +52,7 @@ public class CombatTagModule extends Module implements Listener {
             String enterSound = config.getString("sounds.enter-sound", "");
             if (!enterSound.isEmpty()) {
                 try {
-                    player.playSound(player.getLocation(), org.bukkit.Sound.valueOf(enterSound), 1f, 1f);
+                    player.playSound(player.getLocation(), net.rocky.coresuite.common.compat.PaperCompat.sound(enterSound), 1f, 1f);
                 } catch (Exception ignored) {}
             }
         }
@@ -83,7 +83,7 @@ public class CombatTagModule extends Module implements Listener {
                         String exitSound = config.getString("sounds.exit-sound", "");
                         if (!exitSound.isEmpty()) {
                             try {
-                                player.playSound(player.getLocation(), org.bukkit.Sound.valueOf(exitSound), 1f, 1f);
+                                player.playSound(player.getLocation(), net.rocky.coresuite.common.compat.PaperCompat.sound(exitSound), 1f, 1f);
                             } catch (Exception ignored) {}
                         }
                     } else {

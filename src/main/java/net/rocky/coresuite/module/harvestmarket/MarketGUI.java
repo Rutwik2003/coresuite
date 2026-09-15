@@ -156,7 +156,7 @@ public class MarketGUI {
                                             .replace("{money}", "$" + TextUtil.formatNumber(total))
                                             .replace("{rate}", remainingQuota > 0 ? String.valueOf(bonusMult) : "1.0"));
                                     open(player);
-                                }, () -> {});
+                                }, () -> TextUtil.sendMessage(player, "&cSale failed. Your crops have not been consumed."));
                             } else {
                                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
                                 TextUtil.sendMessage(player, "&cYou don't have any " + capitalize(mat.name()) + " to sell!");
@@ -194,8 +194,6 @@ public class MarketGUI {
 
                     if (totalGolden > 0) {
                         goldLore.add("&a▶ Click to SELL ALL for &6&l$" + TextUtil.formatNumber(goldenPayout) + "&a!");
-                        final double finalPayout = goldenPayout;
-                        final int finalCount = totalGolden;
                         ItemStack goldItem = new ItemStack(Material.GOLD_BLOCK);
                         ItemMeta goldMeta = goldItem.getItemMeta();
                         if (goldMeta != null) {
@@ -206,14 +204,25 @@ public class MarketGUI {
                             goldItem.setItemMeta(goldMeta);
                         }
                         gui.setItem(28, new GuiButton(goldItem, e -> {
+                            int[] soldCount = {0};
+                            double[] paid = {0};
+                            boolean[] failed = {false};
                             for (Material m : allCrops) {
                                 int gc = countItems(player, m, true);
                                 if (gc > 0) {
-                                    sellManager.sellCrops(player, m, gc, true, earned -> {}, () -> {});
+                                    sellManager.sellCrops(player, m, gc, true, earned -> {
+                                        soldCount[0] += gc;
+                                        paid[0] += earned;
+                                    }, () -> failed[0] = true);
                                 }
                             }
-                            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-                            TextUtil.sendMessage(player, "&8[&2🌾 Market&8] &6✨ Sold &e" + finalCount + "x Golden Crops &6for &a$" + TextUtil.formatNumber(finalPayout) + "&6!");
+                            if (soldCount[0] > 0) {
+                                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
+                                TextUtil.sendMessage(player, "&8[&2🌾 Market&8] &6✨ Sold &e" + soldCount[0] + "x Golden Crops &6for &a$" + TextUtil.formatNumber(paid[0]) + "&6!");
+                            }
+                            if (failed[0]) {
+                                TextUtil.sendMessage(player, "&8[&2🌾 Market&8] &cSome crops could not be sold. They remain in your inventory.");
+                            }
                             open(player);
                         }));
                     } else {
@@ -348,7 +357,7 @@ public class MarketGUI {
                         bountyManager.recordSell(player.getUniqueId(), mat, count);
                         TextUtil.sendMessage(player, "&a💰 Sold " + count + "x " + capitalize(mat.name()) + " for &e$" + TextUtil.formatNumber(total) + "&a!");
                         openOffSeason(player);
-                    }, () -> {});
+                    }, () -> TextUtil.sendMessage(player, "&cSale failed. Your crops have not been consumed."));
                 } else {
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
                     TextUtil.sendMessage(player, "&cYou don't have any " + capitalize(mat.name()) + " to sell!");

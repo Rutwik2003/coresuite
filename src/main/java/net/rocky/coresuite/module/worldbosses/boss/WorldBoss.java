@@ -48,6 +48,11 @@ public abstract class WorldBoss {
 
     protected LivingEntity entity;
     protected Location spawnLocation;
+    private final double configuredHealth;
+    private double healedFraction;
+    private int scaledPlayers = 1;
+    private boolean hasBeenEngaged;
+    private final java.util.Set<org.bukkit.Chunk> heldChunks = new java.util.HashSet<>();
     protected double maxHealth;
     protected double currentHealth;
     protected boolean active = false;
@@ -77,7 +82,8 @@ public abstract class WorldBoss {
         this.type = type;
         this.config = config;
         this.lootManager = lootManager;
-        this.maxHealth = config.getDouble(type.getConfigKey() + ".max-health", 1500.0);
+        this.configuredHealth = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(config.getDouble(type.getConfigKey() + ".max-health", 1500.0), 1500, 1, 10000000);
+        this.maxHealth = healthForPlayers(1);
         this.currentHealth = maxHealth;
         this.damageTracker = new BossDamageTracker(maxHealth);
         this.totalAwakeningSeconds = config.getInt("domain.awakening-seconds", 45);
@@ -95,7 +101,7 @@ public abstract class WorldBoss {
         try {
             org.bukkit.attribute.AttributeInstance instance = entity.getAttribute(attribute);
             if (instance != null) {
-                if (attribute == org.bukkit.attribute.Attribute.MAX_HEALTH) {
+                if (attribute == net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH) {
                     double cap = 1024.0;
                     double safeHp = Math.min(value, cap);
                     instance.setBaseValue(safeHp);
@@ -120,15 +126,7 @@ public abstract class WorldBoss {
             try {
                 for (Entity nearby : location.getWorld().getNearbyEntities(location, 80.0, 80.0, 80.0)) {
                     if (nearby instanceof LivingEntity le && !nearby.isDead()) {
-                        boolean isOrphanBoss = false;
-                        if (le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING)) {
-                            isOrphanBoss = true;
-                        } else if (le.getType() == type.getEntityType()) {
-                            String name = (le.getCustomName() != null) ? le.getCustomName().toLowerCase() : "";
-                            if (name.contains("valerius") || name.contains("aethelgard") || name.contains("xolthos") || name.contains("widow") || name.contains("vanguard") || name.contains("king")) {
-                                isOrphanBoss = true;
-                            }
-                        }
+                        boolean isOrphanBoss = le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING);
                         if (isOrphanBoss) {
                             le.remove();
                         }
@@ -148,6 +146,10 @@ public abstract class WorldBoss {
             // Spawn Base Entity
             this.entity = (LivingEntity) location.getWorld().spawnEntity(location, type.getEntityType());
             this.entity.setRemoveWhenFarAway(false);
+            this.entity.setPersistent(false);
+            org.bukkit.Chunk chunk = location.getChunk();
+            chunk.addPluginChunkTicket(plugin);
+            heldChunks.add(chunk);
             this.entity.setCustomNameVisible(true);
             this.entity.customName(TextUtil.colorize(getDisplayName()));
             this.entity.getPersistentDataContainer().set(bossKey, PersistentDataType.STRING, type.name());
@@ -230,10 +232,12 @@ public abstract class WorldBoss {
                         return;
                     }
 
+                    if (ticks[0] % 5 == 0) updateScaling();
                     // 3. Abandonment Check (Deserted Domain Timer)
                     if (domainViewers.isEmpty()) {
                         emptyDomainSeconds++;
-                        if (emptyDomainSeconds >= 30) {
+                        int allowedWait = hasBeenEngaged ? Math.max(30, config.getInt("domain.abandonment-seconds", 180)) : Math.max(60, config.getInt("domain.arrival-timeout-seconds", 600));
+                        if (emptyDomainSeconds >= allowedWait) {
                             Bukkit.broadcast(TextUtil.colorize("&8[&4&lBoss&8] &e" + getDisplayName() + " &7has dissipated back into the shadows due to lack of challengers."));
                             despawn();
                             return;
@@ -308,7 +312,7 @@ public abstract class WorldBoss {
 
             if (type == BossType.XOLTHOS) {
                 int stunSec = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
-                Bukkit.broadcast(TextUtil.colorize("  &d💡 &lTACTICAL INTEL: &fXol'thos has &c90% evasion&f! Throw &e&lSplash Potions of Night Vision &fto blind and stun her for &a" + stunSec + "s &f(+50% damage)!"));
+                Bukkit.broadcast(TextUtil.colorize("  &d💡 &lTACTICAL INTEL: &fXol'thos can &cevade attacks&f! Throw &e&lSplash Potions of Night Vision &fto blind and stun her for &a" + stunSec + "s &f(+50% damage)!"));
                 Bukkit.broadcast(TextUtil.colorize(""));
             }
 
@@ -326,6 +330,12 @@ public abstract class WorldBoss {
             return true;
         } catch (Throwable t) {
             plugin.getLogger().log(java.util.logging.Level.SEVERE, "[WorldBosses] Failed to spawn boss: " + type.name(), t);
+            active = false;
+            releaseChunks();
+            if (combatTask != null) combatTask.cancel();
+            if (barManager != null) barManager.removeAll();
+            if (domainManager != null) { domainManager.stopVisualTask(); HandlerList.unregisterAll(domainManager); }
+            clearMinions();
             if (this.entity != null && this.entity.isValid()) {
                 this.entity.remove();
             }
@@ -334,7 +344,7 @@ public abstract class WorldBoss {
     }
 
     public void recordDamage(Player player, double amount, ItemStack weapon) {
-        if (!active || player == null || amount <= 0) return;
+        if (!active || player == null || !Double.isFinite(amount) || amount <= 0) return;
 
         if (!isAwakened) {
             TextUtil.sendActionBar(player, "&e⏳ Boss is awakening in &6" + Math.max(0, awakeningRemainingSeconds) + "s&e! Prepare your gear & buffs!");
@@ -346,14 +356,17 @@ public abstract class WorldBoss {
             domainManager.lockPlayer(player.getUniqueId());
         }
 
+        recordParticipation(player);
+        updateScaling();
         // Apply boss damage reductions/multipliers
         double modifiedDamage = calculateIncomingDamage(player, amount, weapon);
-        if (modifiedDamage <= 0) {
+        if (!Double.isFinite(modifiedDamage) || modifiedDamage <= 0) {
             return;
         }
 
-        this.currentHealth = Math.max(0.0, this.currentHealth - modifiedDamage);
-        damageTracker.addDamage(player, modifiedDamage);
+        double applied = Math.min(this.currentHealth, modifiedDamage);
+        this.currentHealth = Math.max(0.0, this.currentHealth - applied);
+        damageTracker.addDamage(player, applied);
 
         // Update BossBar HP
         if (barManager != null) {
@@ -509,7 +522,7 @@ public abstract class WorldBoss {
                     p.sendMessage(TextUtil.colorize("  &cYou are at your own risk here. We are not responsible for any damage to your armour, inventory, or anything. You can die here and lose stuff — don't blame us for it!"));
                     if (type == BossType.XOLTHOS) {
                         int stunSec = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
-                        p.sendMessage(TextUtil.colorize("  &d💡 &lTACTIC: &fHit Xol'thos with &e&lSplash Night Vision &fto break 90% evasion and stun her for &a" + stunSec + "s&f!"));
+                        p.sendMessage(TextUtil.colorize("  &d💡 &lTACTIC: &fHit Xol'thos with &e&lSplash Night Vision &fto prevent evasion and stun her for &a" + stunSec + "s&f!"));
                     }
                     if (!isAwakened) {
                         sendPartyInviteMessage(p);
@@ -547,6 +560,7 @@ public abstract class WorldBoss {
             }
         }
 
+        if (!force && currentPhase != null && newPhase.getPhaseNumber() < currentPhase.getPhaseNumber()) return;
         if (force || currentPhase == null || currentPhase != newPhase) {
             BossPhase oldPhase = currentPhase;
             currentPhase = newPhase;
@@ -884,6 +898,7 @@ public abstract class WorldBoss {
     public void die() {
         if (!active) return;
         active = false;
+        releaseChunks();
 
         // Stop all combat tracks and reset atmosphere for all domain viewers
         for (java.util.UUID uuid : domainViewers) {
@@ -977,6 +992,7 @@ public abstract class WorldBoss {
     public void despawn() {
         if (!active) return;
         active = false;
+        releaseChunks();
 
         for (java.util.UUID uuid : domainViewers) {
             Player p = Bukkit.getPlayer(uuid);
@@ -1115,9 +1131,55 @@ public abstract class WorldBoss {
 
     public BossType getType() { return type; }
     public LivingEntity getEntity() { return entity; }
+    private double healthForPlayers(int players) {
+        if (!config.getBoolean("balance.adaptive-scaling", true)) return configuredHealth;
+        return net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.health(configuredHealth, players,
+                config.getDouble("balance.solo-health-multiplier", .6), config.getDouble("balance.health-per-extra-player", .5));
+    }
+    public void recordParticipation(Player player) {
+        if (!active || !isAwakened || player == null || player.isDead()) return;
+        damageTracker.recordParticipation(player);
+        hasBeenEngaged = true;
+    }
+    private void updateScaling() {
+        if (entity == null || !entity.isValid() || !config.getBoolean("balance.adaptive-scaling", true)) return;
+        long since = System.currentTimeMillis() - Math.max(10, config.getInt("balance.activity-window-seconds", 60)) * 1000L;
+        int nearby = 0;
+        double range = config.getDouble("domain.leash-distance", 50);
+        for (Player player : entity.getWorld().getPlayers()) {
+            if (player.isDead() || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+            if (damageTracker.wasRecentlyActive(player.getUniqueId(), since) && player.getLocation().distanceSquared(entity.getLocation()) <= range * range) nearby++;
+        }
+        nearby = Math.max(1, Math.min(20, nearby));
+        if (nearby == scaledPlayers) return;
+        double newMaximum = healthForPlayers(nearby);
+        currentHealth = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.rescale(currentHealth, maxHealth, newMaximum);
+        maxHealth = newMaximum;
+        scaledPlayers = nearby;
+        if (barManager != null) barManager.update(currentHealth, maxHealth, currentPhase, getDisplayName());
+    }
+    public double heal(double amount) {
+        double actual = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.healing(currentHealth, maxHealth, amount,
+                healedFraction, config.getDouble("balance.maximum-healing-fraction", .15));
+        if (actual > 0) {
+            healedFraction += actual / maxHealth;
+            setCurrentHealth(currentHealth + actual);
+        }
+        return actual;
+    }
+    public double getOutgoingDamageMultiplier() {
+        if (!config.getBoolean("balance.adaptive-scaling", true)) return 1;
+        return Math.min(1.0, .65 + .05 * (scaledPlayers - 1));
+    }
+    private void releaseChunks() {
+        for (org.bukkit.Chunk chunk : heldChunks) chunk.removePluginChunkTicket(plugin);
+        heldChunks.clear();
+    }
+
     public Location getSpawnLocation() { return spawnLocation; }
     public double getCurrentHealth() { return currentHealth; }
     public void setCurrentHealth(double currentHealth) {
+        if (!Double.isFinite(currentHealth)) return;
         this.currentHealth = Math.min(this.maxHealth, Math.max(0.0, currentHealth));
         if (barManager != null) {
             barManager.update(this.currentHealth, this.maxHealth, this.currentPhase, getDisplayName());

@@ -121,41 +121,36 @@ public class SellManager {
     }
 
     public void sellCrops(Player player, Material material, int amount, boolean isGolden, Consumer<Double> onSuccess, Runnable onFail) {
-        int has = countItems(player, material, isGolden);
-        if (has < amount) {
+        if (amount <= 0 || material == null || countItems(player, material, isGolden) < amount) {
             onFail.run();
             return;
         }
 
-        removeItems(player, material, amount, isGolden);
-
-        double totalEarned = 0;
         int seasonId = seasonManager.getCurrentSeason() != null ? seasonManager.getCurrentSeason().getId() : -1;
         boolean inSeason = seasonManager.isInSeason(material);
-        
-        if (isGolden) {
-            totalEarned = amount * calculatePrice(material, true);
-        } else if (inSeason) {
-            int used = getQuotaUsed(player.getUniqueId());
-            int max = config.getInt("max-quota-per-season", 5000);
-            int remaining = Math.max(0, max - used);
-            
-            if (remaining >= amount) {
-                totalEarned = amount * calculatePrice(material, false) * config.getDouble("bonus-multiplier", 2.5);
-                updateQuota(player.getUniqueId(), seasonId, amount);
-            } else if (remaining > 0) {
-                totalEarned += remaining * calculatePrice(material, false) * config.getDouble("bonus-multiplier", 2.5);
-                totalEarned += (amount - remaining) * calculatePrice(material, false);
-                updateQuota(player.getUniqueId(), seasonId, amount);
-            } else {
-                totalEarned = amount * calculatePrice(material, false);
-                updateQuota(player.getUniqueId(), seasonId, amount); // still record it
-            }
-        } else {
-            totalEarned = amount * calculatePrice(material, false);
+        double basePrice = calculatePrice(material, isGolden);
+        double totalEarned = amount * basePrice;
+        if (!isGolden && inSeason) {
+            int remaining = getQuotaRemaining(player.getUniqueId());
+            int bonusAmount = Math.min(amount, remaining);
+            totalEarned = bonusAmount * basePrice * config.getDouble("bonus-multiplier", 2.5)
+                    + (amount - bonusAmount) * basePrice;
+        }
+        if (!Double.isFinite(totalEarned) || totalEarned <= 0) {
+            onFail.run();
+            return;
         }
 
-        economy.deposit(player, totalEarned);
+        // Reserve the exact stacks before calling the economy provider. Restore on failure.
+        Map<Integer, ItemStack> originalSlots = removeItems(player, material, amount, isGolden);
+        if (!economy.deposit(player, totalEarned)) {
+            originalSlots.forEach((slot, item) -> player.getInventory().setItem(slot, item));
+            onFail.run();
+            return;
+        }
+        if (!isGolden && inSeason) {
+            updateQuota(player.getUniqueId(), seasonId, amount);
+        }
         onSuccess.accept(totalEarned);
     }
 
@@ -163,13 +158,12 @@ public class SellManager {
         if (seasonId == -1) return;
         int used = quotaCache.getOrDefault(uuid, 0) + amount;
         quotaCache.put(uuid, used);
-        plugin.getDatabaseManager().executeAsync(() -> {
-            plugin.getDatabaseManager().execute(
-                "INSERT INTO coresuite_harvest_quota (uuid, season_id, items_sold) VALUES (?, ?, ?) " +
-                "ON CONFLICT(uuid, season_id) DO UPDATE SET items_sold = items_sold + ?", 
-                uuid.toString(), seasonId, amount, amount
-            );
-        });
+        String upsert = plugin.getDatabaseManager().isMySQL()
+                ? "ON DUPLICATE KEY UPDATE items_sold = items_sold + ?"
+                : "ON CONFLICT(uuid, season_id) DO UPDATE SET items_sold = items_sold + ?";
+        plugin.getDatabaseManager().execute(
+                "INSERT INTO coresuite_harvest_quota (uuid, season_id, items_sold) VALUES (?, ?, ?) " + upsert,
+                uuid.toString(), seasonId, amount, amount);
     }
 
     private int countItems(Player player, Material material, boolean isGolden) {
@@ -184,13 +178,15 @@ public class SellManager {
         return count;
     }
 
-    private void removeItems(Player player, Material material, int amount, boolean isGolden) {
+    private Map<Integer, ItemStack> removeItems(Player player, Material material, int amount, boolean isGolden) {
+        Map<Integer, ItemStack> originalSlots = new HashMap<>();
         int left = amount;
         ItemStack[] contents = player.getInventory().getContents();
         for (int i = 0; i < contents.length; i++) {
             ItemStack item = contents[i];
             if (item != null && item.getType() == material) {
                 if (isGolden == isGoldenCrop(item)) {
+                    originalSlots.put(i, item.clone());
                     if (item.getAmount() <= left) {
                         left -= item.getAmount();
                         player.getInventory().setItem(i, null);
@@ -202,5 +198,6 @@ public class SellManager {
                 }
             }
         }
+        return originalSlots;
     }
 }

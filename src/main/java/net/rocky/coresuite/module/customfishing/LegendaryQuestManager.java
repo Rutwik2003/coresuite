@@ -498,6 +498,11 @@ implements Listener {
     }
 
     private void performRitual(final Player player, ItemStack item, final boolean isFirstTime) {
+        if (!module.getLegendaryNPCManager().isAvailable()) {
+            TextUtil.sendMessage(player, "&cThe Ancient Angler is unavailable. This feature requires Citizens.");
+            return;
+        }
+
         final UUID u = player.getUniqueId();
         if (this.inDialogueSequence.contains(u)) {
             return;
@@ -591,7 +596,7 @@ implements Listener {
                         float volume = (float)LegendaryQuestManager.this.module.getConfig().getDouble("legendary-quest.broadcast-sound-volume", 0.5);
                         float pitch = (float)LegendaryQuestManager.this.module.getConfig().getDouble("legendary-quest.broadcast-sound-pitch", 0.7);
                         try {
-                            broadcastSound = Sound.valueOf((String)soundName);
+                            broadcastSound = net.rocky.coresuite.common.compat.PaperCompat.sound((String)soundName);
                         }
                         catch (Exception e) {
                             broadcastSound = Sound.ENTITY_WITHER_SPAWN;

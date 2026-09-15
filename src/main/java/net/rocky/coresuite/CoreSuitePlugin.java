@@ -123,7 +123,7 @@ public final class CoreSuitePlugin extends JavaPlugin {
             CYAN + "  ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚═╝   ╚═╝   ╚══════╝" + RESET,
             "",
             GOLD + "                        by ROCKY_RUTWIK" + RESET,
-            GRAY + "                v" + getDescription().getVersion() + " | Paper 1.20.6+" + RESET,
+            GRAY + "                v" + getDescription().getVersion() + " | Paper 1.21+" + RESET,
             "",
             LINE,
             ""

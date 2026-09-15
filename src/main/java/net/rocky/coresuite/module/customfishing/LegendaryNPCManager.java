@@ -64,15 +64,22 @@ implements Listener {
     private final Map<UUID, Long> lastInteractionTime = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Location> spawnedLilyPads = new ConcurrentHashMap<UUID, Location>();
     private final BukkitTask despawnTask;
+    private final BukkitTask cleanupTask;
 
     public LegendaryNPCManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;
         this.module = module;
         this.legendaryKey = new NamespacedKey((Plugin)plugin, "legendaryFisherman");
-        Bukkit.getScheduler().runTaskLater((Plugin)plugin, () -> {
+        if (!Bukkit.getPluginManager().isPluginEnabled("Citizens")) {
+            this.cleanupTask = null;
+            this.despawnTask = null;
+            plugin.getLogger().info("Citizens is unavailable; Ancient Angler NPC summons are disabled.");
+            return;
+        }
+        this.cleanupTask = Bukkit.getScheduler().runTaskLater((Plugin)plugin, () -> {
             if (CitizensAPI.hasImplementation()) {
                 for (NPC npc : CitizensAPI.getNPCRegistry()) {
-                    if (!npc.getName().contains("Ancient Angler")) continue;
+                    if (npc.getEntity() == null || !npc.getEntity().getPersistentDataContainer().has(this.legendaryKey, PersistentDataType.STRING)) continue;
                     npc.destroy();
                 }
             }
@@ -108,8 +115,12 @@ implements Listener {
         return this.legendaryKey;
     }
 
+    public boolean isAvailable() {
+        return Bukkit.getPluginManager().isPluginEnabled("Citizens") && CitizensAPI.hasImplementation();
+    }
+
     public void spawnLegendaryNPC(UUID ownerId, Location loc) {
-        if (!CitizensAPI.hasImplementation()) return;
+        if (!isAvailable()) return;
         this.removeNPC(ownerId);
         NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, TextUtil.legacyColorize("&b&lAncient Angler"));
         SkinTrait skinTrait = (SkinTrait)npc.getOrAddTrait(SkinTrait.class);
@@ -140,6 +151,7 @@ implements Listener {
     }
 
     public void removeNPC(UUID ownerId) {
+        if (this.despawnTask == null) return;
         Location lilyLoc;
         NPC npc = this.activeNPCs.remove(ownerId);
         this.lastInteractionTime.remove(ownerId);
@@ -173,6 +185,7 @@ implements Listener {
     }
 
     public void shutdown() {
+        if (this.cleanupTask != null) this.cleanupTask.cancel();
         if (this.despawnTask != null) {
             this.despawnTask.cancel();
         }

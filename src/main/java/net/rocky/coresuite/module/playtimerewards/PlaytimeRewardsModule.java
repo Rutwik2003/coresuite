@@ -618,7 +618,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
         String soundStr = sec.getString("sound");
         if (soundStr != null && !soundStr.isEmpty()) {
             try {
-                Sound sound = Sound.valueOf(soundStr);
+                Sound sound = net.rocky.coresuite.common.compat.PaperCompat.sound(soundStr);
                 player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
             } catch (IllegalArgumentException ignored) {}
         }

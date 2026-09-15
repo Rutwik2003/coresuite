@@ -30,6 +30,9 @@ public final class DatabaseManager {
     private HikariDataSource dataSource;
     private final ExecutorService asyncExecutor;
     private String storageType = "SQLITE";
+    private final Object taskLock = new Object();
+    private int pendingTasks;
+    private boolean acceptingTasks = true;
 
     /**
      * Constructs a new DatabaseManager.
@@ -113,95 +116,30 @@ public final class DatabaseManager {
     }
 
     public void checkAndMigrate() {
-        File sqliteFile = new File(plugin.getDataFolder(), "data/coresuite.db");
-        if (!sqliteFile.exists()) {
-            return;
-        }
+        if (!isMySQL()) return;
+        File sqliteFile = new File(plugin.getDataFolder(), plugin.getConfig().getString("storage.database", "data/coresuite.db"));
+        if (!sqliteFile.exists()) return;
 
-        plugin.getLogger().info("Found existing SQLite database. Starting automatic migration to MySQL (async)...");
-        
         executeAsync(() -> {
-            String[] tables = {
-                "coresuite_playtime", 
-                "coresuite_fishing", 
-                "coresuite_fish_logbook", 
-                "coresuite_kills", 
-                "coresuite_referrals", 
-                "coresuite_reward_codes"
-            };
-            
-            boolean migrationSuccess = false;
+            // Never label a partial copy as complete, or overwrite an active MySQL database.
+            File migratedFile = new File(sqliteFile.getParentFile(), "coresuite_migrated.db");
+            if (migratedFile.exists()) {
+                plugin.getLogger().warning("Migration skipped: a migrated database backup already exists.");
+                return;
+            }
             try (Connection sqliteConn = java.sql.DriverManager.getConnection("jdbc:sqlite:" + sqliteFile.getAbsolutePath());
                  Connection mysqlConn = getConnection()) {
-                 
-                 for (String table : tables) {
-                     migrateTable(sqliteConn, mysqlConn, table);
-                 }
-                 migrationSuccess = true;
+                LegacyDatabaseMigration.copy(sqliteConn, mysqlConn);
             } catch (SQLException e) {
-                 plugin.getLogger().log(Level.SEVERE, "Failed to migrate SQLite to MySQL", e);
+                plugin.getLogger().log(Level.SEVERE, "Migration aborted. SQLite source retained; inspect schemas and use a complete migration before switching storage.", e);
+                return;
             }
-            
-            if (migrationSuccess) {
-                File migratedFile = new File(plugin.getDataFolder(), "data/coresuite_migrated.db");
-                if (sqliteFile.renameTo(migratedFile)) {
-                    plugin.getLogger().info("Migration complete. Renamed to coresuite_migrated.db");
-                } else {
-                    plugin.getLogger().warning("Migration complete, but failed to rename coresuite.db");
-                }
+            if (sqliteFile.renameTo(migratedFile)) {
+                plugin.getLogger().info("Legacy migration complete. SQLite source preserved as coresuite_migrated.db");
+            } else {
+                plugin.getLogger().warning("Legacy copy completed, but source could not be renamed. It has been retained.");
             }
         });
-    }
-
-    private void migrateTable(Connection sqliteConn, Connection mysqlConn, String tableName) {
-        try (java.sql.Statement sqliteStmt = sqliteConn.createStatement();
-             java.sql.ResultSet rs = sqliteStmt.executeQuery("SELECT * FROM " + tableName)) {
-             
-             java.sql.ResultSetMetaData metaData = rs.getMetaData();
-             int columnCount = metaData.getColumnCount();
-             
-             if (columnCount == 0) return;
-             
-             StringBuilder sql = new StringBuilder("REPLACE INTO " + tableName + " VALUES (");
-             for (int i = 0; i < columnCount; i++) {
-                 sql.append("?");
-                 if (i < columnCount - 1) sql.append(", ");
-             }
-             sql.append(")");
-             
-             boolean originalAutoCommit = mysqlConn.getAutoCommit();
-             try (PreparedStatement mysqlStmt = mysqlConn.prepareStatement(sql.toString())) {
-                 mysqlConn.setAutoCommit(false);
-                 int count = 0;
-                 while (rs.next()) {
-                     for (int i = 1; i <= columnCount; i++) {
-                         mysqlStmt.setObject(i, rs.getObject(i));
-                     }
-                     mysqlStmt.addBatch();
-                     count++;
-                     if (count % 100 == 0) {
-                         mysqlStmt.executeBatch();
-                     }
-                 }
-                 mysqlStmt.executeBatch();
-                 mysqlConn.commit();
-                 plugin.getLogger().info("Migrated " + count + " rows into " + tableName);
-             } catch (SQLException e) {
-                 try {
-                     mysqlConn.rollback();
-                 } catch (SQLException rollbackEx) {
-                     plugin.getLogger().log(Level.WARNING, "Failed to rollback migration batch", rollbackEx);
-                 }
-                 throw e;
-             } finally {
-                 try {
-                     mysqlConn.setAutoCommit(originalAutoCommit);
-                 } catch (SQLException ignored) {}
-             }
-             
-        } catch (SQLException e) {
-             plugin.getLogger().warning("Could not migrate table " + tableName + " (it might not exist or failed): " + e.getMessage());
-        }
     }
 
     /**
@@ -223,13 +161,30 @@ public final class DatabaseManager {
      * @param task The task to execute.
      */
     public void executeAsync(Runnable task) {
-        asyncExecutor.execute(() -> {
-            try {
-                task.run();
-            } catch (Throwable t) {
-                plugin.getLogger().log(Level.SEVERE, "Async database task failed", t);
+        synchronized (taskLock) {
+            if (!acceptingTasks) {
+                throw new java.util.concurrent.RejectedExecutionException("CoreSuite database is closed");
             }
-        });
+            pendingTasks++;
+            try {
+                asyncExecutor.execute(() -> {
+                    try {
+                        task.run();
+                    } catch (Throwable t) {
+                        plugin.getLogger().log(Level.SEVERE, "Async database task failed", t);
+                    } finally {
+                        synchronized (taskLock) {
+                            pendingTasks--;
+                            taskLock.notifyAll();
+                        }
+                    }
+                });
+            } catch (RuntimeException e) {
+                pendingTasks--;
+                taskLock.notifyAll();
+                throw e;
+            }
+        }
     }
 
     /**
@@ -256,12 +211,29 @@ public final class DatabaseManager {
      * Closes the connection pool and shuts down the executor.
      */
     public void close() {
-        asyncExecutor.shutdown();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         try {
-            if (!asyncExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+            // Keep accepting child writes from already queued jobs until the queue drains.
+            // They must remain queued: their parent may still hold SQLite's only connection.
+            synchronized (taskLock) {
+                while (pendingTasks > 0) {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) break;
+                    TimeUnit.NANOSECONDS.timedWait(taskLock, remaining);
+                }
+                acceptingTasks = false;
+                if (pendingTasks > 0) {
+                    plugin.getLogger().warning("Database shutdown timed out with " + pendingTasks + " unfinished tasks.");
+                }
+            }
+            asyncExecutor.shutdown();
+            if (!asyncExecutor.awaitTermination(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS)) {
                 asyncExecutor.shutdownNow();
             }
         } catch (InterruptedException e) {
+            synchronized (taskLock) {
+                acceptingTasks = false;
+            }
             asyncExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }

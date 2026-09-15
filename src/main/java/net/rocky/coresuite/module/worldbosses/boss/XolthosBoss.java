@@ -52,10 +52,10 @@ public class XolthosBoss extends WorldBoss {
 
     @Override
     public void setupEntity(LivingEntity entity) {
-        applyAttributeSafely(entity, Attribute.SCALE, config.getDouble("xolthos.scale", 2.1));
-        applyAttributeSafely(entity, Attribute.MOVEMENT_SPEED, config.getDouble("xolthos.movement-speed", 0.35));
-        applyAttributeSafely(entity, Attribute.ATTACK_DAMAGE, config.getDouble("xolthos.melee-damage", 22.0));
-        applyAttributeSafely(entity, Attribute.MAX_HEALTH, this.maxHealth);
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.SCALE, config.getDouble("xolthos.scale", 2.1));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, config.getDouble("xolthos.movement-speed", 0.35));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.ATTACK_DAMAGE, config.getDouble("xolthos.melee-damage", 22.0));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, this.maxHealth);
     }
 
     @Override
@@ -157,7 +157,7 @@ public class XolthosBoss extends WorldBoss {
                         if (tickCount % 10 == 0 && random.nextDouble() < 0.4) {
                             Block b = p.getLocation().getBlock();
                             if (b.getType() == Material.AIR) {
-                                b.setType(Material.COBWEB);
+                                if (net.rocky.coresuite.common.integration.BossProtectionGate.allows(b.getLocation())) b.setType(Material.COBWEB);
                                 plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                                     if (b.getType() == Material.COBWEB) {
                                         b.setType(Material.AIR);
@@ -202,9 +202,9 @@ public class XolthosBoss extends WorldBoss {
             CaveSpider spider = bossLoc.getWorld().spawn(minionLoc, CaveSpider.class);
             spider.customName(TextUtil.colorize("&5&lCave Spider Broodling"));
             spider.setCustomNameVisible(true);
-            applyAttributeSafely(spider, Attribute.SCALE, scale);
-            applyAttributeSafely(spider, Attribute.MAX_HEALTH, maxHp);
-            applyAttributeSafely(spider, Attribute.MOVEMENT_SPEED, speed);
+            applyAttributeSafely(spider, net.rocky.coresuite.common.compat.PaperCompat.SCALE, scale);
+            applyAttributeSafely(spider, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, maxHp);
+            applyAttributeSafely(spider, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, speed);
 
             NamespacedKey minionKey = new NamespacedKey(plugin, "boss_minion");
             spider.getPersistentDataContainer().set(minionKey, PersistentDataType.BYTE, (byte) 1);
@@ -299,7 +299,7 @@ public class XolthosBoss extends WorldBoss {
 
         double baseSpeed = config.getDouble("xolthos.movement-speed", 0.35);
         double speedBoost = config.getDouble("xolthos.combat.stealth.speed-boost", 0.30);
-        applyAttributeSafely(entity, Attribute.MOVEMENT_SPEED, baseSpeed * (1.0 + speedBoost));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, baseSpeed * (1.0 + speedBoost));
 
         Location loc = entity.getLocation();
         World w = loc.getWorld();
@@ -324,7 +324,7 @@ public class XolthosBoss extends WorldBoss {
             entity.removePotionEffect(PotionEffectType.INVISIBILITY);
             entity.setCustomNameVisible(true);
             double baseSpeed = config.getDouble("xolthos.movement-speed", 0.35);
-            applyAttributeSafely(entity, Attribute.MOVEMENT_SPEED, baseSpeed);
+            applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, baseSpeed);
 
             Location loc = entity.getLocation();
             World w = loc.getWorld();
@@ -469,17 +469,11 @@ public class XolthosBoss extends WorldBoss {
             return originalDamage * vulnMult;
         }
 
-        // Base Evasion: 90% chance to dodge physical hits unless stunned!
-        double evasionPercent = config.getDouble("xolthos.weakness.base-evasion-percent", 0.90);
+        // Evasion is capped so ordinary attacks can always defeat this boss.
+        double evasionPercent = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(config.getDouble("xolthos.weakness.base-evasion-percent", .25), .25, 0, .35);
         if (random.nextDouble() < evasionPercent) {
-            // Evasion shadow-step teleport
+            // Cosmetic dodge avoids teleporting into walls or unsupported cave edges.
             Location loc = entity.getLocation();
-            Vector evadeOffset = new Vector((random.nextDouble() - 0.5) * 4, 0, (random.nextDouble() - 0.5) * 4);
-            Location evadeLoc = loc.clone().add(evadeOffset);
-            if (evadeLoc.getBlock().getType() == Material.AIR) {
-                entity.teleport(evadeLoc);
-            }
-
             loc.getWorld().spawnParticle(Particle.PORTAL, loc.add(0, 0.5, 0), 20, 0.3, 0.3, 0.3, 0.1);
             loc.getWorld().playSound(loc, Sound.ENTITY_ENDERMAN_TELEPORT, 1.2f, 1.5f);
             TextUtil.sendActionBar(player, "&5&l✦ EVADED! &7Xol'thos slipped into the shadows! Use Splash Night Vision!");
@@ -518,9 +512,9 @@ public class XolthosBoss extends WorldBoss {
                 CaveSpider cs = pLoc.getWorld().spawn(pLoc, CaveSpider.class);
                 cs.customName(TextUtil.colorize("&5&lCave Spider Broodling"));
                 cs.setCustomNameVisible(true);
-                applyAttributeSafely(cs, Attribute.SCALE, 0.75);
-                applyAttributeSafely(cs, Attribute.MAX_HEALTH, 25.0);
-                applyAttributeSafely(cs, Attribute.MOVEMENT_SPEED, 0.34);
+                applyAttributeSafely(cs, net.rocky.coresuite.common.compat.PaperCompat.SCALE, 0.75);
+                applyAttributeSafely(cs, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, 25.0);
+                applyAttributeSafely(cs, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, 0.34);
                 NamespacedKey minionKey = new NamespacedKey(plugin, "boss_minion");
                 cs.getPersistentDataContainer().set(minionKey, PersistentDataType.BYTE, (byte) 1);
                 registerMinion(cs);

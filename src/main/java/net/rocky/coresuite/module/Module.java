@@ -47,13 +47,21 @@ public abstract class Module {
     // Called by ModuleManager only
     final void enable() {
         if (enabled) return;
-        loadConfig();
+        boolean started = false;
         try {
+            loadConfig();
+            started = true;
             onEnable();
             enabled = true;
             log("Enabled successfully.");
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to enable module: " + name, e);
+            if (started) {
+                try { onDisable(); }
+                catch (Exception | LinkageError cleanupError) {
+                    plugin.getLogger().log(Level.SEVERE, "Failed to clean up partially enabled module: " + name, cleanupError);
+                }
+            }
             // Clean up any listeners registered during the failed enable attempt
             for (Listener listener : registeredListeners) {
                 HandlerList.unregisterAll(listener);
@@ -72,7 +80,7 @@ public abstract class Module {
         if (!enabled) return;
         try {
             onDisable();
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to disable module: " + name, e);
         }
         
@@ -111,7 +119,13 @@ public abstract class Module {
         if (!configFile.exists()) {
             // Try saving default from jar
             String resourcePath = "modules/" + configKey + ".yml";
-            if (plugin.getResource(resourcePath) != null) {
+            boolean resourceExists;
+            try (InputStream resource = plugin.getResource(resourcePath)) {
+                resourceExists = resource != null;
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not inspect default configuration for " + name, e);
+            }
+            if (resourceExists) {
                 plugin.saveResource(resourcePath, false);
             } else {
                 // If there's no default config in the jar, just create an empty one
@@ -123,10 +137,12 @@ public abstract class Module {
             }
         }
 
-        try {
-            config = YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(new java.io.FileInputStream(configFile), java.nio.charset.StandardCharsets.UTF_8));
-        } catch (java.io.FileNotFoundException e) {
-            config = new YamlConfiguration();
+        try (InputStreamReader reader = new InputStreamReader(new java.io.FileInputStream(configFile), StandardCharsets.UTF_8)) {
+            YamlConfiguration loadedConfig = new YamlConfiguration();
+            loadedConfig.load(reader);
+            config = loadedConfig;
+        } catch (IOException | org.bukkit.configuration.InvalidConfigurationException e) {
+            throw new IllegalStateException("Could not read configuration for " + name, e);
         }
 
         // Load defaults if present in JAR

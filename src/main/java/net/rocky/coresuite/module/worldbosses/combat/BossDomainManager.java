@@ -78,7 +78,9 @@ public class BossDomainManager implements Listener {
             double angle = 2 * Math.PI * i / points;
             double x = center.getX() + (domainRadius * Math.cos(angle));
             double z = center.getZ() + (domainRadius * Math.sin(angle));
-            int highestY = world.getHighestBlockYAt((int) Math.floor(x), (int) Math.floor(z));
+            int blockX = (int) Math.floor(x), blockZ = (int) Math.floor(z);
+            int highestY = world.isChunkLoaded(blockX >> 4, blockZ >> 4)
+                    ? world.getHighestBlockYAt(blockX, blockZ) + 1 : center.getBlockY();
             double groundY = (Math.abs(highestY - center.getY()) <= 10) ? highestY : center.getY();
             for (double offY : verticalOffsets) {
                 cachedBoundaryLocations.add(new Location(world, x, groundY + offY, z));

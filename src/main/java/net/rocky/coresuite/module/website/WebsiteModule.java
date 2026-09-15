@@ -166,7 +166,12 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
 
         try {
             server = HttpServer.create(new InetSocketAddress(bindIp, port), 0);
-            httpExecutor = Executors.newCachedThreadPool();
+            httpExecutor = new ThreadPoolExecutor(2, 8, 60L, TimeUnit.SECONDS,
+                    new ArrayBlockingQueue<>(64), runnable -> {
+                        Thread thread = new Thread(runnable, "CoreSuite-Website");
+                        thread.setDaemon(true);
+                        return thread;
+                    }, new ThreadPoolExecutor.AbortPolicy());
             server.setExecutor(httpExecutor);
 
             setupContexts(apiKey);
@@ -176,6 +181,8 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to start internal web server on " + bindIp + ":" + port +
                     ". If using shared hosting, verify that this port is allocated to your server in your hosting panel.", e);
+            stopServer();
+            throw new IllegalStateException("Website server failed to start", e);
         }
     }
 
@@ -266,7 +273,8 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                 return;
             }
             try {
-                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                String body = readRequestBody(exchange);
+                if (body == null) return;
                 if (!checkAuth(exchange, apiKey, body)) return;
 
                 String[] commands = body.split("\r?\n");
@@ -308,7 +316,8 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                 return;
             }
             try {
-                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                String body = readRequestBody(exchange);
+                if (body == null) return;
                 if (!checkAuth(exchange, apiKey, body)) return;
 
                 String[] parts = body.split(":", 2);
@@ -544,6 +553,17 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
     }
 
     // ── Authentication & Security ─────────────────────────────────
+
+    static String readRequestBody(HttpExchange exchange) throws IOException {
+        int limit = 64 * 1024;
+        byte[] body = exchange.getRequestBody().readNBytes(limit + 1);
+        if (body.length > limit) {
+            exchange.sendResponseHeaders(413, -1);
+            exchange.close();
+            return null;
+        }
+        return new String(body, StandardCharsets.UTF_8);
+    }
 
     private boolean checkAuth(HttpExchange exchange, String apiKey, String body) throws IOException {
         String signature = exchange.getRequestHeaders().getFirst("X-Signature");

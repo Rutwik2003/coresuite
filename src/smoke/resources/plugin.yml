@@ -1,0 +1,5 @@
+name: CoreSuiteSmokeProbe
+version: 1.0-test
+main: net.rocky.coresuite.smoke.CompatibilityProbe
+api-version: "1.21"
+depend: [CoreSuite]

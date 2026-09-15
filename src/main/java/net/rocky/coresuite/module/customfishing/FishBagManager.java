@@ -65,92 +65,86 @@ public class FishBagManager {
         this.module = module;
     }
 
+    private final Map<UUID, Object> sessions = new ConcurrentHashMap<>();
+
+    public final class BagHolder implements org.bukkit.inventory.InventoryHolder {
+        public final UUID owner;
+        public final int page;
+        private final Object session;
+        private Inventory inventory;
+        private BagHolder(UUID owner, int page) {
+            this.owner = owner;
+            this.page = page;
+            this.session = sessions.get(owner);
+        }
+        @Override public Inventory getInventory() { return inventory; }
+        public boolean isCurrent(UUID viewer) {
+            return owner.equals(viewer) && session != null && sessions.get(owner) == session;
+        }
+        public boolean belongsTo(FishBagManager manager) { return FishBagManager.this == manager; }
+    }
+
     public void loadBag(UUID uuid) {
+        Object session = new Object();
+        sessions.put(uuid, session);
+        cache.remove(uuid);
         this.plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = this.plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT inventory_data FROM coresuite_fish_bag WHERE uuid = ?");){
+            String stored = null;
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT inventory_data FROM coresuite_fish_bag WHERE uuid = ?")) {
                 stmt.setString(1, uuid.toString());
-                try (ResultSet rs = stmt.executeQuery();){
-                    if (rs.next()) {
-                        String data = rs.getString("inventory_data");
-                        if (data != null && !data.isEmpty()) {
-                            ItemStack[] items = this.fromBase64(data);
-                            this.cache.put(uuid, items);
-                        } else {
-                            this.cache.put(uuid, new ItemStack[450]);
-                        }
-                    } else {
-                        this.cache.put(uuid, new ItemStack[450]);
-                    }
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) stored = rs.getString("inventory_data");
                 }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Fish bag unavailable; existing data preserved for " + uuid, e);
+                return;
             }
-            catch (SQLException e) {
-                this.plugin.getLogger().log(Level.SEVERE, "Failed to load fish bag for " + String.valueOf(uuid), e);
-                this.cache.put(uuid, new ItemStack[450]);
-            }
+            String data = stored;
+            if (sessions.get(uuid) != session || !plugin.isEnabled()) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (sessions.get(uuid) != session) return;
+                try {
+                    cache.put(uuid, data == null || data.isEmpty() ? new ItemStack[450] : fromBase64(data));
+                } catch (IllegalStateException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Invalid fish bag; existing data preserved for " + uuid, e);
+                }
+            });
         });
     }
 
     public void saveBag(UUID uuid) {
-        ItemStack[] items = this.cache.get(uuid);
-        if (items != null) {
-            ItemStack[] cloned = (ItemStack[])items.clone();
-            this.plugin.getDatabaseManager().executeAsync(() -> {
-                String data = this.toBase64(cloned);
-                try (Connection conn = this.plugin.getDatabaseManager().getConnection();
-                     PreparedStatement stmt = conn.prepareStatement("REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)");){
-                    stmt.setString(1, uuid.toString());
-                    stmt.setString(2, data);
-                    stmt.executeUpdate();
-                }
-                catch (SQLException e) {
-                    this.plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag for " + String.valueOf(uuid), e);
-                }
-            });
-        }
-    }
-
-    public void saveBagSync(UUID uuid) {
-        ItemStack[] items = this.cache.get(uuid);
-        if (items == null) {
-            return;
-        }
-        String data = this.toBase64(items);
-        try (Connection conn = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)");){
-            stmt.setString(1, uuid.toString());
-            stmt.setString(2, data);
-            stmt.executeUpdate();
-        }
-        catch (SQLException e) {
-            this.plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag (sync) for " + String.valueOf(uuid), e);
-        }
+        ItemStack[] items = cache.get(uuid);
+        if (items == null) return;
+        // Serialize on the server thread: queued SQL must never observe mutable items.
+        String data = toBase64(items);
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)")) {
+                stmt.setString(1, uuid.toString());
+                stmt.setString(2, data);
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag for " + uuid, e);
+            }
+        });
     }
 
     public void unloadBag(UUID uuid) {
-        ItemStack[] items = this.cache.remove(uuid);
-        if (items != null) {
-            this.plugin.getDatabaseManager().executeAsync(() -> {
-                String data = this.toBase64(items);
-                try (Connection conn = this.plugin.getDatabaseManager().getConnection();
-                     PreparedStatement stmt = conn.prepareStatement("REPLACE INTO coresuite_fish_bag (uuid, inventory_data) VALUES (?, ?)");){
-                    stmt.setString(1, uuid.toString());
-                    stmt.setString(2, data);
-                    stmt.executeUpdate();
-                }
-                catch (SQLException e) {
-                    this.plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag for " + String.valueOf(uuid), e);
-                }
-            });
-        }
+        sessions.remove(uuid);
+        saveBag(uuid);
+        cache.remove(uuid);
     }
 
-    public ItemStack[] getBag(UUID uuid) {
-        return this.cache.getOrDefault(uuid, new ItemStack[450]);
+    public void shutdown() {
+        for (UUID uuid : java.util.List.copyOf(sessions.keySet())) unloadBag(uuid);
     }
+
+    public ItemStack[] getBag(UUID uuid) { return cache.get(uuid); }
 
     public void updateBag(UUID uuid, ItemStack[] items) {
-        this.cache.put(uuid, items);
+        if (items.length != 450) throw new IllegalArgumentException("Fish bags require 450 slots");
+        cache.replace(uuid, items);
     }
 
     public void compactBag(UUID uuid) {
@@ -234,6 +228,7 @@ public class FishBagManager {
                 for (ItemStack item : items) {
                     dataOutput.writeObject((Object)item);
                 }
+                dataOutput.flush();
                 string = Base64.getEncoder().encodeToString(outputStream.toByteArray());
             }
             return string;
@@ -250,8 +245,10 @@ public class FishBagManager {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64.getDecoder().decode(data));){
             ItemStack[] itemStackArray;
             try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream((InputStream)inputStream);){
-                ItemStack[] items = new ItemStack[dataInput.readInt()];
-                for (int i = 0; i < items.length; ++i) {
+                int size = dataInput.readInt();
+                if (size < 0 || size > 450) throw new java.io.IOException("Invalid fish bag size: " + size);
+                ItemStack[] items = new ItemStack[450];
+                for (int i = 0; i < size; ++i) {
                     items[i] = (ItemStack)dataInput.readObject();
                 }
                 itemStackArray = items;
@@ -265,7 +262,16 @@ public class FishBagManager {
 
     public void openBag(Player player, int totalPages, int currentPage) {
         ItemMeta meta;
-        Inventory bagInv = Bukkit.createInventory(null, (int)54, (String)("Fish Bag (Page " + (currentPage + 1) + ")"));
+        if (getBag(player.getUniqueId()) == null) {
+            TextUtil.sendMessage(player, "&cYour fish bag is not available yet. Please try again shortly.");
+            return;
+        }
+        if (player.getOpenInventory().getTopInventory().getHolder() instanceof BagHolder) player.closeInventory();
+        totalPages = Math.max(1, Math.min(10, totalPages));
+        currentPage = Math.max(0, Math.min(totalPages - 1, currentPage));
+        BagHolder holder = new BagHolder(player.getUniqueId(), currentPage);
+        Inventory bagInv = Bukkit.createInventory(holder, 54, "Fish Bag (Page " + (currentPage + 1) + ")");
+        holder.inventory = bagInv;
         ItemStack[] items = this.getBag(player.getUniqueId());
         int start = currentPage * 45;
         for (int i = 0; i < 45; ++i) {

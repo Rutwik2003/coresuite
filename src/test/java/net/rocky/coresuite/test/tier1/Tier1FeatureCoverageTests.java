@@ -277,7 +277,9 @@ public final class Tier1FeatureCoverageTests {
         results.add(runTest("T1-F7-04", "F7_Valerius_Combat_Kit", 1, "Valerius Searing Siphon heal and drain damage in world-bosses.yml", () -> {
             double heal = ctx.getConfigDouble("valerius.combat.searing-siphon.heal-per-player", 0.0);
             double drain = ctx.getConfigDouble("valerius.combat.searing-siphon.drain-damage", 0.0);
-            TestAssertion.assertEquals(20.0, heal, 0.01, "Searing siphon heal");
+            // The committed Valerius balance nerf uses 5 healing per player, capped at 15 per pulse.
+            TestAssertion.assertEquals(5.0, heal, 0.01, "Searing siphon heal");
+            TestAssertion.assertEquals(15.0, ctx.getConfigDouble("valerius.combat.searing-siphon.max-heal-per-pulse", 0.0), 0.01, "Searing siphon pulse cap");
             TestAssertion.assertEquals(2.0, drain, 0.01, "Searing siphon drain");
         }));
 
@@ -741,9 +743,9 @@ public final class Tier1FeatureCoverageTests {
         // -------------------------------------------------------------
         // FEATURE 18: Admin 3-Player Requirement Bypass
         // -------------------------------------------------------------
-        results.add(runTest("T1-F18-01", "F18_Admin_3Player_Bypass", 1, "Configured min-players requirement in world-bosses.yml is 3", () -> {
+        results.add(runTest("T1-F18-01", "F18_Admin_3Player_Bypass", 1, "Scheduled bosses support one online player", () -> {
             int minPlayers = ctx.getConfigInt("scheduler.min-players", 0);
-            TestAssertion.assertEquals(3, minPlayers, "Min players must be 3");
+            TestAssertion.assertEquals(1, minPlayers, "Solo servers must be supported");
         }));
 
         results.add(runTest("T1-F18-02", "F18_Admin_3Player_Bypass", 1, "Player with coresuite.boss.admin permission bypasses min-players requirement", () -> {
@@ -766,7 +768,7 @@ public final class Tier1FeatureCoverageTests {
 
         results.add(runTest("T1-F18-04", "F18_Admin_3Player_Bypass", 1, "Non-admin without OP is blocked when online players < min-players", () -> {
             MockBukkitContext.MockPlayer user = new MockBukkitContext.MockPlayer(UUID.randomUUID(), "RegularUser");
-            int online = 1;
+            int online = 0;
             int minPlayers = ctx.getConfigInt("scheduler.min-players", 3);
             boolean allowed = user.hasPermission("coresuite.boss.admin") || user.isOp() || (online >= minPlayers);
             TestAssertion.assertFalse(allowed, "Regular user blocked when online < minPlayers");

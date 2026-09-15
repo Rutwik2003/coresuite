@@ -62,9 +62,9 @@ public class AethelgardBoss extends WorldBoss {
             eq.setItemInMainHandDropChance(0f);
         }
 
-        applyAttributeSafely(entity, Attribute.SCALE, config.getDouble("aethelgard.scale", 1.55));
-        applyAttributeSafely(entity, Attribute.MOVEMENT_SPEED, config.getDouble("aethelgard.movement-speed", 0.24));
-        applyAttributeSafely(entity, Attribute.MAX_HEALTH, this.maxHealth);
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.SCALE, config.getDouble("aethelgard.scale", 1.55));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, config.getDouble("aethelgard.movement-speed", 0.24));
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, this.maxHealth);
     }
 
     @Override
@@ -79,8 +79,7 @@ public class AethelgardBoss extends WorldBoss {
             Block under = bossLoc.getBlock().getRelative(0, -1, 0);
             if (isNaturalSoil(under.getType())) {
                 double regenHp = config.getDouble("aethelgard.weakness.soil-regen-hp", 30.0);
-                this.currentHealth = Math.min(maxHealth, currentHealth + regenHp);
-                barManager.update(currentHealth, maxHealth, currentPhase, getDisplayName());
+                heal(Math.min(regenHp, maxHealth * .003));
                 bossLoc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, bossLoc.clone().add(0, 1.2, 0), 10, 0.5, 0.5, 0.5, 0.05);
             }
         }
@@ -304,8 +303,8 @@ public class AethelgardBoss extends WorldBoss {
                 eq.setItemInMainHandDropChance(0f);
             }
 
-            applyAttributeSafely(ghoul, org.bukkit.attribute.Attribute.MAX_HEALTH, maxHp);
-            applyAttributeSafely(ghoul, org.bukkit.attribute.Attribute.MOVEMENT_SPEED, speed);
+            applyAttributeSafely(ghoul, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, maxHp);
+            applyAttributeSafely(ghoul, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, speed);
 
             NamespacedKey minionKey = new NamespacedKey(plugin, "boss_minion");
             ghoul.getPersistentDataContainer().set(minionKey, PersistentDataType.BYTE, (byte) 1);
@@ -403,14 +402,9 @@ public class AethelgardBoss extends WorldBoss {
 
         // Bow Spamming Cheese Check -> Absorbed as HEAL!
         if (matName.equals("BOW") || matName.equals("CROSSBOW")) {
-            double healPct = config.getDouble("aethelgard.weakness.arrow-heal-percent", 0.03);
-            double healAmt = maxHealth * healPct;
-            this.currentHealth = Math.min(maxHealth, currentHealth + healAmt);
-            barManager.update(currentHealth, maxHealth, currentPhase, getDisplayName());
-            entity.getWorld().spawnParticle(Particle.HEART, entity.getLocation().add(0, 1.5, 0), 6, 0.4, 0.4, 0.4, 0.05);
-            entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_WOOD_BREAK, 1f, 1.5f);
-            TextUtil.sendActionBar(player, "&a[!] The King's bark absorbed your arrow, healing him for " + String.format("%.0f", healAmt) + " HP!");
-            return 0.0;
+            double multiplier = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(config.getDouble("aethelgard.weakness.arrow-damage-multiplier", .5), .5, .1, 1);
+            TextUtil.sendActionBar(player, "&aThe King's bark resists arrows. Axes and fire are more effective!");
+            return originalDamage * multiplier;
         }
 
         // Fire silence check

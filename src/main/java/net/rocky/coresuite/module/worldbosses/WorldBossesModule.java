@@ -95,6 +95,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
     @Override
     public void onEnable() {
+        upgradeEncounterDefaults();
         initDatabase();
 
         this.itemRegistry = new BossItemRegistry(plugin);
@@ -102,12 +103,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         this.discoveryManager.initTable();
 
         this.lootManager = new BossLootManager(plugin, itemRegistry, config, discoveryManager);
+        this.lootManager.initializeMailbox();
         this.hunterExchangeGUI = new HunterExchangeGUI(plugin, itemRegistry, config);
         this.bossCodexGUI = new BossCodexGUI(plugin, this, hunterExchangeGUI, discoveryManager);
         this.partyManager = new BossPartyManager(plugin);
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             discoveryManager.loadPlayer(p.getUniqueId());
+            net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, p, () -> { if (isEnabled()) lootManager.claimRewards(p); });
         }
 
         registerRecipes();
@@ -180,7 +183,9 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         }
 
         loadConfig();
+        upgradeEncounterDefaults();
         this.lootManager = new BossLootManager(plugin, itemRegistry, config, discoveryManager);
+        this.lootManager.initializeMailbox();
         this.hunterExchangeGUI = new HunterExchangeGUI(plugin, itemRegistry, config);
         this.bossCodexGUI = new BossCodexGUI(plugin, this, hunterExchangeGUI, discoveryManager);
         registerRecipes();
@@ -189,6 +194,33 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         this.scheduler.start();
 
         log("WorldBosses module reloaded.");
+    }
+
+    private void upgradeEncounterDefaults() {
+        if (!config.getBoolean("balance.crate-alias-upgraded", false)) {
+            for (String key : config.getKeys(true)) {
+                Object value = config.get(key);
+                if (value instanceof String command && command.startsWith("crate key give %player% "))
+                    config.set(key, command.replaceFirst("^crate ", "crates "));
+                else if (value instanceof java.util.List<?> values && values.stream().allMatch(String.class::isInstance))
+                    config.set(key, values.stream().map(Object::toString).map(command -> command.replaceFirst("^crate key give %player% ", "crates key give %player% ")).toList());
+            }
+            config.set("balance.crate-alias-upgraded", true);
+            saveConfig();
+        }
+        if (config.getBoolean("balance.defaults-upgraded", false)) return;
+        // Migrate only exact former stock values; retain deliberately customized settings.
+        if (config.getInt("scheduler.min-players", 1) == 3) config.set("scheduler.min-players", 1);
+        if (config.getDouble("xolthos.weakness.base-evasion-percent", .25) == .90)
+            config.set("xolthos.weakness.base-evasion-percent", .25);
+        if (config.getDouble("aethelgard.weakness.soil-regen-hp", 6) == 30)
+            config.set("aethelgard.weakness.soil-regen-hp", 6);
+        java.util.List<String> lore = config.getStringList("aethelgard.lore");
+        if (!lore.isEmpty()) config.set("aethelgard.lore", lore.stream().map(line -> line.replace(
+                "His wooden armor swallows arrows whole, turning them into vitality.",
+                "His wooden armor resists arrows, but axes expose his weakness.")).toList());
+        config.set("balance.defaults-upgraded", true);
+        saveConfig();
     }
 
     private void initDatabase() {
@@ -222,12 +254,9 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
     }
 
     public boolean spawnBoss(BossType type, Location loc) {
-        if (isBossActive()) {
-            return false;
-        }
-        if (loc == null || loc.getWorld() == null) {
-            return false;
-        }
+        if (!Bukkit.isPrimaryThread() || !isEnabled() || type == null || isBossActive()) return false;
+        if (!BossSpawnScheduler.isSafeLocation(loc) || !net.rocky.coresuite.common.integration.BossProtectionGate.allows(loc)) return false;
+        loc = new Location(loc.getWorld(), loc.getBlockX() + .5, loc.getBlockY(), loc.getBlockZ() + .5);
         if (loc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
             plugin.getLogger().warning("[WorldBosses] Cannot spawn " + type.name() + ": world '" + loc.getWorld().getName() + "' is set to Peaceful difficulty.");
             return false;
@@ -366,16 +395,18 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 }
             } else if (event.getDamager() instanceof Projectile proj && proj.getShooter() instanceof Player p) {
                 player = p;
-                weapon = new ItemStack(Material.BOW);
+                weapon = proj instanceof org.bukkit.entity.Trident trident ? trident.getItemStack()
+                        : new ItemStack(Material.BOW);
             }
 
             if (player != null) {
+                if (isMinionTarget && event.getFinalDamage() > 0) activeBoss.recordParticipation(player);
                 double rawDamage = event.getDamage();
                 boolean isGlancing = (event.getDamager() instanceof Player) && (charge < threshold);
 
                 if (isGlancing) {
                     // Fluid Glancing Strike: deals smooth scaled damage without annoying metallic clangs
-                    double glancingDmg = Math.max(1.0, rawDamage * Math.max(0.15, charge) * glancingFactor);
+                    double glancingDmg = Math.max(0.0, rawDamage * glancingFactor);
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_WEAK, 0.9f, 1.2f);
                     comboStreak.remove(player.getUniqueId()); // Glancing strikes break the rhythm
 
@@ -438,15 +469,18 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 }
                 return;
             }
+            if (isBossTarget) event.setCancelled(true);
         }
 
         // Boss or minion damaging Player
-        if ((event.getDamager().equals(bossEntity) || activeBoss.isMinion(event.getDamager())) && event.getEntity() instanceof Player player) {
+        if ((isDamagerBoss || isDamagerMinion) && event.getEntity() instanceof Player player) {
             if (!activeBoss.isAwakened()) {
                 event.setCancelled(true);
                 return;
             }
 
+            if (event.getFinalDamage() > 0) activeBoss.recordParticipation(player);
+            event.setDamage(event.getDamage() * activeBoss.getOutgoingDamageMultiplier());
             // Xolthos Stalker Ambush Strike from Invisibility
             if (activeBoss instanceof XolthosBoss xb && xb.isStealthed()) {
                 xb.triggerAmbushStrike(player);
@@ -461,10 +495,16 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             if (activeBoss instanceof AethelgardBoss && activeBoss.getCurrentPhase() != null && activeBoss.getCurrentPhase().getPhaseNumber() == 3) {
                 double lifestealPct = config.getDouble("aethelgard.phases.phase-3.lifesteal-percent", 1.0);
                 double healAmount = event.getFinalDamage() * lifestealPct;
-                activeBoss.setCurrentHealth(activeBoss.getCurrentHealth() + healAmount);
+                activeBoss.heal(healAmount);
                 bossEntity.getWorld().spawnParticle(org.bukkit.Particle.HEART, bossEntity.getLocation().add(0, 1.5, 0), 4, 0.3, 0.3, 0.3, 0.05);
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBossEnvironmentalDamage(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (!(event instanceof EntityDamageByEntityEvent) && activeBoss != null
+                && event.getEntity().equals(activeBoss.getEntity())) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -514,7 +554,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 }
 
                 Block block = hitLoc.getBlock();
-                if (block.getType() == Material.AIR) {
+                if (block.getType() == Material.AIR && net.rocky.coresuite.common.integration.BossProtectionGate.allows(block.getLocation())) {
                     block.setType(Material.COBWEB);
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         if (block.getType() == Material.COBWEB) {
@@ -548,7 +588,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         }
 
         Block block = hitLoc.getBlock();
-        if (block.getType() == Material.AIR) {
+        if (block.getType() == Material.AIR && net.rocky.coresuite.common.integration.BossProtectionGate.allows(block.getLocation())) {
             block.setType(Material.FIRE);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (block.getType() == Material.FIRE) {
@@ -595,12 +635,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (isWater && activeBoss instanceof ValeriusBoss valerius) {
             int duration = config.getInt("valerius.weakness.quenched-duration-seconds", 10);
             valerius.applyQuenched(duration);
+            if (potion.getShooter() instanceof Player participant) activeBoss.recordParticipation(participant);
         }
 
         // 2. Splash Night Vision Counter on Xol'thos
         if (hasNightVision && activeBoss instanceof XolthosBoss xolthos) {
             int duration = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
             xolthos.applyStun(duration);
+            if (potion.getShooter() instanceof Player participant) activeBoss.recordParticipation(participant);
         }
     }
 
@@ -699,6 +741,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
 
         if (isBossActive()) {
             TextUtil.sendMessage(player, "&cAnother World Boss is already terrorizing the realm! Slay it first!");
@@ -716,7 +759,13 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (event.getClickedBlock() != null) {
             spawnLoc = event.getClickedBlock().getLocation().add(0.5, 1.0, 0.5);
         } else {
-            spawnLoc = player.getLocation().add(player.getLocation().getDirection().normalize().multiply(2.0));
+            org.bukkit.util.Vector direction = player.getLocation().getDirection().setY(0);
+            if (direction.lengthSquared() > .001) direction.normalize().multiply(2);
+            spawnLoc = player.getLocation().add(direction);
+            for (int offset : new int[]{0, 1, -1, 2, -2, 3, -3}) {
+                Location candidate = spawnLoc.clone().add(0, offset, 0);
+                if (BossSpawnScheduler.isSafeLocation(candidate)) { spawnLoc = candidate; break; }
+            }
         }
 
         if (spawnLoc.getWorld() != null && spawnLoc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
@@ -731,7 +780,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.5f, 0.8f);
             TextUtil.sendMessage(player, "&aYou have successfully summoned &e" + totemBoss.getDefaultDisplayName() + "&a!");
         } else {
-            TextUtil.sendMessage(player, "&cFailed to summon boss. Location may be unsafe!");
+            TextUtil.sendMessage(player, "&cNo safe summon spot. Use solid ground with 5×5 clear space and 5 blocks of headroom. Your totem was kept.");
         }
     }
 
@@ -749,6 +798,9 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, event.getPlayer(), () -> {
+            if (isEnabled() && lootManager != null) lootManager.claimRewards(event.getPlayer());
+        });
         if (discoveryManager != null) {
             discoveryManager.loadPlayer(event.getPlayer().getUniqueId());
         }
@@ -916,6 +968,10 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
         String sub = args[0].toLowerCase();
         switch (sub) {
+            case "claim" -> {
+                if (sender instanceof Player player) lootManager.claimRewards(player);
+                return true;
+            }
             case "codex", "lore", "menu", "gui" -> {
                 if (args.length >= 2) {
                     BossType type = parseBossType(args[1]);
@@ -1082,7 +1138,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         TextUtil.sendMessage(sender, "  &5&l3. Xol'thos, The Weeping Widow &8(&7Cave Spider&8)");
         TextUtil.sendMessage(sender, "     &7Subterranean horror lurking in venomous darkness.");
         TextUtil.sendMessage(sender, "");
-        TextUtil.sendMessage(sender, "  &6Commands: &e/boss &8(open Codex GUI) | &e/boss info &8| &e/boss next &8| &e/boss shop");
+        TextUtil.sendMessage(sender, "  &6Commands: &e/boss &8(open Codex GUI) | &e/boss info &8| &e/boss next &8| &e/boss shop &8| &e/boss claim");
         TextUtil.sendMessage(sender, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
@@ -1100,6 +1156,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         try {
             String sub = args[0].toLowerCase();
             switch (sub) {
+                case "rewards" -> { lootManager.inspectPendingRewards(sender); return true; }
                 case "spawn" -> {
                     if (args.length < 2) {
                         TextUtil.sendMessage(sender, "&cUsage: /bossadmin spawn <valerius|aethelgard|xolthos> [x y z world]");
@@ -1287,6 +1344,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         TextUtil.sendMessage(sender, "  &e/bossadmin awaken &8- &7Awaken boss immediately (skip 45s countdown)");
         TextUtil.sendMessage(sender, "  &e/bossadmin kill &8- &7Kill active boss & drop combat loot");
         TextUtil.sendMessage(sender, "  &e/bossadmin despawn &8- &7Despawn active boss without rewards");
+        TextUtil.sendMessage(sender, "  &e/bossadmin rewards &8- &7Inspect pending reward receipts");
         TextUtil.sendMessage(sender, "  &e/bossadmin clearall &8- &7Purge all orphaned bosses across all worlds");
         TextUtil.sendMessage(sender, "  &e/bossadmin summonitem <boss> [player] &8- &7Give summon totem");
         TextUtil.sendMessage(sender, "  &e/bossadmin setnpc <npc-id> &8- &7Set Garrick exchange NPC ID");
@@ -1301,20 +1359,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         for (World world : Bukkit.getWorlds()) {
             for (LivingEntity le : world.getLivingEntities()) {
                 if (le.isDead()) continue;
-                boolean isBoss = false;
-                if (le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING)) {
-                    isBoss = true;
-                } else {
-                    for (BossType bt : BossType.values()) {
-                        if (le.getType() == bt.getEntityType()) {
-                            String name = (le.getCustomName() != null) ? le.getCustomName().toLowerCase() : "";
-                            if (name.contains("valerius") || name.contains("aethelgard") || name.contains("xolthos") || name.contains("widow") || name.contains("vanguard") || name.contains("king")) {
-                                isBoss = true;
-                                break;
-                            }
-                        }
-                    }
-                }
+                boolean isBoss = le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING);
                 if (isBoss) {
                     if (activeBoss == null || !le.equals(activeBoss.getEntity())) {
                         le.remove();
@@ -1332,20 +1377,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (sender instanceof Player p) {
             for (Entity e : p.getNearbyEntities(80, 80, 80)) {
                 if (e instanceof LivingEntity le && !le.isDead()) {
-                    boolean isBoss = false;
-                    if (le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING)) {
-                        isBoss = true;
-                    } else {
-                        for (BossType bt : BossType.values()) {
-                            if (le.getType() == bt.getEntityType()) {
-                                String name = (le.getCustomName() != null) ? le.getCustomName().toLowerCase() : "";
-                                if (name.contains("valerius") || name.contains("aethelgard") || name.contains("xolthos") || name.contains("widow") || name.contains("vanguard") || name.contains("king")) {
-                                    isBoss = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    boolean isBoss = le.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING);
                     if (isBoss) {
                         if (activeBoss == null || !le.equals(activeBoss.getEntity())) {
                             le.remove();
@@ -1390,7 +1422,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         List<String> completions = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("boss")) {
             if (args.length == 1) {
-                for (String s : Arrays.asList("codex", "lore", "info", "next", "shop", "party", "help", "valerius", "aethelgard", "xolthos")) {
+                for (String s : Arrays.asList("claim", "codex", "lore", "info", "next", "shop", "party", "help", "valerius", "aethelgard", "xolthos")) {
                     if (s.startsWith(args[0].toLowerCase())) completions.add(s);
                 }
             } else if (args.length == 2 && args[0].equalsIgnoreCase("party")) {

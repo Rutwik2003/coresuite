@@ -30,8 +30,7 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null ||
             Bukkit.getPluginManager().getPlugin("Citizens") == null ||
             Bukkit.getPluginManager().getPlugin("SkinsRestorer") == null) {
-            plugin.getLogger().warning("KillPodium module requires PlaceholderAPI, Citizens, and SkinsRestorer. Features disabled.");
-            return;
+            throw new IllegalStateException("KillPodium requires PlaceholderAPI, Citizens, and SkinsRestorer.");
         }
 
         PluginCommand command = plugin.getCommand("podiumupdate");
@@ -56,7 +55,7 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("podiumupdate")) {
-            if (!sender.hasPermission("podiumupdater.admin")) {
+            if (!sender.hasPermission("coresuite.podium.admin")) {
                 TextUtil.sendMessage(sender, config.getString("prefix", "&b[PodiumUpdater]&r ") + "&cYou don't have permission to do that.");
                 return true;
             }

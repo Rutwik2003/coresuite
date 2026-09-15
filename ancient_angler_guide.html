@@ -3,26 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔱 The Ancient Angler — Master Deep-Sea Lore & Quest Guide</title>
+    <title>🔱 The Ancient Angler — Master Deep-Sea Lore, Quest Encyclopedia & Command Compendium</title>
     <style>
         :root {
-            --deep-navy: #07111e;
-            --ocean-dark: #0d1e34;
-            --ocean-panel: #132742;
-            --ocean-light: #1c3b63;
+            --deep-navy: #060e18;
+            --ocean-dark: #0a1829;
+            --ocean-panel: #10233b;
+            --ocean-light: #183556;
+            --ocean-border: #1e426d;
             --gold: #d4af37;
-            --gold-bright: #ffdf00;
-            --gold-subtle: rgba(212, 175, 55, 0.2);
+            --gold-bright: #ffd700;
+            --gold-subtle: rgba(212, 175, 55, 0.18);
             --cyan-glow: #00e5ff;
-            --cyan-dim: #0099aa;
+            --cyan-dim: #009cb0;
+            --cyan-subtle: rgba(0, 229, 255, 0.12);
             --text-main: #e2eaf4;
             --text-muted: #8ea4bf;
             --danger: #ff5252;
-            --danger-bg: rgba(255, 82, 82, 0.15);
+            --danger-bg: rgba(255, 82, 82, 0.14);
             --success: #4caf50;
-            --success-bg: rgba(76, 175, 80, 0.15);
+            --success-bg: rgba(76, 175, 80, 0.14);
             --purple: #bb86fc;
-            --card-border: rgba(212, 175, 55, 0.25);
+            --purple-bg: rgba(187, 134, 252, 0.14);
+            --card-border: rgba(212, 175, 55, 0.28);
         }
 
         * {
@@ -35,82 +38,104 @@
             font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
             background-color: var(--deep-navy);
             background-image: 
-                radial-gradient(circle at 15% 20%, rgba(0, 229, 255, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 85% 75%, rgba(212, 175, 55, 0.04) 0%, transparent 45%),
-                linear-gradient(180deg, rgba(7, 17, 30, 0.95) 0%, rgba(13, 30, 52, 0.95) 100%);
+                radial-gradient(circle at 12% 18%, rgba(0, 229, 255, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 88% 82%, rgba(212, 175, 55, 0.05) 0%, transparent 45%),
+                linear-gradient(180deg, rgba(6, 14, 24, 0.98) 0%, rgba(10, 24, 41, 0.98) 100%);
             color: var(--text-main);
             line-height: 1.65;
-            padding-bottom: 80px;
+            padding-bottom: 90px;
         }
 
         /* Top Header */
         header {
-            background: linear-gradient(180deg, #050d18 0%, var(--ocean-dark) 100%);
+            background: linear-gradient(180deg, #03080f 0%, var(--ocean-dark) 100%);
             border-bottom: 2px solid var(--gold);
-            padding: 3rem 1.5rem 2.5rem;
+            padding: 3.5rem 1.5rem 2.8rem;
             text-align: center;
             position: relative;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7);
+        }
+
+        .header-badge-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
         }
 
         .header-badge {
-            display: inline-block;
-            background: rgba(0, 229, 255, 0.12);
+            background: var(--cyan-subtle);
             border: 1px solid var(--cyan-glow);
             color: var(--cyan-glow);
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 1.8px;
             padding: 4px 14px;
             border-radius: 20px;
-            margin-bottom: 12px;
             font-weight: bold;
+        }
+
+        .header-badge.gold {
+            background: var(--gold-subtle);
+            border-color: var(--gold);
+            color: var(--gold-bright);
         }
 
         h1 {
             color: var(--gold);
-            font-size: 2.8rem;
+            font-size: 2.9rem;
             letter-spacing: 1px;
-            text-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
-            margin-bottom: 8px;
+            text-shadow: 0 0 25px rgba(212, 175, 55, 0.45);
+            margin-bottom: 10px;
+            line-height: 1.2;
         }
 
         h1 span {
             color: var(--cyan-glow);
-            text-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+            text-shadow: 0 0 25px rgba(0, 229, 255, 0.55);
         }
 
         header p {
             color: var(--text-muted);
             font-size: 1.15rem;
-            max-width: 650px;
+            max-width: 820px;
             margin: 0 auto;
         }
 
         /* Container */
         .container {
-            max-width: 1100px;
-            margin: 2rem auto;
+            max-width: 1200px;
+            margin: 2.2rem auto;
             padding: 0 1.5rem;
         }
 
         /* Navigation Quick Jump */
         .quick-nav {
+            position: sticky;
+            top: 15px;
+            z-index: 100;
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
             justify-content: center;
             margin-bottom: 2.5rem;
+            background: rgba(10, 24, 41, 0.92);
+            backdrop-filter: blur(8px);
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
         }
 
         .quick-nav a {
             background: var(--ocean-panel);
-            border: 1px solid var(--card-border);
+            border: 1px solid var(--ocean-border);
             color: var(--text-main);
             text-decoration: none;
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 6px;
-            font-size: 0.88rem;
+            font-size: 0.84rem;
             font-weight: 600;
             transition: all 0.2s ease;
         }
@@ -127,9 +152,9 @@
             background: var(--ocean-panel);
             border: 1px solid var(--card-border);
             border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            padding: 2.2rem;
+            margin-bottom: 2.4rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
             position: relative;
             overflow: hidden;
         }
@@ -152,28 +177,38 @@
             background: var(--danger);
         }
 
+        .section.purple-border::before {
+            background: var(--purple);
+        }
+
         .section-header {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
             border-bottom: 1px solid var(--gold-subtle);
             padding-bottom: 1rem;
             margin-bottom: 1.5rem;
         }
 
         .section-icon {
-            font-size: 1.8rem;
+            font-size: 2rem;
         }
 
         .section h2 {
             color: var(--gold-bright);
-            font-size: 1.6rem;
+            font-size: 1.65rem;
             font-weight: 700;
+        }
+
+        .section h3 {
+            color: #fff;
+            font-size: 1.25rem;
+            margin: 1.5rem 0 0.8rem;
         }
 
         .section p {
             color: var(--text-main);
-            margin-bottom: 1rem;
+            margin-bottom: 1.1rem;
             font-size: 1rem;
         }
 
@@ -192,20 +227,25 @@
             font-weight: 600;
         }
 
+        .purple-highlight {
+            color: var(--purple);
+            font-weight: 600;
+        }
+
         /* Step Grids */
         .steps-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.2rem;
-            margin: 1.5rem 0;
+            grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+            gap: 1.3rem;
+            margin: 1.6rem 0;
         }
 
         .step-card {
             background: var(--ocean-light);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--ocean-border);
             border-radius: 8px;
-            padding: 1.4rem;
-            transition: transform 0.2s;
+            padding: 1.5rem;
+            transition: transform 0.2s, border-color 0.2s;
         }
 
         .step-card:hover {
@@ -217,13 +257,13 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 28px;
-            height: 28px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background: var(--gold);
             color: #000;
             font-weight: bold;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             margin-bottom: 10px;
         }
 
@@ -231,6 +271,7 @@
             color: #fff;
             font-size: 1.15rem;
             margin-bottom: 8px;
+            margin-top: 0;
         }
 
         .step-card p {
@@ -239,17 +280,41 @@
             margin-bottom: 0;
         }
 
+        /* Scenarios Box */
+        .scenario-box {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--ocean-border);
+            border-radius: 8px;
+            padding: 1.2rem 1.4rem;
+            margin-bottom: 1rem;
+        }
+
+        .scenario-title {
+            color: var(--gold-bright);
+            font-weight: bold;
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+
+        .scenario-prompt {
+            font-style: italic;
+            color: #a8d5e5;
+            margin-bottom: 8px;
+            padding-left: 12px;
+            border-left: 2px solid var(--cyan-glow);
+        }
+
         /* Path Buttons Grid */
         .paths-selector {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
             gap: 10px;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.8rem;
         }
 
         .path-btn {
             background: var(--ocean-dark);
-            border: 1px solid var(--card-border);
+            border: 1px solid var(--ocean-border);
             color: var(--text-muted);
             padding: 12px 10px;
             border-radius: 8px;
@@ -270,7 +335,17 @@
             background: var(--gold);
             color: #000;
             border-color: var(--gold-bright);
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.45);
+        }
+
+        .path-btn.fatal {
+            border-color: rgba(255, 82, 82, 0.4);
+        }
+
+        .path-btn.fatal.active {
+            background: var(--danger);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 82, 82, 0.5);
         }
 
         /* Path Detail Box */
@@ -279,7 +354,7 @@
             background: var(--ocean-dark);
             border: 1px solid var(--card-border);
             border-radius: 10px;
-            padding: 1.8rem;
+            padding: 2rem;
             animation: fadeIn 0.3s ease;
         }
 
@@ -298,30 +373,30 @@
             align-items: flex-start;
             flex-wrap: wrap;
             gap: 10px;
-            margin-bottom: 1.2rem;
+            margin-bottom: 1.4rem;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             padding-bottom: 1rem;
         }
 
         .path-title {
-            font-size: 1.5rem;
+            font-size: 1.6rem;
             color: var(--gold-bright);
         }
 
         .path-theme-tag {
-            background: rgba(0, 229, 255, 0.15);
+            background: var(--cyan-subtle);
             border: 1px solid var(--cyan-glow);
             color: var(--cyan-glow);
-            padding: 4px 12px;
+            padding: 4px 14px;
             border-radius: 16px;
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 600;
         }
 
         .riddle-box {
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.4);
             border-left: 3px solid var(--cyan-glow);
-            padding: 1rem 1.2rem;
+            padding: 1.1rem 1.3rem;
             border-radius: 0 6px 6px 0;
             font-style: italic;
             color: #a8d5e5;
@@ -332,7 +407,7 @@
         .stage-timeline {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: 1.1rem;
             margin: 1.5rem 0;
         }
 
@@ -340,9 +415,9 @@
             display: flex;
             gap: 15px;
             background: var(--ocean-panel);
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--ocean-border);
             border-radius: 8px;
-            padding: 1.2rem;
+            padding: 1.3rem;
         }
 
         .stage-badge {
@@ -350,7 +425,7 @@
             border: 1px solid var(--gold);
             color: var(--gold-bright);
             height: 32px;
-            min-width: 75px;
+            min-width: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -365,18 +440,18 @@
 
         .stage-info h4 {
             color: #fff;
-            font-size: 1.05rem;
+            font-size: 1.08rem;
             margin-bottom: 4px;
         }
 
         .fish-req-tag {
             display: inline-block;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.45);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            padding: 3px 10px;
+            padding: 4px 11px;
             border-radius: 4px;
-            font-size: 0.82rem;
-            margin: 4px 4px 0 0;
+            font-size: 0.84rem;
+            margin: 5px 5px 0 0;
             color: #fff;
         }
 
@@ -387,43 +462,49 @@
 
         /* Reward Card */
         .reward-card {
-            background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(19, 39, 66, 0.8) 100%);
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.16) 0%, rgba(16, 35, 59, 0.85) 100%);
             border: 1px solid var(--gold);
             border-radius: 8px;
-            padding: 1.4rem;
+            padding: 1.5rem;
             margin-top: 1.5rem;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 16px;
         }
 
         .reward-icon {
-            font-size: 2.2rem;
+            font-size: 2.4rem;
         }
 
         .reward-details h4 {
             color: var(--gold-bright);
-            font-size: 1.2rem;
+            font-size: 1.25rem;
             margin-bottom: 4px;
         }
 
         .reward-details p {
             color: var(--text-main);
-            font-size: 0.92rem;
+            font-size: 0.94rem;
             margin-bottom: 0;
         }
 
         /* Tables */
+        .table-responsive {
+            overflow-x: auto;
+            margin: 1.3rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--ocean-border);
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.92rem;
-            margin: 1.2rem 0;
         }
 
         th, td {
             text-align: left;
-            padding: 10px 14px;
+            padding: 11px 15px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
@@ -431,32 +512,55 @@
             background: var(--ocean-light);
             color: var(--gold-bright);
             font-weight: 600;
+            white-space: nowrap;
         }
 
         tr:hover {
             background: rgba(255, 255, 255, 0.03);
         }
 
+        /* Command Styling */
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            color: var(--cyan-glow);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 0.88rem;
+        }
+
+        .perm-tag {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-size: 0.76rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 4px;
+            font-family: monospace;
+        }
+
         /* Alert Boxes */
         .alert-box {
             border-radius: 8px;
-            padding: 1.2rem;
-            margin: 1.2rem 0;
+            padding: 1.3rem;
+            margin: 1.3rem 0;
             display: flex;
-            gap: 12px;
+            gap: 14px;
             align-items: flex-start;
         }
 
         .alert-box.danger {
             background: var(--danger-bg);
             border: 1px solid var(--danger);
-            color: #ffb8b8;
+            color: #ffc4c4;
         }
 
         .alert-box.info {
-            background: rgba(0, 229, 255, 0.1);
+            background: var(--cyan-subtle);
             border: 1px solid var(--cyan-glow);
-            color: #c7f2f7;
+            color: #d4f8fc;
         }
 
         .alert-box.gold {
@@ -465,17 +569,42 @@
             color: #faecc0;
         }
 
+        .alert-box.purple {
+            background: var(--purple-bg);
+            border: 1px solid var(--purple);
+            color: #f2e7fe;
+        }
+
         .alert-icon {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             line-height: 1;
+        }
+
+        /* Search Filter */
+        .search-bar {
+            width: 100%;
+            padding: 10px 16px;
+            background: var(--ocean-dark);
+            border: 1px solid var(--cyan-dim);
+            color: #fff;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            margin-bottom: 1.2rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .search-bar:focus {
+            border-color: var(--cyan-glow);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
         }
 
         footer {
             text-align: center;
             color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-top: 3rem;
-            padding-top: 1.5rem;
+            font-size: 0.88rem;
+            margin-top: 3.5rem;
+            padding-top: 1.8rem;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
         }
     </style>
@@ -483,78 +612,119 @@
 <body>
 
     <header>
-        <div class="header-badge">CoreSuite Legendary Quest Wiki</div>
+        <div class="header-badge-group">
+            <div class="header-badge">CoreSuite v1.0.0 Custom Fishing</div>
+            <div class="header-badge gold">Legendary Quest System</div>
+            <div class="header-badge">Deep-Sea Lore & Mechanics</div>
+        </div>
         <h1>🔱 The <span>Ancient Angler</span> Guide 🔱</h1>
-        <p>A master compendium detailing the Tidecaller's Pearl, deep-sea summoning rituals, all 10 dialogue paths, riddles, required fish catches, fail penalties, and ultimate relics.</p>
+        <p>A comprehensive master encyclopedia detailing the Tidecaller's Pearl, deep-sea summoning rituals, all 10 dialogue paths, riddles, required catches, fail penalties, command reference, and ultimate relics.</p>
     </header>
 
     <div class="container">
         
+        <!-- Navigation Quick Jump -->
         <div class="quick-nav">
             <a href="#overview">👴 Overview</a>
             <a href="#summoning">🧭 Pearl & Summoning</a>
+            <a href="#scenarios">🗣️ Dialogue Prompts</a>
             <a href="#paths">🛤️ All 10 Paths</a>
             <a href="#turnin">🐟 Offerings & Hints</a>
             <a href="#penalties">⚠️ Fail Penalties</a>
-            <a href="#matrix">📋 Quick Cheat Sheet</a>
+            <a href="#commands">💻 Command Encyclopedia</a>
+            <a href="#habitats">🗺️ Fish Habitat Directory</a>
+            <a href="#database">🗄️ Database & Staff</a>
+            <a href="#matrix">📋 Master Matrix</a>
         </div>
 
-        <!-- Section 1: Overview -->
+        <!-- Section 1: Overview & Dynamic Dialogue -->
         <div class="section" id="overview">
             <div class="section-header">
                 <div class="section-icon">👴</div>
-                <h2>Who is the Ancient Angler?</h2>
+                <div>
+                    <h2>Who is the Ancient Angler?</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">The primordial master of the abyssal trenches.</p>
+                </div>
             </div>
             <p>
-                The <strong>Ancient Angler</strong> is a mythical entity dwelling in the abyssal trenches of Minecraft. He does not spawn naturally in towns or ports—he must be tracked down and summoned by mortals who possess the fabled <span class="highlight">Tidecaller's Pearl</span>.
+                The <strong>Ancient Angler</strong> is a mythical entity dwelling in the deep ocean depths of Minecraft. Unlike ordinary quest NPCs who stand statically at spawn or ports, the Ancient Angler must be tracked down and summoned using the mythical <span class="highlight">Tidecaller's Pearl</span>.
             </p>
             <p>
-                Unlike standard quest NPCs who hand out simple chores, the Ancient Angler tests your nautical philosophy, patience, and resolve. He speaks in cryptic sea riddles and observes whether you choose the path of <strong>Endurance</strong>, <strong>Greed</strong>, <strong>Predation</strong>, <strong>Silence</strong>, or <strong>Storm</strong>. 
+                He does not hand out mundane fetch quests. Instead, he tests each mortal's nautical philosophy, patience, and resolve. Depending on how you answer his philosophical questions, he will test you across <strong>Endurance</strong>, <strong>Greed</strong>, <strong>Predation</strong>, <strong>Silence</strong>, <strong>Submergence</strong>, or <strong>Storm Mastery</strong>. Beware: insolent or arrogant replies will provoke his abyssal wrath!
             </p>
-            <div class="alert-box gold">
-                <div class="alert-icon">💡</div>
-                <div>
-                    <strong>Dynamic Encounters:</strong> The Angler tracks your history! If you disrespect him, he will shout <em>"YOU DARE RETURN?!"</em> upon resummoning. As you complete his trials multiple times, his dialogue softens to acknowledge your relentless dedication to the depths.
+
+            <h3>Persistent Memory & Dynamic Dialogue</h3>
+            <p>
+                The Ancient Angler maintains a persistent database record for every player. When summoned, his opening dialogue dynamically reacts to your previous actions:
+            </p>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-num">✦</div>
+                    <h3>First Encounter</h3>
+                    <p><em>"Who awakens the Ancient Angler from the depths...?"</em><br>
+                    He treats you as an unproven novice seeking the forgotten lore of the deep.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">✦</div>
+                    <h3>Returning Victor (1–2 Clears)</h3>
+                    <p><em>"Ah... we meet again, mortal. The tides bring you back."</em><br>
+                    Acknowledges your nautical skill and offers new trials to test your resolve.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">✦</div>
+                    <h3>Veteran Master (3+ Clears)</h3>
+                    <p><em>"Your persistence borders on obsession. The sea respects that... barely."</em><br>
+                    Grants deep respect and hardened challenges.</p>
+                </div>
+                <div class="step-card" style="border-color: rgba(255, 82, 82, 0.4);">
+                    <div class="step-num" style="background:var(--danger); color:#fff;">☠️</div>
+                    <h3>Disrespect History</h3>
+                    <p><em style="color:var(--danger);">"YOU DARE RETURN?!"</em><br>
+                    Accompanied by an ambient Wither roar if you previously insulted or cheated him!</p>
                 </div>
             </div>
         </div>
 
-        <!-- Section 2: Obtaining the Pearl & Summoning -->
+        <!-- Section 2: Pearl & Summoning Ritual -->
         <div class="section cyan-border" id="summoning">
             <div class="section-header">
                 <div class="section-icon">🧭</div>
-                <h2>Phase 1: The Tidecaller's Pearl & The Ritual</h2>
+                <div>
+                    <h2>Phase 1: The Tidecaller's Pearl & Summoning Ritual</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Acquiring the pearl, following the helix beacon, and the summoning event.</p>
+                </div>
             </div>
-            <p>Before you can speak with the Angler, you must locate his hidden coastline. Here is the exact technical flow:</p>
-            
+            <p>Before you can speak with the Ancient Angler, you must locate his hidden coastline:</p>
+
             <div class="steps-grid">
                 <div class="step-card">
                     <div class="step-num">1</div>
-                    <h3>Fish Up the Pearl</h3>
+                    <h3>Catching the Pearl</h3>
                     <p>
-                        The <span class="highlight">Tidecaller's Pearl</span> (Heart of the Sea) has a base catch chance of <strong>0.01%</strong> (1 in 10,000).<br>
+                        The <span class="highlight">Tidecaller's Pearl</span> (Heart of the Sea) is fished from any open water body.<br>
+                        • <strong>Base Chance:</strong> <code>0.01%</code> (1 in 10,000 catches).<br>
                         • <strong>Treasure Hunter Enchant:</strong> Adds +0.01% per level (up to 0.04%).<br>
-                        • <strong>Pity Guarantee:</strong> If you reach <strong>2,500 catches</strong> without finding one, the pearl is <strong>100% guaranteed</strong> on your next catch!
+                        • <strong>Pity Guarantee:</strong> If a player reaches <strong>2,500 catches</strong> without finding one, the pearl drops with <strong>100% certainty</strong> on the 2,501st catch!
                     </p>
                 </div>
                 <div class="step-card">
                     <div class="step-num">2</div>
-                    <h3>Follow the Helix Trail</h3>
+                    <h3>The Helix Particle Trail</h3>
                     <p>
-                        Right-clicking the Pearl releases a dual-particle beam (End Rod & Soul Fire Flame) that spirals towards his lodestone coordinate.<br>
-                        • Action bar shows: <em>"The pearl hums softly... you are X blocks away."</em><br>
-                        • Must be in the same world as the lodestone.
+                        Right-clicking the Pearl releases a dual-particle beam (End Rod & Soul Fire Flame) that spirals towards his lodestone coordinate (up to 5,000 blocks away).<br>
+                        • <strong>Action Bar HUD:</strong> Displays <em>"Distance to Ancient Angler: Xm"</em> every second.<br>
+                        • <strong>Trail Cooldown:</strong> 10-second cooldown between beam pulses.
                     </p>
                 </div>
                 <div class="step-card">
                     <div class="step-num">3</div>
                     <h3>The Deep-Sea Summoning</h3>
                     <p>
-                        When within <strong>15 blocks</strong> of the target location, right-click the Pearl to initiate the ritual:<br>
-                        • 40 ticks of Nautilus particles and Warden heartbeat.<br>
-                        • Giant 200-particle water eruption + Elder Guardian sound.<br>
+                        When within <strong>15 blocks</strong> of the target location, the action bar turns gold: <em>"You have reached the spot! Right-Click to summon him!"</em><br>
+                        • 40 ticks of Nautilus particles and Warden heartbeat sound.<br>
+                        • Giant 200-particle water eruption + Elder Guardian curse sound.<br>
                         • Server-wide broadcast announcement!<br>
-                        • Converts Pearl $	o$ permanent <span class="highlight">Angler's Tracker</span>.
+                        • Pearl converts into permanent <span class="highlight">Angler's Tracker</span>.
                     </p>
                 </div>
             </div>
@@ -562,19 +732,66 @@
             <div class="alert-box info">
                 <div class="alert-icon">🌊</div>
                 <div>
-                    <strong>Water Summoning Mechanics:</strong> If you summon the Angler in open water, CoreSuite automatically places a magical <strong>Lily Pad</strong> underneath his feet and prevents water displacement so he never drowns or glitches into the seabed!
+                    <strong>Open-Water Safety System:</strong> If the summoning location is in deep ocean or open water, CoreSuite automatically places a mystical <strong>Lily Pad</strong> directly beneath the NPC's feet and locks the water level, ensuring the Angler never drowns or glitches through the seabed!
                 </div>
             </div>
         </div>
 
-        <!-- Section 3: The 10 In-Depth Paths -->
+        <!-- Section 3: Scenario Prompts -->
+        <div class="section purple-border" id="scenarios">
+            <div class="section-header">
+                <div class="section-icon">🗣️</div>
+                <div>
+                    <h2>The 5 Philosophical Prompts & Choice Architecture</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">How the Angler tests your character before unveiling your quest path.</p>
+                </div>
+            </div>
+            <p>
+                Upon summoning, the Ancient Angler rolls <strong>1 of 5 scenario prompts</strong>. He then randomly presents <strong>3 distinct dialogue choices</strong> corresponding to 3 different paths. Players can click the chat options directly (which runs <code>/fish quest &lt;1|2|3&gt;</code>) or type <code>1</code>, <code>2</code>, or <code>3</code> in chat.
+            </p>
+
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 1: The Surrendering Sailor</div>
+                <div class="scenario-prompt">"*Cough*... I watched a man surrender to the water 'ere yesterday. Didn't thrash. Didn't scream. Just sank like a stone. Why d'ye think he stayed so quiet?"</div>
+                <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0;">Choices test whether you value survival instinct, greed, hunting monsters, silence, or foolish hubris.</p>
+            </div>
+
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 2: The Iron Hook of the Soul</div>
+                <div class="scenario-prompt">"Look at 'em... Every fish bites the iron thinkin' it's a blessin'. Tell me, youngster, what's the iron hook that caught your soul?"</div>
+                <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0;">Explores your deepest desires: conquering currents, sunken riches, thrill of the catch, or stillness.</p>
+            </div>
+
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 3: The Broken Compass</div>
+                <div class="scenario-prompt">"I once watched a ship's captain throw his compass into the sea. His crew wept, but he smiled. Why d'ye think he destroyed his only guide?"</div>
+                <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0;">Tests faith in intuition, surrender to destiny, defiance of the deep, or boundless arrogance.</p>
+            </div>
+
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 4: The Protective Devotion</div>
+                <div class="scenario-prompt">"There's a fish that swallows its own young to protect them from the storm. Tell me, mortal — what would ye swallow to keep what matters safe?"</div>
+                <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0;">Examines sacrificial devotion, hunger for plunder, predatory rage, or quiet contemplation.</p>
+            </div>
+
+            <div class="scenario-box">
+                <div class="scenario-title">Scenario 5: The Mariana Trench</div>
+                <div class="scenario-prompt">"The deepest trench holds no light, no warmth, no mercy. Yet something lives there still. What drives a creature to thrive where everything says it should perish?"</div>
+                <p style="font-size:0.88rem; color:var(--text-muted); margin-bottom:0;">Tests pure endurance, bottomless greed, primordial hunger, or reckless bravado.</p>
+            </div>
+        </div>
+
+        <!-- Section 4: All 10 Paths -->
         <div class="section" id="paths">
             <div class="section-header">
                 <div class="section-icon">🛤️</div>
-                <h2>The 10 In-Depth Dialogue Paths & Riddles</h2>
+                <div>
+                    <h2>The 10 In-Depth Quest Paths Encyclopedia</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Explore exact stage transitions, riddles, catch requirements, biomes, and relic rewards.</p>
+                </div>
             </div>
             <p>
-                Upon summoning, the Ancient Angler presents a riddle scenario and offers <strong>3 selectable dialogue options</strong>. The option you select sets your quest path.
+                Select any path below to inspect its narrative, exact stage identifiers (e.g. Stage 101 to 104), catch requirements, and unique rewards:
             </p>
 
             <!-- Path Buttons -->
@@ -583,12 +800,12 @@
                 <button class="path-btn" onclick="showPath(2)">Path 2: Greed</button>
                 <button class="path-btn" onclick="showPath(3)">Path 3: The Hunt</button>
                 <button class="path-btn" onclick="showPath(4)">Path 4: Silence</button>
-                <button class="path-btn" onclick="showPath(5)">Path 5: Disrespect</button>
+                <button class="path-btn fatal" onclick="showPath(5)">Path 5: Disrespect ☠️</button>
                 <button class="path-btn" onclick="showPath(6)">Path 6: Sunken Empire</button>
                 <button class="path-btn" onclick="showPath(7)">Path 7: The Abyss</button>
                 <button class="path-btn" onclick="showPath(8)">Path 8: Desperation</button>
                 <button class="path-btn" onclick="showPath(9)">Path 9: The Storm</button>
-                <button class="path-btn" onclick="showPath(10)">Path 10: Arrogance</button>
+                <button class="path-btn fatal" onclick="showPath(10)">Path 10: Arrogance ☠️</button>
             </div>
 
             <!-- Path 1 Detail -->
@@ -596,9 +813,9 @@
                 <div class="path-header">
                     <div>
                         <div class="path-title">Path 1: The Path of Endurance</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "The freezing tide numbs all panic..." / "Endurance..."</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"The freezing tide numbs all panic..."</em> / <em>"Endurance. He kept swimming..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Survival & Tireless Mastery</div>
+                    <div class="path-theme-tag">Fatigue Resistance & Mastery</div>
                 </div>
                 <div class="riddle-box">
                     "You choose to fight the tide. Let us see if you break. To brave the great currents, ye must first build a shell. The shallows provide the paint, vibrant and fragile. Bring me the painted school, and I'll show ye the path they took."
@@ -611,7 +828,7 @@
                             <h4>The Painted School</h4>
                             <p>Catch and deliver the colorful shallows fish:</p>
                             <div class="fish-req-tag">🐟 <span>10x</span> Neon Tetra (Deep Dark / Lush Caves)</div>
-                            <div class="fish-req-tag">🐟 <span>10x</span> Angelfish (Frozen Ocean / Taiga)</div>
+                            <div class="fish-req-tag">🐟 <span>10x</span> Angelfish (Frozen Ocean / Snowy Taiga)</div>
                         </div>
                     </div>
                     <div class="stage-step">
@@ -635,8 +852,8 @@
                         <div class="stage-info">
                             <h4>The Forge's Ember</h4>
                             <p><em>"Reach into the inferno. Hand me the ember."</em></p>
-                            <div class="fish-req-tag">🔥 <span>1x</span> Lava Particle (Legendary • Deep Dark / Nether Caves)</div>
-                            <p style="margin-top:6px; font-size:0.85rem; color:#ffdf00;">⚠️ <strong>Rod Requirement:</strong> You must hold at least a <strong>Bronze Quality Rod</strong> (for Lv 1) or <strong>Silver Quality Rod</strong> (for Lv 2+)!</p>
+                            <div class="fish-req-tag">🔥 <span>1x</span> Lava Particle (Legendary • Deep Dark / Caves)</div>
+                            <p style="margin-top:6px; font-size:0.85rem; color:#ffd700;">⚠️ <strong>Rod Quality Requirement:</strong> You must hold at least a <strong>Bronze Quality Rod</strong> (for Lv 1) or <strong>Silver Quality Rod</strong> (for Lv 2+)! If your rod is too weak, the fish is returned to you.</p>
                         </div>
                     </div>
                 </div>
@@ -644,8 +861,10 @@
                 <div class="reward-card">
                     <div class="reward-icon">🎣</div>
                     <div class="reward-details">
-                        <h4>Mastery Reward: Tireless Caster Enchantment</h4>
-                        <p>Grants a permanent level of <strong>Tireless Caster (I, II, or III)</strong> directly applied to your held rod! Reduces fishing fatigue buildup by <strong>25% per level</strong> (up to 75% fatigue immunity). Includes fallback consolation rewards of $100k or rare baits on repeat attempts.</p>
+                        <h4>Mastery Reward: Tireless Caster Enchantment (I–III)</h4>
+                        <p>Applies a permanent level of <strong>Tireless Caster</strong> directly onto your held fishing rod!<br>
+                        • <strong>Perk:</strong> Reduces fishing fatigue buildup by <strong>25% per level</strong> (up to 75% fatigue immunity).<br>
+                        • <strong>Consolation Prize:</strong> If repeat rolls do not yield an enchant upgrade, the Angler grants <strong>$100,000 Cash</strong>, rare baits, or <strong>+2 Angler Levels</strong>.</p>
                     </div>
                 </div>
             </div>
@@ -655,9 +874,9 @@
                 <div class="path-header">
                     <div>
                         <div class="path-title">Path 2: The Path of Greed & King's Folly</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "A man burdened by gold sinks without a fight..." / "The shimmer of sunken empires..."</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"A man burdened by gold sinks without a fight..."</em> / <em>"The shimmer of sunken empires..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Massive Money Payout</div>
+                    <div class="path-theme-tag">Massive Economy Payout</div>
                 </div>
                 <div class="riddle-box">
                     "Gold... it be the heaviest anchor a man can tie to his own neck. The ocean has her own currency, spilled from a thousand wrecks. Spill two hands full of her varied coins before me."
@@ -669,7 +888,7 @@
                         <div class="stage-info">
                             <h4>The Ocean's Currency</h4>
                             <p>Deliver two hands full of the ocean's varied coins:</p>
-                            <div class="fish-req-tag">🐟 <span>20x</span> Any Custom Fish (from inventory or fish bag)</div>
+                            <div class="fish-req-tag">🐟 <span>20x</span> Any Custom Fish (Inventory or Fish Bag)</div>
                         </div>
                     </div>
                     <div class="stage-step">
@@ -677,7 +896,7 @@
                         <div class="stage-info">
                             <h4>The King's Folly</h4>
                             <p><em>"Fetch me the catch that shines so bright it blinds greedy fools to the kraken behind it."</em></p>
-                            <div class="fish-req-tag">✨ <span>1x</span> Golden Carp (Common / Ocean)</div>
+                            <div class="fish-req-tag">✨ <span>1x</span> Golden Carp (Common • Ocean / Deep Ocean)</div>
                         </div>
                     </div>
                     <div class="stage-step">
@@ -693,8 +912,8 @@
                 <div class="reward-card">
                     <div class="reward-icon">💰</div>
                     <div class="reward-details">
-                        <h4>Mastery Reward: Leviathan's Treasury ($500,000 Money)</h4>
-                        <p>Deposits an instant <strong>$500,000</strong> cold hard cash into your Vault balance with server fanfare: <em>"Take this Leviathan's bounty. Spend it fast, before the salt claims it back."</em></p>
+                        <h4>Mastery Reward: Leviathan's Treasury ($500,000 Cash)</h4>
+                        <p>Instant direct deposit of <strong>$500,000</strong> Vault balance into your account! <em>"Take this Leviathan's bounty. Spend it fast, before the salt claims it back."</em></p>
                     </div>
                 </div>
             </div>
@@ -704,9 +923,9 @@
                 <div class="path-header">
                     <div>
                         <div class="path-title">Path 3: The Path of The Hunt</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "The leviathans below dragged him down..." / "The pure adrenaline..."</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"The leviathans below dragged him down too fast..."</em> / <em>"The pure adrenaline..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Predator Baits & Trapping</div>
+                    <div class="path-theme-tag">Apex Predator Baits</div>
                 </div>
                 <div class="riddle-box">
                     "The Hunt! Har! There's no music sweeter than the snap of a line in the black water. To track the monsters, ye must first feed on the frenzied biters. Bring me a handful of razors."
@@ -742,8 +961,8 @@
                 <div class="reward-card">
                     <div class="reward-icon">🪱</div>
                     <div class="reward-details">
-                        <h4>Mastery Reward: 3x Rare / Legendary Baits</h4>
-                        <p>Delivers <strong>3x high-tier custom baits</strong> (chosen randomly from Earthworm, Gilded Spinner, Tide's Blessing, or Mythical Chum). <em>"Ye are a true hunter of the deep. Take this... don't waste it on minnows."</em></p>
+                        <h4>Mastery Reward: 3x High-Tier Baits</h4>
+                        <p>Grants <strong>3x High-Tier Baits</strong> randomly selected from Earthworm, Gilded Spinner, Tide's Blessing, or Mythical Chum. <em>"Ye are a true hunter of the deep. Take this... don't waste it on minnows."</em></p>
                     </div>
                 </div>
             </div>
@@ -752,10 +971,10 @@
             <div id="path-4" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 4: The Path of Silence & Stillness</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "He simply accepted the peace..." / "The absolute silence..."</div>
+                        <div class="path-title">Path 4: The Path of Silence</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"He simply accepted the peace of the deep..."</em> / <em>"The absolute silence..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Fossilized Anchor Trophy & Level Boost</div>
+                    <div class="path-theme-tag">Abyssal Stillness & Anchor Relic</div>
                 </div>
                 <div class="riddle-box">
                     "The sea is vast, kid, and full of pointless noise. To hear the deep's true secrets, ye must first drown out the chatter. Bring me a bounty of the common rabble. A fisherman's dozen, plus two."
@@ -765,26 +984,26 @@
                     <div class="stage-step">
                         <div class="stage-badge">Stage 401</div>
                         <div class="stage-info">
-                            <h4>Drown the Chatter</h4>
-                            <p>Quiet the waters with patient fishing:</p>
-                            <div class="fish-req-tag">🐟 <span>15x</span> Any Custom Fish (A fisherman's dozen + 2)</div>
+                            <h4>The Common Chatter</h4>
+                            <p>Offer a fisherman's dozen plus two:</p>
+                            <div class="fish-req-tag">🐟 <span>15x</span> Any Custom Fish</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 402</div>
                         <div class="stage-info">
-                            <h4>Silver Speck & The Serpent Kings</h4>
-                            <p><em>"True silence means focusing on a single, insignificant detail among thousands."</em></p>
+                            <h4>The Silver Speck & The Kings</h4>
+                            <p><em>"True silence means focusing on a single, insignificant detail among thousands. Find me a silver speck and the river kings."</em></p>
                             <div class="fish-req-tag">🐟 <span>1x</span> Anchovy (Common • River / Swamp)</div>
-                            <div class="fish-req-tag">🐍 <span>5x</span> Giant Snakehead (Epic • Jungle)</div>
+                            <div class="fish-req-tag">🐍 <span>5x</span> Giant Snakehead (Epic • Jungle / Bamboo Jungle)</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 403</div>
                         <div class="stage-info">
                             <h4>The Striped Sentinels</h4>
-                            <p><em>"Five of the barred wardens who watch the reef walls in silence."</em></p>
-                            <div class="fish-req-tag">🛡️ <span>5x</span> Barred Knifejaw (Epic • Ocean / Deep Ocean)</div>
+                            <p><em>"Bring me the striped sentinels that patrol the deep reef walls — five of the barred wardens who watch in silence."</em></p>
+                            <div class="fish-req-tag">🛡️ <span>5x</span> Barred Knifejaw (Rare • Ocean / Lukewarm Ocean)</div>
                         </div>
                     </div>
                 </div>
@@ -793,7 +1012,7 @@
                     <div class="reward-icon">⚓</div>
                     <div class="reward-details">
                         <h4>Mastery Reward: +5 Angler Levels & The Fossilized Anchor</h4>
-                        <p>Instantly grants <strong>+5 Angler Levels</strong> and awards the unique untradeable <strong>Fossilized Anchor Relic</strong> (Nautilus Shell with Lure I glow, unalterable in anvils, permanently saved in DB).</p>
+                        <p>Instantly awards <strong>+5 Angler Levels</strong> to your profile and bestows the mythical <span class="gold-highlight">Fossilized Anchor Relic</span> (Nautilus Shell with Lure enchantment, un-anvilable, registered to your UUID). <em>"Proof of your ultimate patience."</em></p>
                     </div>
                 </div>
             </div>
@@ -802,18 +1021,18 @@
             <div id="path-5" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 5: The Disrespect Path (Warning)</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "Stop the riddles, old man. I need a favor."</div>
+                        <div class="path-title">Path 5: The Path of Disrespect (Hubris & Punishment)</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"Stop the riddles, old man. I need a favor."</em> / <em>"You are. Now give me what I'm owed."</em></div>
                     </div>
-                    <div class="path-theme-tag" style="background:var(--danger-bg); border-color:var(--danger); color:var(--danger);">Smite & Curse</div>
+                    <div class="path-theme-tag" style="background:var(--danger-bg); border-color:var(--danger); color:var(--danger);">Instant Abyssal Retribution</div>
                 </div>
                 <div class="riddle-box" style="border-left-color: var(--danger); color:#ff9999;">
-                    "Oh, is that how it is? Ye think the cruel sea grants favors to guppies like you?! Look at yer hands, kid. The ocean takes what she wants, and so do I!"
+                    "Oh, is that how it is? Ye think the cruel sea grants favors to guppies like you? Look at yer hands, kid. The ocean takes what she wants, and so do I!"
                 </div>
                 <div class="alert-box danger">
                     <div class="alert-icon">⚡</div>
                     <div>
-                        <strong>Instant Retribution:</strong> Choosing this option immediately terminates the conversation, strikes you with lightning, increments your <code>times_disrespected</code> score, inflicts Blindness/Nausea, and forces the Angler to submerge and relocate. Do not test his patience!
+                        <strong>Instant Retribution & Despawn:</strong> The Angler strikes you with lightning, afflicts you with <strong>Mining Fatigue V (2 minutes)</strong> and <strong>Nausea III (30 seconds)</strong>, violently confiscates <strong>5 fish from your fish bag/inventory</strong> (or fines you <strong>$25,000</strong> if empty), increments your <code>times_disrespected</code> database counter, and despawns!
                     </div>
                 </div>
             </div>
@@ -822,21 +1041,21 @@
             <div id="path-6" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 6: The Sunken Empire & Coral Wealth</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "He was counting his treasures..." / "The promise of fortune..."</div>
+                        <div class="path-title">Path 6: The Sunken Empire</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"He was counting his treasures when the waves took him."</em> / <em>"The promise of fortune..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Cash + Random Epic Fish</div>
+                    <div class="path-theme-tag">Treasury & Epic Specimen</div>
                 </div>
                 <div class="riddle-box">
-                    "The sea hoards its riches beneath the coral thrones. Bring me a tax from the common waters."
+                    "Fortune favors the bold, they say... The sea hoards its riches beneath the coral thrones. Bring me a tax from the common waters."
                 </div>
 
                 <div class="stage-timeline">
                     <div class="stage-step">
                         <div class="stage-badge">Stage 601</div>
                         <div class="stage-info">
-                            <h4>The Coral Tax</h4>
-                            <p>Pay your tribute from the surface waters:</p>
+                            <h4>Coral Tax</h4>
+                            <p>Deliver the tribute of common waters:</p>
                             <div class="fish-req-tag">🐟 <span>20x</span> Any Custom Fish</div>
                         </div>
                     </div>
@@ -844,7 +1063,7 @@
                         <div class="stage-badge">Stage 602</div>
                         <div class="stage-info">
                             <h4>The Golden Scale</h4>
-                            <p><em>"Find me the golden scale that glimmers at the bottom of murky rivers."</em></p>
+                            <p><em>"A beggar's purse. If ye want the true fortune, bring me the golden scale."</em></p>
                             <div class="fish-req-tag">✨ <span>1x</span> Golden Carp (Common • Ocean)</div>
                         </div>
                     </div>
@@ -853,16 +1072,16 @@
                         <div class="stage-info">
                             <h4>Armored Jewels</h4>
                             <p><em>"Now bring me the armored jewels of the frozen waters. Two of them."</em></p>
-                            <div class="fish-req-tag">💎 <span>2x</span> Ranchu Goldfish (Epic • Desert / Badlands)</div>
+                            <div class="fish-req-tag">❄️ <span>2x</span> Ranchu Goldfish (Rare • Frozen River / Ocean)</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="reward-card">
-                    <div class="reward-icon">👑</div>
+                    <div class="reward-icon">💎</div>
                     <div class="reward-details">
-                        <h4>Mastery Reward: $250,000 + Random Epic Custom Fish</h4>
-                        <p>Deposits <strong>$250,000</strong> cash and generates a <strong>Random Epic Fish</strong> with rolled weight and price-per-kg directly into your inventory.</p>
+                        <h4>Mastery Reward: $250,000 Cash + Random Epic Fish</h4>
+                        <p>Awards <strong>$250,000 Cash</strong> deposited into your Vault balance plus a rolled <strong>Epic Custom Fish</strong> with randomized trophy weight! <em>"The sea giveth and the sea taketh."</em></p>
                     </div>
                 </div>
             </div>
@@ -871,38 +1090,38 @@
             <div id="path-7" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 7: The Abyss & Demonic Waters</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "The abyss itself reached up..." / "The pull of something ancient..."</div>
+                        <div class="path-title">Path 7: The Path of The Abyss</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"The abyss itself reached up and pulled him under."</em> / <em>"The pull of something ancient..."</em></div>
                     </div>
-                    <div class="path-theme-tag">5x Mythical Chum Baits ($2.5M Value)</div>
+                    <div class="path-theme-tag">Mythical Baits ($2,500,000 Value)</div>
                 </div>
                 <div class="riddle-box">
-                    "The deep feeds on darkness. Bring me creatures born where light fears to reach."
+                    "The depths call to those who dare listen... The deep feeds on darkness. Bring me creatures born where light fears to reach."
                 </div>
 
                 <div class="stage-timeline">
                     <div class="stage-step">
                         <div class="stage-badge">Stage 701</div>
                         <div class="stage-info">
-                            <h4>Born in the Dark</h4>
-                            <p>Harvest specimens from dark underwater caverns:</p>
-                            <div class="fish-req-tag">🦑 <span>5x</span> Custom Fish from Deep Dark / Lush Caves</div>
+                            <h4>Children of the Dark</h4>
+                            <p>Catch fish dwelling in pitch black depths:</p>
+                            <div class="fish-req-tag">🌑 <span>5x</span> Custom Fish from Deep Ocean / Deep Dark</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 702</div>
                         <div class="stage-info">
-                            <h4>Volcanic Demons</h4>
+                            <h4>Demons of the Volcanic Veins</h4>
                             <p><em>"Fetch me the demons that swim through volcanic veins. Two of them."</em></p>
-                            <div class="fish-req-tag">😈 <span>2x</span> Demonic Netherfish (Rare • Deep Dark / Nether)</div>
+                            <div class="fish-req-tag">🔥 <span>2x</span> Demonic Netherfish (Rare • Nether / Deep Dark)</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 703</div>
                         <div class="stage-info">
-                            <h4>Nether's Forge</h4>
+                            <h4>The Nether Wrasse</h4>
                             <p><em>"The ultimate darkness... bring me the wrasse forged in the nether's forge. Two of them."</em></p>
-                            <div class="fish-req-tag">🔥 <span>2x</span> Netherwrasse (Epic • Deep Dark / Nether Caves)</div>
+                            <div class="fish-req-tag">🌋 <span>2x</span> Netherwrasse (Epic • Nether / Deep Dark)</div>
                         </div>
                     </div>
                 </div>
@@ -911,7 +1130,8 @@
                     <div class="reward-icon">🔮</div>
                     <div class="reward-details">
                         <h4>Mastery Reward: 5x Mythical Chum Baits</h4>
-                        <p>Awards <strong>5x Mythical Chum Baits</strong> (each worth $500,000 in the bait shop = <strong>$2,500,000 total value</strong>!). Grants +55% catch chance, +50% weight bonus, and 1.8x Mythical / 1.4x Legendary bias.</p>
+                        <p>Bestows <strong>5x Mythical Chum Baits</strong> (worth <strong>$2,500,000</strong> in the Bait Shop!).<br>
+                        • <strong>Perks:</strong> +55% catch chance, +50% weight bonus, and guaranteed mythical bias for 5 full minutes each!</p>
                     </div>
                 </div>
             </div>
@@ -920,12 +1140,12 @@
             <div id="path-8" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 8: Desperation & Sacrificial Trial</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "He clawed at the water..." / "The fear that drives a man..."</div>
+                        <div class="path-title">Path 8: Desperation & The Phantom's Betrayal</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"He clawed at the water, trading everything..."</em> / <em>"The fear that drives a man..."</em></div>
                     </div>
-                    <div class="path-theme-tag">Sacrifice & Mystery Trial</div>
+                    <div class="path-theme-tag" style="background:var(--danger-bg); border-color:var(--danger); color:var(--danger);">Treacherous Trap</div>
                 </div>
-                <div class="riddle-box">
+                <div class="riddle-box" style="border-left-color: var(--danger); color:#ff9999;">
                     "Desperation... I can smell it on you. First, prove your desperation. Sacrifice the common to show your hunger."
                 </div>
 
@@ -933,34 +1153,34 @@
                     <div class="stage-step">
                         <div class="stage-badge">Stage 801</div>
                         <div class="stage-info">
-                            <h4>Sacrifice the Common</h4>
-                            <p>Prove your hunger with a sacrifice:</p>
+                            <h4>The Hungry Offering</h4>
+                            <p>Sacrifice the common to prove your hunger:</p>
                             <div class="fish-req-tag">🐟 <span>10x</span> Any Custom Fish</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 802</div>
                         <div class="stage-info">
-                            <h4>Tundra Cold</h4>
+                            <h4>Creature of the Cold</h4>
                             <p><em>"Good... now bring me something precious. A rare creature from the cold."</em></p>
-                            <div class="fish-req-tag">❄️ <span>1x</span> Tundra Trout (Rare • Frozen River / Ocean)</div>
+                            <div class="fish-req-tag">❄️ <span>1x</span> Tundra Trout (Rare • Snowy Plains / Taiga)</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 803</div>
                         <div class="stage-info">
-                            <h4>The Ultimate Offering</h4>
+                            <h4>The Ultimate Devotion</h4>
                             <p><em>"Yes... YES! One final offering... bring me your finest catch!"</em></p>
-                            <div class="fish-req-tag">⭐ <span>1x</span> ANY Legendary Fish (Must be in inventory or bag)</div>
+                            <div class="fish-req-tag">⭐ <span>1x</span> ANY Legendary Fish (Char, Cherry Salmon, Lava Particle, etc.)</div>
                         </div>
                     </div>
                 </div>
 
-                <div class="reward-card">
-                    <div class="reward-icon">🧪</div>
-                    <div class="reward-details">
-                        <h4>Trial Outcome: The Desperation Revelation</h4>
-                        <p>The Angler consumes the legendary catch to evaluate your devotion. Tests your resolve against the relentless greed of mortal men.</p>
+                <div class="alert-box danger">
+                    <div class="alert-icon">☠️</div>
+                    <div>
+                        <strong>The Betrayal:</strong> Upon turning in your legendary fish, the Angler reveals his treachery: <em>"FOOL! You handed your treasure to a phantom! The depths thank you for your desperation!"</em><br>
+                        He steals <strong>10 fish from your inventory</strong>, fines you <strong>$50,000</strong>, curses you with <strong>Blindness (30s)</strong>, <strong>Mining Fatigue II (2m)</strong>, and <strong>Slowness (1m)</strong>, and aborts the quest!
                     </div>
                 </div>
             </div>
@@ -969,10 +1189,10 @@
             <div id="path-9" class="path-detail">
                 <div class="path-header">
                     <div>
-                        <div class="path-title">Path 9: The Tempest & The Storm</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "A bolt from the heavens split the sea..." / "The crack of thunder..."</div>
+                        <div class="path-title">Path 9: The Path of The Storm</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"A bolt from the heavens split the sea..."</em> / <em>"The crack of thunder..."</em></div>
                     </div>
-                    <div class="path-theme-tag">⚡ Stormcaller's Trident (Relic Weapon)</div>
+                    <div class="path-theme-tag">Mythical Weapon Artifact</div>
                 </div>
                 <div class="riddle-box">
                     "The storm respects no mortal... Lightning dances on the water's skin. Bring me the fish that rides the current."
@@ -983,16 +1203,16 @@
                         <div class="stage-badge">Stage 901</div>
                         <div class="stage-info">
                             <h4>Riders of the Current</h4>
-                            <p>Harvest the electric currents of jungle rivers:</p>
-                            <div class="fish-req-tag">⚡ <span>5x</span> Eel (Common • Jungle / Sparse Jungle)</div>
+                            <p>Haul the swift currents riders:</p>
+                            <div class="fish-req-tag">⚡ <span>5x</span> Eel (Common / River / Ocean)</div>
                         </div>
                     </div>
                     <div class="stage-step">
                         <div class="stage-badge">Stage 902</div>
                         <div class="stage-info">
-                            <h4>The Storm's Winter Child</h4>
+                            <h4>The Winter Tempest</h4>
                             <p><em>"The storm's child hides in frozen rivers. Bring me the trout touched by winter."</em></p>
-                            <div class="fish-req-tag">❄️ <span>3x</span> Tundra Trout (Rare • Frozen River)</div>
+                            <div class="fish-req-tag">❄️ <span>3x</span> Tundra Trout (Rare • Frozen River / Snowy Plains)</div>
                         </div>
                     </div>
                     <div class="stage-step">
@@ -1008,10 +1228,10 @@
                 <div class="reward-card">
                     <div class="reward-icon">🔱</div>
                     <div class="reward-details">
-                        <h4>Mastery Reward: Stormcaller's Trident</h4>
+                        <h4>Mastery Reward: ⚡ Stormcaller's Trident</h4>
                         <p>Forges the legendary <strong>Stormcaller's Trident</strong>:<br>
                         • <strong>Enchantments:</strong> Loyalty III, Channeling I, Impaling V.<br>
-                        • <strong>Perks:</strong> Completely <strong>Unbreakable</strong> with custom lore: <em>"Binds lightning, tides, and eternal loyalty."</em> Permanently registered to your UUID.</p>
+                        • <strong>Special Attributes:</strong> Completely <strong>Unbreakable</strong> with custom lore: <em>"Binds lightning, tides, and eternal loyalty."</em> Permanently registered to your UUID.</p>
                     </div>
                 </div>
             </div>
@@ -1021,7 +1241,7 @@
                 <div class="path-header">
                     <div>
                         <div class="path-title">Path 10: Arrogance & Mortal Hubris (Fatal)</div>
-                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: "I command the sea, old man. It bows to me."</div>
+                        <div style="color:#aaa; font-size:0.88rem; margin-top:3px;">Triggered by: <em>"The fool? He jumped in thinking he could command the tide."</em> / <em>"I command the sea, old man. It bows to me."</em></div>
                     </div>
                     <div class="path-theme-tag" style="background:var(--danger-bg); border-color:var(--danger); color:var(--danger);">Fatal Catastrophe</div>
                 </div>
@@ -1031,25 +1251,28 @@
                 <div class="alert-box danger">
                     <div class="alert-icon">☠️</div>
                     <div>
-                        <strong>Catastrophic Punishment:</strong> Dual lightning strikes, Wither II debuff for 30 seconds, Wither ambient roar, and the Angler <strong>violently seizes your single most valuable fish</strong> (or fines you $50,000 if empty-handed)! Quest immediately aborts.
+                        <strong>Catastrophic Punishment:</strong> Dual lightning strikes, <strong>Wither II debuff for 30 seconds</strong>, Wither spawn roar, and the Angler <strong>violently seizes your single most valuable fish</strong> (or fines you <strong>$50,000</strong> if empty-handed)! The quest immediately aborts.
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Section 4: Offerings & Sacrifice Hint System -->
+        <!-- Section 5: Offerings & Sacrifice Hint System -->
         <div class="section" id="turnin">
             <div class="section-header">
                 <div class="section-icon">🐟</div>
-                <h2>Offerings & The Sacrifice Hint System</h2>
+                <div>
+                    <h2>Offerings, Riddles & The Sacrifice Hint System</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Turn-in interactions, riddle recitations, and paid hint mechanics.</p>
+                </div>
             </div>
-            <p>Whenever you interact with the Angler during an active quest stage, you are given 3 choices:</p>
+            <p>Whenever you interact with the Angler during an active quest stage, you are given 3 interactive choices:</p>
             
             <div class="steps-grid">
                 <div class="step-card">
                     <div class="step-num">1</div>
                     <h3>[✦ Offer the Catch]</h3>
-                    <p>Submits the required fish from your inventory or fish bag. If correct, advances to the next stage or claims your relic!</p>
+                    <p>Submits the required fish from your inventory or fish bag. If correct, advances you to the next stage or claims your relic!</p>
                 </div>
                 <div class="step-card">
                     <div class="step-num">2</div>
@@ -1067,147 +1290,592 @@
                 <div class="alert-icon">⚠️</div>
                 <div>
                     <strong>What if you choose Hint with NO rare fish tribute?</strong><br>
-                    If you attempt to buy a hint without a qualifying fish in your inventory or fish bag, the Angler punishes you with a roulette penalty:<br>
-                    • <strong>Roll 1:</strong> Slowness I curse for 3 minutes.<br>
-                    • <strong>Roll 2:</strong> Mining Fatigue I curse for 3 minutes.<br>
-                    • <strong>Roll 3:</strong> Seizes <strong>$50,000</strong> instead of $25,000 with thunder and lightning!
+                    If you attempt to buy a hint without a qualifying fish in your inventory or fish bag, the Angler punishes you with a 3-way roulette penalty:<br>
+                    • <strong>Roll 1 (33%):</strong> Cursed with Slowness I for 3 minutes.<br>
+                    • <strong>Roll 2 (33%):</strong> Cursed with Mining Fatigue I for 3 minutes.<br>
+                    • <strong>Roll 3 (33%):</strong> Seizes <strong>$50,000</strong> instead of $25,000 with lightning and thunder!
                 </div>
             </div>
         </div>
 
-        <!-- Section 5: Fail Penalties -->
+        <!-- Section 6: Fail Penalties -->
         <div class="section danger-border" id="penalties">
             <div class="section-header">
                 <div class="section-icon">⚠️</div>
-                <h2>The Consequences of Deceit & Failure</h2>
+                <div>
+                    <h2>The Consequences of Deceit & Failure</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Exponential fines and blinding debuffs for empty-handed attempts.</p>
+                </div>
             </div>
             <p>
-                The Ancient Angler does not tolerate mortals who attempt to trick him with empty hands or wrong fish. Every time you click <em>[Offer Catch]</em> without the required items, your persistent <strong>Fail Counter</strong> increases:
+                The Ancient Angler does not tolerate mortals who attempt to trick him with empty hands or incorrect fish. Every time you click <em>[Offer Catch]</em> without the required items, your persistent <strong>Fail Counter</strong> increases:
             </p>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>Fail Streak</th>
-                        <th>Money Fine Deducted</th>
-                        <th>Debuff Effects Applied</th>
-                        <th>Angler Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>1st Fail</strong></td>
-                        <td>$10,000</td>
-                        <td>Blindness (8 seconds)</td>
-                        <td>Lightning strike sound + angry rebuke</td>
-                    </tr>
-                    <tr>
-                        <td><strong>2nd Fail</strong></td>
-                        <td>$20,000</td>
-                        <td>Blindness (11 seconds)</td>
-                        <td>Rebukes your deceit</td>
-                    </tr>
-                    <tr>
-                        <td><strong>3rd Fail</strong></td>
-                        <td>$40,000</td>
-                        <td>Blindness (14s) + Slowness (25s)</td>
-                        <td>Disorients player movement</td>
-                    </tr>
-                    <tr>
-                        <td><strong>4th Fail</strong></td>
-                        <td>$80,000</td>
-                        <td>Blindness (17s) + Slowness (25s)</td>
-                        <td>Furious storm winds</td>
-                    </tr>
-                    <tr>
-                        <td><strong>5th+ Fails</strong></td>
-                        <td>$160,000 – $500,000 (Cap)</td>
-                        <td>Blindness (20-30s) + Slowness + Nausea (15s)</td>
-                        <td>Maximum abyssal curse</td>
-                    </tr>
-                </tbody>
-            </table>
-            <p style="font-size:0.88rem; color:#aaa;">* Fines allow negative debt if enabled in config. Always double-check your inventory and fish bag before clicking [Offer Catch]!</p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fail Streak</th>
+                            <th>Money Fine Deducted</th>
+                            <th>Debuff Effects Applied</th>
+                            <th>Angler Action & Sound</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1st Fail</strong></td>
+                            <td>$10,000</td>
+                            <td>Blindness (8 seconds)</td>
+                            <td>Lightning strike sound + angry rebuke</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2nd Fail</strong></td>
+                            <td>$20,000</td>
+                            <td>Blindness (11 seconds)</td>
+                            <td>Rebukes your deceit</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3rd Fail</strong></td>
+                            <td>$40,000</td>
+                            <td>Blindness (14s) + Slowness (25s)</td>
+                            <td>Disorients player movement</td>
+                        </tr>
+                        <tr>
+                            <td><strong>4th Fail</strong></td>
+                            <td>$80,000</td>
+                            <td>Blindness (17s) + Slowness (25s)</td>
+                            <td>Furious storm winds</td>
+                        </tr>
+                        <tr>
+                            <td><strong>5th+ Fails</strong></td>
+                            <td>$160,000 – $500,000 (Cap)</td>
+                            <td>Blindness (20-30s) + Slowness + Nausea (15s)</td>
+                            <td>Maximum abyssal curse</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size:0.88rem; color:#aaa;">* Fines allow negative balance debt if configured. Always check your fish bag and inventory before clicking [Offer Catch]!</p>
         </div>
 
-        <!-- Section 6: Quick Cheat Sheet -->
+        <!-- Section 7: Complete Command Encyclopedia -->
+        <div class="section cyan-border" id="commands">
+            <div class="section-header">
+                <div class="section-icon">💻</div>
+                <div>
+                    <h2>Complete Command Encyclopedia</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Comprehensive reference of all player and administrator commands.</p>
+                </div>
+            </div>
+
+            <h3>Player Commands</h3>
+            <p>All players have access to the following fishing commands:</p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>Arguments</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>/fish</code></td>
+                            <td>None</td>
+                            <td>Opens your primary Fishing Overview GUI showing stats, level, and quick links.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish bag</code></td>
+                            <td>None</td>
+                            <td>Opens your multi-page Fish Bag to store custom catches safely without filling inventory.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish buybag</code></td>
+                            <td>None</td>
+                            <td>Purchases additional Fish Bag pages (up to 10 pages total, requiring higher levels & cash).</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish quest</code></td>
+                            <td><code>&lt;1|2|3|cancel&gt;</code></td>
+                            <td>Selects dialogue options or turn-in actions during an active Ancient Angler dialogue.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish log</code> / <code>/fish info</code></td>
+                            <td>None</td>
+                            <td>Opens your Fishing Logbook & Collection GUI showing every discovered fish species.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish sell</code></td>
+                            <td>None</td>
+                            <td>Opens the interactive Fish Merchant GUI to sell custom catches for cash.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish bait</code></td>
+                            <td>None</td>
+                            <td>Opens the Bait Shop GUI to purchase Earthworm, Gilded Spinner, Tide's Blessing, or Mythical Chum.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish fatigue</code></td>
+                            <td>None</td>
+                            <td>Checks your current fishing fatigue percentage, penalty tiers, and recovery status.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish pond</code></td>
+                            <td>None</td>
+                            <td>Broadcasts the coordinates and status of any currently forming or active Legendary Fish Pond.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish tournament</code></td>
+                            <td>None (alias: <code>tourney</code>)</td>
+                            <td>Opens the weekly Fishing Tournament leaderboard and prize pool overview.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish top</code></td>
+                            <td>None</td>
+                            <td>Opens the All-Time Leaderboards GUI for total catches, largest fish, and highest levels.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish hof</code></td>
+                            <td>None (alias: <code>halloffame</code>)</td>
+                            <td>Views the Hall of Fame honoring legendary tournament champions of past seasons.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish shop</code></td>
+                            <td>None</td>
+                            <td>Opens the General Fishing Supplies Shop GUI.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Administrator & Staff Commands</h3>
+            <p>Requires permission <code>coresuite.customfishing.admin</code>:</p>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Admin Command</th>
+                            <th>Permission</th>
+                            <th>Description & Example</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>/fish admin legendary givemap [player]</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Spawns and gives a Tidecaller's Pearl locked to the specified player with pre-configured lodestone coordinates.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin legendary setstage &lt;player&gt; &lt;stage&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Force sets a player's quest stage (e.g. <code>101</code> for Path 1, <code>901</code> for Storm Trident path).</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin legendary reset [player]</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Completely resets quest progress, removes active Angler NPCs, and wipes temporary stage data.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin give &lt;player&gt; &lt;fish_id&gt; [amount]</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Gives a specific custom fish species (e.g. <code>char</code>, <code>cherry_salmon</code>, <code>lava_particle</code>, <code>giant_snakehead</code>).</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin givebait &lt;player&gt; &lt;bait_id&gt; [amount]</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Gives custom baits: <code>worm</code>, <code>golden_lure</code>, <code>tide_essence</code>, or <code>mythic_chum</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin setlevel &lt;player&gt; &lt;amount&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Directly sets a player's Angler Level in their database profile.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin addxp &lt;player&gt; &lt;amount&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Adds fishing experience points directly to the player's profile.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin fatigue &lt;player&gt; &lt;amount&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Sets player fatigue score (0 to 100%). Useful for debugging fatigue penalties.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin setcatches &lt;player&gt; &lt;amount&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Sets total fish caught counter (useful for testing pearl pity guarantee at 2,500).</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin clearlog &lt;player&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Wipes the player's logbook records from <code>coresuite_fish_logbook</code>.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin forcepond</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Force starts a Legendary Fishing Pond event at the admin's current location.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin spawnangler</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Forces a Wandering Angler NPC to spawn at your feet.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish admin clearanglers</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Removes all Wandering Anglers across all loaded chunks.</td>
+                        </tr>
+                        <tr>
+                            <td><code>/fish debugfish &lt;material&gt;</code></td>
+                            <td><span class="perm-tag">coresuite.customfishing.admin</span></td>
+                            <td>Creates a debug test fish with the specified material (e.g. <code>/fish debugfish COD</code>).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 8: Fish Biome Habitat Directory -->
+        <div class="section" id="habitats">
+            <div class="section-header">
+                <div class="section-icon">🗺️</div>
+                <div>
+                    <h2>Quest Fish & Biome Habitat Directory</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Exact habitats, rarities, and fishing tips for every required quest catch.</p>
+                </div>
+            </div>
+            <p>Use the live filter below to quickly find where any quest fish can be caught:</p>
+
+            <input type="text" id="habitatSearch" class="search-bar" placeholder="🔍 Search by fish name, rarity, or biome (e.g. Jungle, Legendary, Char)..." onkeyup="filterHabitats()">
+
+            <div class="table-responsive">
+                <table id="habitatTable">
+                    <thead>
+                        <tr>
+                            <th>Fish Species</th>
+                            <th>Rarity</th>
+                            <th>Native Biomes & Habitats</th>
+                            <th>Required By Paths</th>
+                            <th>Special Notes & Baits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Neon Tetra</strong></td>
+                            <td><span style="color:#aaa;">Common</span></td>
+                            <td>Deep Dark, Lush Caves, Underground Waters</td>
+                            <td>Path 1 (Stage 101)</td>
+                            <td>Needs caves or subterranean waters.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Angelfish</strong></td>
+                            <td><span style="color:#4caf50;">Uncommon</span></td>
+                            <td>Frozen Ocean, Snowy Taiga, Ice Spikes</td>
+                            <td>Path 1 (Stage 101)</td>
+                            <td>Cold biome waters; bite rate high during snowfall.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Char</strong></td>
+                            <td><span style="color:#ffd700;">Legendary</span></td>
+                            <td>Frozen Ocean, Deep Frozen Ocean, Ice Spikes</td>
+                            <td>Path 1 (Stage 102)</td>
+                            <td>Extremely rare cold catch. Tide's Blessing recommended.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cherry Salmon</strong></td>
+                            <td><span style="color:#ffd700;">Legendary</span></td>
+                            <td>Jungle, Bamboo Jungle, Sparse Jungle Rivers</td>
+                            <td>Path 1 (Stage 103)</td>
+                            <td>Powerful river swimmer. Gilded Spinner helps with weight.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Lava Particle</strong></td>
+                            <td><span style="color:#ffd700;">Legendary</span></td>
+                            <td>Deep Dark, Volcanic Caverns, Nether Basins</td>
+                            <td>Path 1 (104), Path 2 (203)</td>
+                            <td>Requires at least Bronze/Silver Quality Rod to turn in!</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Golden Carp</strong></td>
+                            <td><span style="color:#aaa;">Common</span></td>
+                            <td>Ocean, Deep Ocean, Warm Ocean</td>
+                            <td>Path 2 (202), Path 6 (602)</td>
+                            <td>Shimmering scale catch found in open salt water.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Piranha</strong></td>
+                            <td><span style="color:#4caf50;">Uncommon</span></td>
+                            <td>Jungle Rivers, Warm Ocean, Mangrove Swamp</td>
+                            <td>Path 3 (Stage 301)</td>
+                            <td>Aggressive school predator; bites quickly.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Moray Eel</strong></td>
+                            <td><span style="color:#4caf50;">Uncommon</span></td>
+                            <td>Ocean, Deep Ocean, Coral Reefs</td>
+                            <td>Path 3 (Stage 302)</td>
+                            <td>Hides in underwater rock formations and coral.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Spiderfish Queen</strong></td>
+                            <td><span style="color:#bb86fc;">Epic</span></td>
+                            <td>Deep Dark, Lush Caves, Dripstone Caves</td>
+                            <td>Path 3 (Stage 303)</td>
+                            <td>Abyssal apex predator; highest chance with Mythical Chum.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Anchovy</strong></td>
+                            <td><span style="color:#aaa;">Common</span></td>
+                            <td>River, Swamp, Mangrove Swamp</td>
+                            <td>Path 4 (Stage 402)</td>
+                            <td>Small silver speck found abundantly in murky waters.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Giant Snakehead</strong></td>
+                            <td><span style="color:#bb86fc;">Epic</span></td>
+                            <td>Jungle, Bamboo Jungle, Mangrove Swamp</td>
+                            <td>Path 4 (402), Path 9 (903)</td>
+                            <td>Fierce river titan; heavy fight. High value at fish shop.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Barred Knifejaw</strong></td>
+                            <td><span style="color:#00e5ff;">Rare</span></td>
+                            <td>Ocean, Lukewarm Ocean, Coral Reefs</td>
+                            <td>Path 4 (Stage 403)</td>
+                            <td>Striped reef sentinel that watches silently from the reef.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ranchu Goldfish</strong></td>
+                            <td><span style="color:#00e5ff;">Rare</span></td>
+                            <td>Frozen River, Frozen Ocean, Snowy Plains</td>
+                            <td>Path 6 (Stage 603)</td>
+                            <td>Armored ornamental jewel of sub-zero waters.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Demonic Netherfish</strong></td>
+                            <td><span style="color:#00e5ff;">Rare</span></td>
+                            <td>Nether Wastes, Crimson Forest, Deep Dark</td>
+                            <td>Path 7 (Stage 702)</td>
+                            <td>Volcanic vein swimmer that tolerates extreme temperatures.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Netherwrasse</strong></td>
+                            <td><span style="color:#bb86fc;">Epic</span></td>
+                            <td>Nether Wastes, Soul Sand Valley, Deep Dark</td>
+                            <td>Path 7 (Stage 703)</td>
+                            <td>Abyssal wrasse forged in volcanic crust.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tundra Trout</strong></td>
+                            <td><span style="color:#00e5ff;">Rare</span></td>
+                            <td>Snowy Plains, Snowy Taiga, Frozen Peaks</td>
+                            <td>Path 8 (802), Path 9 (902)</td>
+                            <td>Winter-touched trout with pristine white scales.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Eel</strong></td>
+                            <td><span style="color:#aaa;">Common</span></td>
+                            <td>River, Ocean, Lukewarm Ocean</td>
+                            <td>Path 9 (Stage 901)</td>
+                            <td>Rider of the swift oceanic currents.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 9: Database & Staff Guide -->
+        <div class="section purple-border" id="database">
+            <div class="section-header">
+                <div class="section-icon">🗄️</div>
+                <div>
+                    <h2>Database Architecture & Staff Troubleshooting</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">Database schema, asynchronous execution, and troubleshooting steps.</p>
+                </div>
+            </div>
+            <p>
+                All quest progress is stored in the <code>coresuite_fisherman_quest</code> table in MySQL or SQLite, with thread-safe cached lookups and asynchronous persistence:
+            </p>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Column Name</th>
+                            <th>Data Type</th>
+                            <th>Default</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>uuid</code></td>
+                            <td>TEXT PRIMARY KEY</td>
+                            <td>-</td>
+                            <td>The player's unique Minecraft UUID string.</td>
+                        </tr>
+                        <tr>
+                            <td><code>stage</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Current stage (0 = none, 10 = intro, 101-104 = Path 1, 201-203 = Path 2, etc.).</td>
+                        </tr>
+                        <tr>
+                            <td><code>times_completed</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Lifetime completions of any Ancient Angler questline.</td>
+                        </tr>
+                        <tr>
+                            <td><code>times_got_tc</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Times the player successfully obtained the Tireless Caster enchantment upgrade.</td>
+                        </tr>
+                        <tr>
+                            <td><code>times_disrespected</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Number of times the player picked rude/insolent dialogue options.</td>
+                        </tr>
+                        <tr>
+                            <td><code>fail_count</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Current consecutive fail streak (used to calculate exponential fines).</td>
+                        </tr>
+                        <tr>
+                            <td><code>has_fossilized_anchor</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Flag (0 or 1) indicating if the player has ever received the Fossilized Anchor.</td>
+                        </tr>
+                        <tr>
+                            <td><code>has_stormcaller_trident</code></td>
+                            <td>INTEGER</td>
+                            <td><code>0</code></td>
+                            <td>Flag (0 or 1) indicating if the player has ever received the Stormcaller's Trident.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Staff Troubleshooting Guide</h3>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-num">1</div>
+                    <h3>Player Lost Their Pearl / Tracker</h3>
+                    <p>Run <code>/fish admin legendary givemap &lt;player&gt;</code>. This generates a brand new Tidecaller's Pearl pointing towards a valid target coordinate.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">2</div>
+                    <h3>Player Stuck on a Stage</h3>
+                    <p>Check their stage via database or use <code>/fish admin legendary setstage &lt;player&gt; &lt;stage&gt;</code> to advance or restart their current step.</p>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">3</div>
+                    <h3>Complete Quest Reset</h3>
+                    <p>Run <code>/fish admin legendary reset &lt;player&gt;</code>. This sets stage to 0, despawns any active NPC, and clears dialogue cooldowns.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 10: Master Matrix -->
         <div class="section" id="matrix">
             <div class="section-header">
                 <div class="section-icon">📋</div>
-                <h2>Quick Reference Cheat Sheet</h2>
+                <div>
+                    <h2>Master Quick-Reference Cheat Sheet</h2>
+                    <p style="margin-bottom:0; color:var(--text-muted);">All 10 paths compared side-by-side at a glance.</p>
+                </div>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Path #</th>
-                        <th>Archetype</th>
-                        <th>Total Fish Required</th>
-                        <th>Primary Relic / Reward</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 1</strong></td>
-                        <td>Endurance</td>
-                        <td>10 Neon Tetra, 10 Angelfish, 1 Char, 1 Cherry Salmon, 1 Lava Particle</td>
-                        <td><span class="gold-highlight">Tireless Caster Enchant (I-III)</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 2</strong></td>
-                        <td>Greed</td>
-                        <td>20 Any Fish, 1 Golden Carp, 1 Lava Particle</td>
-                        <td><span class="gold-highlight">$500,000 Cash</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 3</strong></td>
-                        <td>The Hunt</td>
-                        <td>5 Piranha, 3 Moray Eel, 1 Spiderfish Queen</td>
-                        <td><span class="highlight">3x Rare Baits (Tide/Chum/Spinner)</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 4</strong></td>
-                        <td>Silence</td>
-                        <td>15 Any Fish, 1 Anchovy, 5 Giant Snakehead, 5 Barred Knifejaw</td>
-                        <td><span class="gold-highlight">+5 Angler Levels & Fossilized Anchor</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--danger);">Path 5</strong></td>
-                        <td>Disrespect</td>
-                        <td>None (Rude dialogue chosen)</td>
-                        <td><span class="warning-text">Lightning Smite & Dialogue Terminated</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 6</strong></td>
-                        <td>Sunken Empire</td>
-                        <td>20 Any Fish, 1 Golden Carp, 2 Ranchu Goldfish</td>
-                        <td><span class="gold-highlight">$250,000 Cash + 1 Random Epic Fish</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 7</strong></td>
-                        <td>The Abyss</td>
-                        <td>5 Deep Fish, 2 Demonic Netherfish, 2 Netherwrasse</td>
-                        <td><span class="highlight">5x Mythical Chum Baits ($2.5M Value)</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 8</strong></td>
-                        <td>Desperation</td>
-                        <td>10 Any Fish, 1 Tundra Trout, 1 Legendary Fish</td>
-                        <td><span class="highlight">Sacrificial Devotion Trial</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--gold);">Path 9</strong></td>
-                        <td>The Storm</td>
-                        <td>5 Eel, 3 Tundra Trout, 1 Giant Snakehead</td>
-                        <td><span class="gold-highlight">⚡ Stormcaller's Trident (Unbreakable)</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong style="color:var(--danger);">Path 10</strong></td>
-                        <td>Arrogance</td>
-                        <td>None (Hubris dialogue chosen)</td>
-                        <td><span class="warning-text">Catastrophic Fish Theft / $50k Seizure</span></td>
-                    </tr>
-                </tbody>
-            </table>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Path #</th>
+                            <th>Archetype</th>
+                            <th>Stages</th>
+                            <th>Total Fish Required</th>
+                            <th>Mastery Reward / Penalty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 1</strong></td>
+                            <td>Endurance</td>
+                            <td>101 – 104</td>
+                            <td>10 Neon Tetra, 10 Angelfish, 1 Char, 1 Cherry Salmon, 1 Lava Particle</td>
+                            <td><span class="gold-highlight">Tireless Caster Enchant (I–III)</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 2</strong></td>
+                            <td>Greed</td>
+                            <td>201 – 203</td>
+                            <td>20 Any Fish, 1 Golden Carp, 1 Lava Particle</td>
+                            <td><span class="gold-highlight">$500,000 Cash Deposit</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 3</strong></td>
+                            <td>The Hunt</td>
+                            <td>301 – 303</td>
+                            <td>5 Piranha, 3 Moray Eel, 1 Spiderfish Queen</td>
+                            <td><span class="highlight">3x Rare/Legendary Baits</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 4</strong></td>
+                            <td>Silence</td>
+                            <td>401 – 403</td>
+                            <td>15 Any Fish, 1 Anchovy, 5 Giant Snakehead, 5 Barred Knifejaw</td>
+                            <td><span class="gold-highlight">+5 Angler Levels & Fossilized Anchor Relic</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--danger);">Path 5</strong></td>
+                            <td>Disrespect</td>
+                            <td>Instant</td>
+                            <td>None (Rude dialogue chosen)</td>
+                            <td><span class="warning-text">Lightning Smite, 5 Fish Stolen / $25k Fine</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 6</strong></td>
+                            <td>Sunken Empire</td>
+                            <td>601 – 603</td>
+                            <td>20 Any Fish, 1 Golden Carp, 2 Ranchu Goldfish</td>
+                            <td><span class="gold-highlight">$250,000 Cash + 1 Random Epic Fish</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 7</strong></td>
+                            <td>The Abyss</td>
+                            <td>701 – 703</td>
+                            <td>5 Deep Fish, 2 Demonic Netherfish, 2 Netherwrasse</td>
+                            <td><span class="highlight">5x Mythical Chum Baits ($2.5M Value)</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--danger);">Path 8</strong></td>
+                            <td>Desperation</td>
+                            <td>801 – 803</td>
+                            <td>10 Any Fish, 1 Tundra Trout, 1 Legendary Fish</td>
+                            <td><span class="warning-text">Phantom Betrayal: 10 Fish Stolen + $50k Fine</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--gold);">Path 9</strong></td>
+                            <td>The Storm</td>
+                            <td>901 – 903</td>
+                            <td>5 Eel, 3 Tundra Trout, 1 Giant Snakehead</td>
+                            <td><span class="gold-highlight">⚡ Stormcaller's Trident (Unbreakable)</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong style="color:var(--danger);">Path 10</strong></td>
+                            <td>Arrogance</td>
+                            <td>Instant</td>
+                            <td>None (Hubris dialogue chosen)</td>
+                            <td><span class="warning-text">Dual Smite, Best Fish Stolen / $50k Fine</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <footer>
@@ -1232,6 +1900,22 @@
                     detail.classList.remove('active');
                 }
             });
+        }
+
+        function filterHabitats() {
+            var input = document.getElementById("habitatSearch");
+            var filter = input.value.toLowerCase();
+            var table = document.getElementById("habitatTable");
+            var tr = table.getElementsByTagName("tr");
+
+            for (var i = 1; i < tr.length; i++) {
+                var text = tr[i].textContent || tr[i].innerText;
+                if (text.toLowerCase().indexOf(filter) > -1) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
         }
     </script>
 </body>

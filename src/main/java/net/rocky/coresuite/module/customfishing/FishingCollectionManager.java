@@ -192,7 +192,7 @@ implements Listener {
                         }
                         meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
                         if (itemModel != null && !itemModel.isEmpty()) {
-                            meta.setItemModel(NamespacedKey.fromString((String)itemModel));
+                            net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)itemModel));
                         }
                         if (cmd != -1) {
                             meta.setCustomModelData(Integer.valueOf(cmd));
@@ -204,7 +204,7 @@ implements Listener {
                     ItemStack unknown = new ItemStack(Material.PAPER);
                     ItemMeta meta = unknown.getItemMeta();
                     meta.displayName(TextUtil.colorize("&8???"));
-                    meta.setItemModel(NamespacedKey.fromString((String)"barely_default:fish_unknown"));
+                    net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)"barely_default:fish_unknown"));
                     ArrayList<Object> lore = new ArrayList<Object>();
                     lore.add(TextUtil.colorize("&7You haven't caught this yet."));
                     if (biomes != null && !biomes.isEmpty()) {

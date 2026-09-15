@@ -23,6 +23,7 @@ public class BossLootManager {
     private final BossItemRegistry itemRegistry;
     private final FileConfiguration config;
     private final BossDiscoveryManager discoveryManager;
+    private final BossRewardMailbox mailbox;
     private final SecureRandom random = new SecureRandom();
 
     public BossLootManager(CoreSuitePlugin plugin, BossItemRegistry itemRegistry, FileConfiguration config) {
@@ -34,6 +35,7 @@ public class BossLootManager {
         this.itemRegistry = itemRegistry;
         this.config = config;
         this.discoveryManager = discoveryManager;
+        this.mailbox = new BossRewardMailbox(plugin);
     }
 
     public void distributeRewards(BossType bossType, BossDamageTracker damageTracker, String bossDisplayName) {
@@ -49,7 +51,7 @@ public class BossLootManager {
             }
 
             ConfigurationSection lootSec = config.getConfigurationSection(bossType.getConfigKey() + ".loot");
-            if (lootSec == null) return;
+            if (lootSec == null) lootSec = new org.bukkit.configuration.MemoryConfiguration();
 
             String shardId = bossType.getShardId();
             double totalDmg = damageTracker.getTotalDamage();
@@ -62,49 +64,43 @@ public class BossLootManager {
 
             // Rank 1 (MVP)
             BossDamageTracker.DamageEntry mvp = sortedDamagers.get(0);
-            Player mvpPlayer = Bukkit.getPlayer(mvp.uuid());
             Bukkit.broadcast(TextUtil.colorize("  &e&l🥇 MVP: &f" + mvp.name() + " &8- &c" + String.format("%,.0f", mvp.damage()) + " DMG &8(&e" + String.format("%.1f", mvp.percentage()) + "%&8)"));
-
-            if (mvpPlayer != null && mvpPlayer.isOnline()) {
-                rewardPlayer(mvpPlayer, lootSec.getConfigurationSection("rank-1"), shardId, true, bossType);
-            }
 
             // Rank 2
             if (sortedDamagers.size() >= 2) {
                 BossDamageTracker.DamageEntry rank2 = sortedDamagers.get(1);
                 Bukkit.broadcast(TextUtil.colorize("  &f&l🥈 2nd: &f" + rank2.name() + " &8- &c" + String.format("%,.0f", rank2.damage()) + " DMG &8(&e" + String.format("%.1f", rank2.percentage()) + "%&8)"));
-                Player p2 = Bukkit.getPlayer(rank2.uuid());
-                if (p2 != null && p2.isOnline()) {
-                    rewardPlayer(p2, lootSec.getConfigurationSection("rank-2-3"), shardId, false, bossType);
-                }
             }
 
             // Rank 3
             if (sortedDamagers.size() >= 3) {
                 BossDamageTracker.DamageEntry rank3 = sortedDamagers.get(2);
                 Bukkit.broadcast(TextUtil.colorize("  &6&l🥉 3rd: &f" + rank3.name() + " &8- &c" + String.format("%,.0f", rank3.damage()) + " DMG &8(&e" + String.format("%.1f", rank3.percentage()) + "%&8)"));
-                Player p3 = Bukkit.getPlayer(rank3.uuid());
-                if (p3 != null && p3.isOnline()) {
-                    rewardPlayer(p3, lootSec.getConfigurationSection("rank-2-3"), shardId, false, bossType);
-                }
             }
 
-            // Qualified Participants (Rank 4+ who dealt >= 5% damage)
-            int participantCount = 0;
-            for (int i = 3; i < sortedDamagers.size(); i++) {
+            for (int i = 0; i < sortedDamagers.size(); i++) {
                 BossDamageTracker.DamageEntry entry = sortedDamagers.get(i);
-                if (entry.percentage() >= 5.0) {
-                    Player p = Bukkit.getPlayer(entry.uuid());
-                    if (p != null && p.isOnline()) {
-                        rewardPlayer(p, lootSec.getConfigurationSection("participation"), shardId, false, bossType);
-                        participantCount++;
+                java.util.List<ItemStack> items = new java.util.ArrayList<>();
+                java.util.List<BossRewardMailbox.Reward> rewards = new java.util.ArrayList<>();
+                addTier(lootSec.getConfigurationSection("participation"), shardId, true, items, rewards);
+                if (i < 3) {
+                    addTier(lootSec.getConfigurationSection(i == 0 ? "rank-1" : "rank-2-3"), shardId, false, items, rewards);
+                    ConfigurationSection rare = lootSec.getConfigurationSection("rare-drops");
+                    if (rare != null) {
+                        if (random.nextDouble() * 100 < rare.getDouble("crate-key-chance", 0)) {
+                            String command = rare.getString("crate-key-command", "");
+                            if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
+                        }
+                        if (random.nextDouble() * 100 < rare.getDouble("signature-weapon-chance", 0)) {
+                            String weapon = switch (bossType) { case VALERIUS -> "vanguards_cleaver"; case AETHELGARD -> "crown_of_the_forest"; case XOLTHOS -> "widows_fang"; };
+                            items.add(itemRegistry.createSignatureWeapon(weapon));
+                        }
                     }
                 }
+                rewards.add(0, BossRewardMailbox.Reward.items(items));
+                mailbox.enqueue(entry.uuid(), rewards);
             }
-
-            if (participantCount > 0) {
-                Bukkit.broadcast(TextUtil.colorize("  &7...plus &a" + participantCount + " &7qualified hunter(s) received participation loot!"));
-            }
+            Bukkit.broadcast(TextUtil.colorize("  &aAll " + sortedDamagers.size() + " participants earned loot! &7Unclaimed rewards are saved: &e/boss claim"));
 
             Bukkit.broadcast(TextUtil.colorize("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -138,105 +134,18 @@ public class BossLootManager {
         }
     }
 
-    private void rewardPlayer(Player player, ConfigurationSection tierSec, String shardId, boolean isMvp, BossType bossType) {
-        if (tierSec == null) return;
-        try {
-            double currency = tierSec.getDouble("currency", 0.0);
-            if (currency > 0 && plugin.getEconomyManager().isAvailable()) {
-                plugin.getEconomyManager().deposit(player, currency);
-                TextUtil.sendMessage(player, "&8[&4&lBoss&8] &a+ " + plugin.getEconomyManager().format(currency) + " &7for your combat bravery!");
-            }
+    public void initializeMailbox() { mailbox.initialize(); }
+    public void inspectPendingRewards(org.bukkit.command.CommandSender sender) { mailbox.inspectPending(sender); }
+    public void claimRewards(Player player) { mailbox.claim(player); }
 
-            int shards = tierSec.getInt("shards", 0);
-            if (shards > 0) {
-                ItemStack shardItem = itemRegistry.createShard(shardId, shards);
-                giveItemOrDrop(player, shardItem);
-                String shardName = getSafeItemName(shardItem, shardId + " Shard");
-                TextUtil.sendMessage(player, "&8[&4&lBoss&8] &e+ " + shards + "x " + shardName + " &7added to your inventory!");
-            }
-
-            List<String> commands = tierSec.getStringList("commands");
-            for (String cmd : commands) {
-                if (cmd != null && !cmd.isBlank()) {
-                    dispatchRewardCommand(cmd.replace("%player%", player.getName()));
-                }
-            }
-
-            // Check rare RNG drops for Top Damagers
-            ConfigurationSection rareSec = config.getConfigurationSection(bossType.getConfigKey() + ".loot.rare-drops");
-            if (rareSec != null) {
-                double keyChance = rareSec.getDouble("crate-key-chance", 0.0);
-                if (keyChance > 0 && (random.nextDouble() * 100.0) <= keyChance) {
-                    String cmd = rareSec.getString("crate-key-command", "");
-                    if (!cmd.isEmpty()) {
-                        dispatchRewardCommand(cmd.replace("%player%", player.getName()));
-                        TextUtil.sendMessage(player, "&8[&6&lLoot&8] &6✦ RARE DROP! &aYou received a bonus high-tier Crate Key!");
-                        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.2f);
-                    }
-                }
-
-                double weaponChance = rareSec.getDouble("signature-weapon-chance", 0.0);
-                if (weaponChance > 0 && (random.nextDouble() * 100.0) <= weaponChance) {
-                    String weaponId = switch (bossType) {
-                        case VALERIUS -> "vanguards_cleaver";
-                        case AETHELGARD -> "crown_of_the_forest";
-                        case XOLTHOS -> "widows_fang";
-                    };
-                    ItemStack weapon = itemRegistry.createSignatureWeapon(weaponId);
-                    giveItemOrDrop(player, weapon);
-                    String weaponName = getSafeItemName(weapon, "Mythic Weapon");
-                    Bukkit.broadcast(TextUtil.colorize("&6&l✦ MYTHIC DROP! &f" + player.getName() + " &7found the rare &r" + weaponName + "&7 from &r" + bossType.getDefaultDisplayName() + "&7!"));
-                    player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.0f);
-                }
-            }
-
-            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-        } catch (Throwable t) {
-            plugin.getLogger().log(Level.SEVERE, "[WorldBosses] Failed to reward player " + player.getName(), t);
-        }
-    }
-
-    private void dispatchRewardCommand(String cmd) {
-        if (cmd == null || cmd.isBlank()) return;
-        String trimmed = cmd.trim();
-        if (trimmed.startsWith("/")) trimmed = trimmed.substring(1);
-        String base = trimmed.split(" ")[0].toLowerCase();
-
-        if (base.equals("crate") || base.equals("crates") || base.equals("crazycrates")) {
-            boolean hasCratePlugin = Bukkit.getPluginManager().isPluginEnabled("ExcellentCrates")
-                    || Bukkit.getPluginManager().isPluginEnabled("CrazyCrates")
-                    || Bukkit.getPluginManager().isPluginEnabled("GoldenCrates");
-            if (!hasCratePlugin) {
-                plugin.getLogger().info("[WorldBosses] Skipped crate reward command (no crate plugin installed): " + trimmed);
-                return;
-            }
-        }
-
-        try {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), trimmed);
-        } catch (Throwable t) {
-            plugin.getLogger().warning("[WorldBosses] Failed to execute reward command: " + trimmed + " (" + t.getMessage() + ")");
-        }
-    }
-
-    private String getSafeItemName(ItemStack item, String fallback) {
-        if (item == null || !item.hasItemMeta()) return fallback;
-        if (item.getItemMeta().displayName() != null) {
-            return LegacyComponentSerializer.legacySection().serialize(item.getItemMeta().displayName());
-        }
-        if (item.getItemMeta().hasDisplayName()) {
-            return item.getItemMeta().getDisplayName();
-        }
-        return fallback;
-    }
-
-    private void giveItemOrDrop(Player player, ItemStack item) {
-        var leftover = player.getInventory().addItem(item);
-        if (!leftover.isEmpty()) {
-            for (ItemStack drop : leftover.values()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), drop);
-            }
-            TextUtil.sendMessage(player, "&c[!] Inventory full! Items were dropped at your feet.");
-        }
+    private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards) {
+        int shards = tier == null ? 0 : tier.getInt("shards", 0);
+        if (participation) shards = Math.max(1, shards);
+        for (int remaining = Math.min(2304, Math.max(0, shards)); remaining > 0; remaining -= 64)
+            items.add(itemRegistry.createShard(shardId, Math.min(64, remaining)));
+        if (tier == null) return;
+        double currency = tier.getDouble("currency", 0);
+        if (Double.isFinite(currency) && currency > 0) rewards.add(BossRewardMailbox.Reward.currency(currency));
+        for (String command : tier.getStringList("commands")) if (command != null && !command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
     }
 }

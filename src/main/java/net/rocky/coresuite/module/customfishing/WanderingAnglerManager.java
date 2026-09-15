@@ -397,14 +397,14 @@ implements Listener {
                             meta.setCustomModelData(Integer.valueOf(sec.getInt("custom-model-data")));
                         }
                         if (!(itemModelStr = sec.getString("item-model", "")).isEmpty()) {
-                            meta.setItemModel(NamespacedKey.fromString((String)itemModelStr));
+                            net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)itemModelStr));
                         }
                         displayItem.setItemMeta(meta);
                     }
                     org.bukkit.inventory.meta.ItemMeta m = null;
                     if (!caughtSpecies.contains(uncoloredName) && ((m = (displayItem = new ItemStack(Material.PAPER)).getItemMeta()) != null)) {
                         m.displayName(TextUtil.colorize("&8???"));
-                        m.setItemModel(NamespacedKey.fromString((String)"barely_default:fish_unknown"));
+                        net.rocky.coresuite.common.compat.PaperCompat.setItemModel(m, NamespacedKey.fromString((String)"barely_default:fish_unknown"));
                         ArrayList<Object> unkLore = new ArrayList<Object>();
                         unkLore.add("&7I am looking for an undiscovered fish...");
                         unkLore.add("&cYou have not caught this species yet!");

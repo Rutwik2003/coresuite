@@ -152,31 +152,33 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
                 return;
             }
 
-            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
-                    mm.reloadModule(configKey);
-                    TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded module '&f" + module.getName() + "&a'.");
-                });
-            });
+            if (mm.reloadModule(configKey)) {
+                TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded module '&f" + module.getName() + "&a'.");
+            } else {
+                TextUtil.sendMessage(sender, PREFIX + "&cModule reload failed. Check console for details.");
+            }
         } else {
             plugin.reloadConfig();
             plugin.getConfig().options().copyDefaults(true);
             plugin.saveConfig();
             
             org.bukkit.configuration.ConfigurationSection section = plugin.getConfig().getConfigurationSection("modules");
+            boolean success = true;
             if (section != null) {
                 for (Module module : mm.getAllModules()) {
                     boolean shouldBeEnabled = section.getBoolean(module.getConfigKey(), false);
                     if (shouldBeEnabled && !module.isEnabled()) {
-                        mm.enableModule(module.getConfigKey());
+                        success &= mm.enableModule(module.getConfigKey());
                     } else if (!shouldBeEnabled && module.isEnabled()) {
-                        mm.disableModule(module.getConfigKey());
+                        success &= mm.disableModule(module.getConfigKey());
                     } else if (shouldBeEnabled && module.isEnabled()) {
-                        mm.reloadModule(module.getConfigKey());
+                        success &= mm.reloadModule(module.getConfigKey());
                     }
                 }
             }
-            TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded master configuration and all enabled modules.");
+            TextUtil.sendMessage(sender, PREFIX + (success
+                    ? "&aSuccessfully reloaded master configuration and all enabled modules."
+                    : "&cConfiguration reloaded, but one or more modules failed. Check console for details."));
         }
     }
 

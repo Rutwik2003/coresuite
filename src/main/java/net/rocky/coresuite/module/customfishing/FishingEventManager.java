@@ -192,7 +192,7 @@ public class FishingEventManager {
         String soundStr = config.getString("pond-event.forming-sound", "BLOCK_NOTE_BLOCK_CHIME");
         Sound sound = Sound.BLOCK_NOTE_BLOCK_CHIME;
         try {
-            sound = Sound.valueOf((String)soundStr.toUpperCase());
+            sound = net.rocky.coresuite.common.compat.PaperCompat.sound((String)soundStr.toUpperCase());
         }
         catch (Exception exception) {
             // empty catch block
@@ -220,7 +220,7 @@ public class FishingEventManager {
         String soundStr = config.getString("pond-event.start-sound", "UI_TOAST_CHALLENGE_COMPLETE");
         Sound sound = Sound.UI_TOAST_CHALLENGE_COMPLETE;
         try {
-            sound = Sound.valueOf((String)soundStr.toUpperCase());
+            sound = net.rocky.coresuite.common.compat.PaperCompat.sound((String)soundStr.toUpperCase());
         }
         catch (Exception exception) {
             // empty catch block

@@ -31,3 +31,9 @@ ORIGINAL_REQUEST.md
 TEST_INFRA.md
 TEST_READY.md
 
+
+# Maintained compatibility verification tools
+!scripts/check_paper_linkage.py
+!scripts/smoke_paper.py
+
+!scripts/build_legacy_fish_pack.py

@@ -2,7 +2,7 @@
 #                      CORE SUITE - WORLD BOSSES MODULE
 # ==============================================================================
 # Fully configurable MMORPG World Boss system inspired by Shangri-La Frontier.
-# Supports Paper 1.20.6 / 1.21+ Java & Bedrock Crossplay.
+# Supports Paper 1.21+ Java & Bedrock Crossplay.
 
 enabled: true
 prefix: "&8[&4&lBoss&8] &r"
@@ -34,6 +34,8 @@ domain:
   storm-weather: true
   # Dormant preparation countdown in seconds before boss awakens and combat begins
   awakening-seconds: 45
+  arrival-timeout-seconds: 600
+  abandonment-seconds: 180
   # Ominous buildup BGM played during the dormant countdown before combat begins
   awakening-bgm: "coresuite:boss.awakening"
   awakening-bgm-duration-seconds: 45
@@ -68,6 +70,15 @@ domain:
 # ------------------------------------------------------------------------------
 # Combat Engine Settings
 # ------------------------------------------------------------------------------
+balance:
+  # Count nearby participants active within this window, not everyone online.
+  adaptive-scaling: true
+  solo-health-multiplier: 0.60
+  health-per-extra-player: 0.50
+  activity-window-seconds: 60
+  # Total healing across the entire encounter, including all phases.
+  maximum-healing-fraction: 0.15
+
 combat:
   # Attack charge threshold (below this, strikes land as glancing hits with scaled damage)
   attack-cooldown-threshold: 0.85
@@ -90,7 +101,7 @@ scheduler:
   # Interval in seconds between wild boss spawns (e.g. 14400 = 4 hours)
   interval-seconds: 14400
   # Minimum online players required for a scheduled spawn to occur
-  min-players: 3
+  min-players: 1
   # Broadcast warning checkpoints in seconds before spawn
   broadcast-warnings: [1800, 900, 300, 60]
   # Worlds where wild bosses are allowed to spawn
@@ -98,6 +109,11 @@ scheduler:
     - "world"
   # Maximum search distance from world spawn (X/Z coordinates between -5000 and +5000)
   spawn-radius: 5000
+  retry-seconds: 300
+  search-attempts: 32
+  search-timeout-seconds: 45
+  # Only a verified safe location may be used when no preferred biome is found.
+  allow-biome-fallback: true
   # Minimum search distance from world spawn (prevents boss from spawning in hub / claims / (0,0))
   min-spawn-distance: 800
 
@@ -137,21 +153,21 @@ exchange:
       required-specific-shard: "any"
       required-shards: 30
       required-currency: 250000
-      command: "crate key give %player% Rare 1"
+      command: "crates key give %player% Rare 1"
     enchanter-key:
       name: "&d&lEnchanter Crate Key"
       icon: "TRIPWIRE_HOOK"
       required-specific-shard: "any"
       required-shards: 40
       required-currency: 500000
-      command: "crate key give %player% enchanter 1"
+      command: "crates key give %player% enchanter 1"
     elite-key:
       name: "&6&lElite Crate Key"
       icon: "TRIPWIRE_HOOK"
       required-specific-shard: "any"
       required-shards: 50
       required-currency: 1000000
-      command: "crate key give %player% Elite 1"
+      command: "crates key give %player% Elite 1"
     alchemy-satchel:
       name: "&e&lHunter's Alchemy Satchel"
       icon: "BUNDLE"
@@ -284,18 +300,18 @@ valerius:
       currency: 25000
       shards: 4
       commands:
-        - "crate key give %player% Uncommon 1"
+        - "crates key give %player% Uncommon 1"
     rank-2-3:
       currency: 15000
       shards: 2
       commands:
-        - "crate key give %player% Common 1"
+        - "crates key give %player% Common 1"
     participation:
       currency: 5000
       shards: 1
     rare-drops:
       crate-key-chance: 8.0
-      crate-key-command: "crate key give %player% enchanter 1"
+      crate-key-command: "crates key give %player% enchanter 1"
       signature-weapon-chance: 4.0
 
 # ------------------------------------------------------------------------------
@@ -316,7 +332,7 @@ aethelgard:
     - "&7A desperate king made a dark pact with the forest to escape death."
     - "&7Bark replaced his skin, and writhing roots replaced his veins."
     - "&7As long as he treads upon &2&nnatural soil&7, the earth mends him."
-    - "&7His wooden armor swallows arrows whole, turning them into vitality."
+    - "&7His wooden armor resists arrows, but axes expose his weakness."
     - "&7Wild growth must be pruned: the ancient wood weeps when kissed"
     - "&7by the &e&nlumberjack's bite&7, and the &c&ncleansing spark of fire&7."
 
@@ -359,10 +375,10 @@ aethelgard:
       telegraph-ticks: 35
 
   weakness:
-    soil-regen-hp: 30.0             # Regenerates 30 HP every 2s on natural blocks
+    soil-regen-hp: 6.0              # Also capped at 0.3% maximum health per pulse
     axe-damage-multiplier: 2.00     # Axes deal double damage
     fire-silence-seconds: 6         # Fire halts minion summon & soil regen
-    arrow-heal-percent: 0.03        # Arrows heal him for 3% HP!
+    arrow-damage-multiplier: 0.50   # Arrows deal reduced damage; never heal the boss
 
   anti-cheese:
     anti-pillar-fangs-count: 6
@@ -393,18 +409,18 @@ aethelgard:
       currency: 35000
       shards: 4
       commands:
-        - "crate key give %player% Rare 1"
+        - "crates key give %player% Rare 1"
     rank-2-3:
       currency: 20000
       shards: 2
       commands:
-        - "crate key give %player% Uncommon 1"
+        - "crates key give %player% Uncommon 1"
     participation:
       currency: 7500
       shards: 1
     rare-drops:
       crate-key-chance: 8.0
-      crate-key-command: "crate key give %player% enchanter 1"
+      crate-key-command: "crates key give %player% enchanter 1"
       signature-weapon-chance: 4.0
 
 # ------------------------------------------------------------------------------
@@ -460,6 +476,12 @@ xolthos:
       poison-duration: 6
       slowness-duration: 4
     web-spit:
+      # These values match the existing runtime defaults.
+      min-range: 6.0
+      damage: 10.0
+      snare-duration-seconds: 4
+      poison-duration: 5
+      slowness-duration: 4
       cooldown-seconds: 14
       projectile-count: 3
       web-radius: 2
@@ -478,7 +500,7 @@ xolthos:
       spawn-count: 3
 
   weakness:
-    base-evasion-percent: 0.90      # 90% chance to evade physical attacks
+    base-evasion-percent: 0.25      # Runtime cap: 35%; Night Vision removes evasion
     stun-duration-seconds: 20       # Hit with Splash Potion of Night Vision
     stun-vulnerability-multiplier: 1.50 # +50% damage taken while stunned
 
@@ -511,18 +533,18 @@ xolthos:
       currency: 50000
       shards: 5
       commands:
-        - "crate key give %player% Rare 1"
-        - "crate key give %player% potions 1"
-        - "crate key give %player% enchanter 1"
+        - "crates key give %player% Rare 1"
+        - "crates key give %player% potions 1"
+        - "crates key give %player% enchanter 1"
     rank-2-3:
       currency: 30000
       shards: 3
       commands:
-        - "crate key give %player% Rare 1"
+        - "crates key give %player% Rare 1"
     participation:
       currency: 10000
       shards: 1
     rare-drops:
       crate-key-chance: 6.0
-      crate-key-command: "crate key give %player% Elite 1"
+      crate-key-command: "crates key give %player% Elite 1"
       signature-weapon-chance: 3.0

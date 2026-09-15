@@ -123,6 +123,7 @@ extends Module
 implements Listener,
 CommandExecutor,
 TabCompleter {
+    private final Map<UUID, Object> dataSessions = new ConcurrentHashMap<>();
     private final Map<UUID, FishData> playerData = new ConcurrentHashMap<UUID, FishData>();
     private final Map<UUID, Long> lastFishTime = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Integer> fishStreak = new ConcurrentHashMap<UUID, Integer>();
@@ -185,7 +186,7 @@ TabCompleter {
         this.weightKey = new NamespacedKey((Plugin)this.plugin, "fish_weight");
         this.priceKey = new NamespacedKey((Plugin)this.plugin, "fish_price");
         this.initDatabase();
-        this.cleanupRemovedFish();
+        if (this.config.getBoolean("maintenance.remove-retired-fish", false)) this.cleanupRemovedFish();
         this.migratePondConfig();
         this.fishBagManager = new FishBagManager(this.plugin, this);
         this.eventManager = new FishingEventManager(this.plugin, this);
@@ -359,8 +360,10 @@ TabCompleter {
         }
         for (Player p : Bukkit.getOnlinePlayers()) {
             this.saveData(p.getUniqueId());
-            this.fishBagManager.saveBagSync(p.getUniqueId());
+            if (this.fishBagManager != null && p.getOpenInventory().getTopInventory().getHolder() instanceof FishBagManager.BagHolder) p.closeInventory();
         }
+        if (this.fishBagManager != null) this.fishBagManager.shutdown();
+        this.dataSessions.clear();
         this.playerData.clear();
     }
 
@@ -465,23 +468,38 @@ TabCompleter {
     }
 
     private void loadData(Player player) {
-        this.plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = this.plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT level, xp, total_catches, bag_pages, fatigue_score, fatigue_last_update, legendary_pity FROM coresuite_fishing WHERE uuid = ?");){
-                stmt.setString(1, player.getUniqueId().toString());
-                try (ResultSet rs = stmt.executeQuery();){
+        UUID uuid = player.getUniqueId();
+        String playerName = player.getName();
+        Object session = new Object();
+        dataSessions.put(uuid, session);
+        playerData.remove(uuid);
+        plugin.getDatabaseManager().executeAsync(() -> {
+            FishData loaded;
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT level, xp, total_catches, bag_pages, fatigue_score, fatigue_last_update, legendary_pity FROM coresuite_fishing WHERE uuid = ?")) {
+                stmt.setString(1, uuid.toString());
+                try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        FishData data = new FishData(rs.getInt("level"), rs.getInt("xp"), rs.getInt("total_catches"), rs.getInt("bag_pages"), rs.getDouble("fatigue_score"), rs.getLong("fatigue_last_update"), rs.getInt("legendary_pity"));
-                        this.playerData.put(player.getUniqueId(), data);
+                        loaded = new FishData(rs.getInt("level"), rs.getInt("xp"), rs.getInt("total_catches"), rs.getInt("bag_pages"), rs.getDouble("fatigue_score"), rs.getLong("fatigue_last_update"), rs.getInt("legendary_pity"));
                     } else {
-                        this.plugin.getDatabaseManager().execute("INSERT INTO coresuite_fishing (uuid, player_name) VALUES (?, ?)", player.getUniqueId().toString(), player.getName());
-                        this.playerData.put(player.getUniqueId(), new FishData(1, 0, 0, 0));
+                        loaded = new FishData(1, 0, 0, 0);
                     }
                 }
+                // Persist a new record before exposing it to commands or catches.
+                try (PreparedStatement insert = conn.prepareStatement("INSERT INTO coresuite_fishing (uuid, player_name) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM coresuite_fishing WHERE uuid = ?)")) {
+                    insert.setString(1, uuid.toString());
+                    insert.setString(2, playerName);
+                    insert.setString(3, uuid.toString());
+                    insert.executeUpdate();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Fishing data unavailable for " + uuid, e);
+                return;
             }
-            catch (SQLException e) {
-                this.plugin.getLogger().log(Level.SEVERE, "Failed to load fishing data", e);
-            }
+            if (dataSessions.get(uuid) != session || !plugin.isEnabled()) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (dataSessions.get(uuid) == session) playerData.put(uuid, loaded);
+            });
         });
     }
 
@@ -493,7 +511,7 @@ TabCompleter {
     }
 
     private void saveDataAsync(UUID uuid) {
-        this.plugin.getDatabaseManager().executeAsync(() -> this.saveData(uuid));
+        this.saveData(uuid);
     }
 
     private double calculateFatigue(Player player, FishData data) {
@@ -543,10 +561,10 @@ TabCompleter {
         if (this.legendaryQuestManager != null) {
             this.legendaryQuestManager.unloadPlayer(event.getPlayer().getUniqueId());
         }
-        if ((data = this.playerData.get(event.getPlayer().getUniqueId())) != null) {
-            UUID quitUuid = event.getPlayer().getUniqueId();
-            this.plugin.getDatabaseManager().executeAsync(() -> this.plugin.getDatabaseManager().execute("UPDATE coresuite_fishing SET level = ?, xp = ?, total_catches = ?, bag_pages = ?, fatigue_score = ?, fatigue_last_update = ?, legendary_pity = ? WHERE uuid = ?", data.level, data.xp, data.totalCatches, data.bagPages, data.fatigueScore, data.fatigueLastUpdate, data.legendaryPity, quitUuid.toString()));
-        }
+        UUID quitUuid = event.getPlayer().getUniqueId();
+        this.dataSessions.remove(quitUuid);
+        this.saveData(quitUuid);
+        if (event.getPlayer().getOpenInventory().getTopInventory().getHolder() instanceof FishBagManager.BagHolder) event.getPlayer().closeInventory();
         this.fishBagManager.unloadBag(event.getPlayer().getUniqueId());
         this.playerData.remove(event.getPlayer().getUniqueId());
         this.lastFishTime.remove(event.getPlayer().getUniqueId());
@@ -564,116 +582,74 @@ TabCompleter {
     }
 
     private void saveCurrentBagPage(Player player, Inventory inv, int page) {
-        ItemStack[] contents = inv.getContents();
         ItemStack[] bag = this.fishBagManager.getBag(player.getUniqueId());
-        if (bag.length < (page + 1) * 45) {
-            bag = Arrays.copyOf(bag, (page + 1) * 45);
-        }
-        int start = page * 45;
-        for (int i = 0; i < 45; ++i) {
-            bag[start + i] = contents[i];
-        }
+        if (bag == null || page < 0 || page >= 10) return;
+        for (int i = 0; i < 45; i++) bag[page * 45 + i] = inv.getItem(i);
         this.fishBagManager.updateBag(player.getUniqueId(), bag);
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        String title = event.getView().getTitle();
-        if (title.startsWith("Fish Bag (Page ")) {
-            Player player = (Player)event.getPlayer();
-            int page = 0;
-            try {
-                page = Integer.parseInt(title.replace("Fish Bag (Page ", "").replace(")", "")) - 1;
+        if (event.getInventory().getHolder() instanceof FishBagManager.BagHolder holder
+                && holder.belongsTo(this.fishBagManager) && holder.isCurrent(event.getPlayer().getUniqueId())) {
+            saveCurrentBagPage((Player) event.getPlayer(), event.getInventory(), holder.page);
+            fishBagManager.saveBag(holder.owner);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof FishBagManager.BagHolder holder)) return;
+        if (!holder.belongsTo(fishBagManager) || !holder.isCurrent(event.getWhoClicked().getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+        for (int slot : event.getRawSlots()) {
+            if (slot < 54 && (slot >= 45 || !isFishItem(event.getOldCursor()))) {
+                event.setCancelled(true);
+                return;
             }
-            catch (Exception exception) {
-                // empty catch block
-            }
-            ItemStack[] contents = event.getInventory().getContents();
-            ItemStack[] bag = this.fishBagManager.getBag(player.getUniqueId());
-            if (bag.length < (page + 1) * 45) {
-                bag = Arrays.copyOf(bag, (page + 1) * 45);
-            }
-            int start = page * 45;
-            for (int i = 0; i < 45; ++i) {
-                bag[start + i] = contents[i];
-            }
-            this.fishBagManager.updateBag(player.getUniqueId(), bag);
-            this.fishBagManager.saveBag(player.getUniqueId());
         }
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
-        String title = event.getView().getTitle();
-        if (title.startsWith("Fish Bag (Page ")) {
-            ItemStack hotbarItem;
-            Player player = (Player)event.getWhoClicked();
-            if (event.getClick() == ClickType.NUMBER_KEY && (hotbarItem = player.getInventory().getItem(event.getHotbarButton())) != null && !this.isFishItem(hotbarItem)) {
-                event.setCancelled(true);
-                return;
-            }
-            if (event.getRawSlot() >= 45 && event.getRawSlot() < 54) {
-                event.setCancelled(true);
-                if (event.getCurrentItem() != null) {
-                    if (event.getCurrentItem().getType() == Material.ARROW) {
-                        FishData bData = this.playerData.get(player.getUniqueId());
-                        int totalPages = bData != null ? bData.bagPages : 1;
-                        int page = 0;
-                        try {
-                            page = Integer.parseInt(title.replace("Fish Bag (Page ", "").replace(")", "")) - 1;
-                        }
-                        catch (Exception exception) {
-                            // empty catch block
-                        }
-                        if (event.getRawSlot() == 45 && page > 0) {
-                            this.saveCurrentBagPage(player, event.getView().getTopInventory(), page);
-                            this.fishBagManager.openBag(player, totalPages, page - 1);
-                        } else if (event.getRawSlot() == 53 && page < totalPages - 1) {
-                            this.saveCurrentBagPage(player, event.getView().getTopInventory(), page);
-                            this.fishBagManager.openBag(player, totalPages, page + 1);
-                        }
-                    } else if (event.getRawSlot() == 47 && event.getCurrentItem().getType() == Material.EMERALD) {
-                        FishData bData = this.playerData.get(player.getUniqueId());
-                        int totalPages = bData != null ? bData.bagPages : 1;
-                        int page = 0;
-                        try {
-                            page = Integer.parseInt(title.replace("Fish Bag (Page ", "").replace(")", "")) - 1;
-                        }
-                        catch (Exception exception) {
-                            // empty catch block
-                        }
-                        this.saveCurrentBagPage(player, event.getView().getTopInventory(), page);
-                        this.fishBagManager.sortBag(player.getUniqueId(), this, true);
-                        this.fishBagManager.openBag(player, totalPages, page);
-                    } else if (event.getRawSlot() == 51 && event.getCurrentItem().getType() == Material.ANVIL) {
-                        FishData bData = this.playerData.get(player.getUniqueId());
-                        int totalPages = bData != null ? bData.bagPages : 1;
-                        int page = 0;
-                        try {
-                            page = Integer.parseInt(title.replace("Fish Bag (Page ", "").replace(")", "")) - 1;
-                        }
-                        catch (Exception exception) {
-                            // empty catch block
-                        }
-                        this.saveCurrentBagPage(player, event.getView().getTopInventory(), page);
-                        this.fishBagManager.sortBag(player.getUniqueId(), this, false);
-                        this.fishBagManager.openBag(player, totalPages, page);
-                    } else if (event.getRawSlot() == 48 && event.getCurrentItem().getType() == Material.EXPERIENCE_BOTTLE) {
-                        player.performCommand("fish buybag");
-                    } else if (event.getRawSlot() == 49 && event.getCurrentItem().getType() == Material.BARRIER) {
-                        player.performCommand("fish");
-                    }
-                }
-                return;
-            }
-            if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY) {
-                if (event.getRawSlot() >= event.getView().getTopInventory().getSize() && !this.isFishItem(event.getCurrentItem())) {
-                    event.setCancelled(true);
-                }
-            } else if (event.getClickedInventory() != null && event.getClickedInventory().equals((Object)event.getView().getTopInventory()) && event.getCursor() != null && event.getCursor().getType() != Material.AIR && !this.isFishItem(event.getCursor())) {
-                event.setCancelled(true);
-            }
+        Inventory top = event.getView().getTopInventory();
+        if (!(top.getHolder() instanceof FishBagManager.BagHolder holder)) return;
+        Player player = (Player) event.getWhoClicked();
+        if (!holder.belongsTo(fishBagManager) || !holder.isCurrent(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
         }
+        int slot = event.getRawSlot();
+        if (slot >= 45 && slot < 54) {
+            event.setCancelled(true);
+            // Inventory transitions must run after the current click transaction finishes.
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!holder.isCurrent(player.getUniqueId()) || player.getOpenInventory().getTopInventory() != top) return;
+                FishData data = playerData.get(player.getUniqueId());
+                if (data == null) return;
+                int pages = Math.max(1, Math.min(10, data.bagPages));
+                int page = holder.page;
+                if (slot == 45 && page > 0) fishBagManager.openBag(player, pages, page - 1);
+                else if (slot == 53 && page + 1 < pages) fishBagManager.openBag(player, pages, page + 1);
+                else if (slot == 47 || slot == 51) {
+                    player.closeInventory();
+                    fishBagManager.sortBag(player.getUniqueId(), this, slot == 47);
+                    fishBagManager.openBag(player, pages, page);
+                } else if (slot == 48 && pages < 10) player.performCommand("fish buybag");
+                else if (slot == 49) player.performCommand("fish");
+            });
+            return;
+        }
+        if (slot >= 0 && slot < 45) {
+            ItemStack incoming = event.getCursor();
+            if (event.getClick() == ClickType.NUMBER_KEY) incoming = player.getInventory().getItem(event.getHotbarButton());
+            else if (event.getClick() == ClickType.SWAP_OFFHAND) incoming = player.getInventory().getItemInOffHand();
+            if (incoming != null && !incoming.getType().isAir() && !isFishItem(incoming)) event.setCancelled(true);
+        }
+        if (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY && slot >= 54 && !isFishItem(event.getCurrentItem())) event.setCancelled(true);
+        if (event.getAction() == InventoryAction.COLLECT_TO_CURSOR) event.setCancelled(true);
     }
 
     public ItemStack createFishItem(String name, String materialName, double weight, double pricePerKg) {
@@ -700,7 +676,7 @@ TabCompleter {
             }
             meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
             if (itemModel != null && !itemModel.isEmpty()) {
-                meta.setItemModel(NamespacedKey.fromString((String)itemModel));
+                net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)itemModel));
             }
             meta.getPersistentDataContainer().set(this.speciesKey, PersistentDataType.STRING, ChatColor.stripColor((String)ChatColor.translateAlternateColorCodes((char)'&', (String)name)));
             meta.getPersistentDataContainer().set(this.weightKey, PersistentDataType.DOUBLE, weight);
@@ -775,6 +751,12 @@ TabCompleter {
             Player player = event.getPlayer();
             UUID uuid = player.getUniqueId();
 
+            if (!playerData.containsKey(uuid) || fishBagManager.getBag(uuid) == null) {
+                event.setCancelled(true);
+                TextUtil.sendMessage(player, "&cYour fishing data is not available yet. Please try again shortly.");
+                return;
+            }
+            if (player.getOpenInventory().getTopInventory().getHolder() instanceof FishBagManager.BagHolder) player.closeInventory();
             // 1. Determine Legendary Pond status first
             double eventRewardMult = 1.0;
             double eventWeightMult = 1.0;
@@ -830,10 +812,7 @@ TabCompleter {
 
             // 3. Ensure player data is present
             FishData data = this.playerData.get(uuid);
-            if (data == null) {
-                data = new FishData(1, 0, 0, 0);
-                this.playerData.put(uuid, data);
-            }
+            if (data == null) return;
 
             int streakCap = 6;
             if (data.level >= 10) {
@@ -994,7 +973,7 @@ TabCompleter {
                         Bukkit.dispatchCommand((CommandSender)Bukkit.getConsoleSender(), parsedCmd);
                     }
                     try {
-                        Sound sound = Sound.valueOf(chosenReward.sound.toUpperCase().replace(".", "_"));
+                        Sound sound = net.rocky.coresuite.common.compat.PaperCompat.sound(chosenReward.sound.toUpperCase().replace(".", "_"));
                         player.playSound(player.getLocation(), sound, 1.0f, 1.0f);
                     } catch (IllegalArgumentException ignored) {}
 
@@ -1063,7 +1042,7 @@ TabCompleter {
                     if (!inPond && biomes != null && !biomes.isEmpty() && hookBiome != null) {
                         matchesBiome = false;
                         for (String b2 : biomes) {
-                            if (hookBiome.getKey().getKey().equalsIgnoreCase(b2)) {
+                            if (((org.bukkit.Keyed) hookBiome).getKey().getKey().equalsIgnoreCase(b2)) {
                                 matchesBiome = true;
                                 break;
                             }
@@ -1375,6 +1354,10 @@ TabCompleter {
                 return true;
             }
             Player player = (Player)sender;
+            if (!playerData.containsKey(player.getUniqueId()) || fishBagManager.getBag(player.getUniqueId()) == null) {
+                TextUtil.sendMessage(player, "&cYour fishing data is not available yet. Please try again shortly.");
+                return true;
+            }
             if (args.length > 0) {
                 if (args[0].equalsIgnoreCase("quest")) {
                     if (args.length < 2) {
@@ -1481,7 +1464,10 @@ TabCompleter {
                         TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money. Cost: &a" + this.plugin.getEconomyManager().format(cost));
                         return true;
                     }
-                    this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
+                    if (!this.plugin.getEconomyManager().withdraw(player, cost)) {
+                        TextUtil.sendMessage(player, "&cPayment failed. Nothing was purchased.");
+                        return true;
+                    }
                     if (bData == null) {
                         bData = new FishData(1, 0, 0, 0);
                     }
@@ -1859,7 +1845,7 @@ TabCompleter {
                     TextUtil.sendMessage((CommandSender)player, "&cYou do not have enough money to upgrade this.");
                     return;
                 }
-                this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, cost);
+                if (!this.plugin.getEconomyManager().withdraw(player, cost)) { TextUtil.sendMessage(player, "&cPayment failed. Nothing was purchased."); return; }
                 if (reqXp > 0) {
                     this.removeLevels(player, reqXp);
                 }
@@ -1937,7 +1923,7 @@ TabCompleter {
                         TextUtil.sendMessage((CommandSender)player, "&cYou must purchase at least 1 Custom Enchant before upgrading the rod quality!");
                         return;
                     }
-                    this.plugin.getEconomyManager().withdraw((OfflinePlayer)player, tierCost);
+                    if (!this.plugin.getEconomyManager().withdraw(player, tierCost)) { TextUtil.sendMessage(player, "&cPayment failed. Nothing was purchased."); return; }
                     this.enchantManager.setRodTier(heldRod, nextTier);
                     TextUtil.sendMessage((CommandSender)player, "&a&lRod upgraded to " + nextTier.getDisplayName() + " Quality&a!");
                     player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_USE, 1.0f, 1.0f);
@@ -1952,36 +1938,40 @@ TabCompleter {
     }
 
     private double sellFishSilent(Player player, ItemStack fish) {
-        boolean removed = false;
-        if (player.getInventory().contains(fish)) {
-            player.getInventory().removeItem(new ItemStack[]{fish});
-            removed = true;
-        } else {
-            ItemStack[] bag = this.fishBagManager.getBag(player.getUniqueId());
-            if (bag != null) {
-                for (int i = 0; i < bag.length; ++i) {
-                    if (bag[i] == null || !bag[i].equals((Object)fish)) continue;
-                    bag[i] = null;
-                    this.fishBagManager.updateBag(player.getUniqueId(), bag);
-                    this.fishBagManager.saveBag(player.getUniqueId());
-                    removed = true;
-                    break;
-                }
-            }
-        }
-        if (!removed) {
-            return 0.0;
-        }
+        if (fish == null || !isFishItem(fish) || fish.getAmount() <= 0) return 0.0;
         ItemMeta meta = fish.getItemMeta();
-        if (meta == null) {
-            return 0.0;
+        if (meta == null) return 0.0;
+        double weight = meta.getPersistentDataContainer().getOrDefault(weightKey, PersistentDataType.DOUBLE, 0.0);
+        double price = meta.getPersistentDataContainer().getOrDefault(priceKey, PersistentDataType.DOUBLE, 0.0);
+        double total = getFishValue(weight, price) * fish.getAmount();
+        if (!Double.isFinite(weight) || weight <= 0 || !Double.isFinite(price) || price <= 0
+                || !Double.isFinite(total) || total <= 0) return 0.0;
+        // Remove one exact stack, then restore its slot if the provider rejects payment.
+        for (int slot = 0; slot < player.getInventory().getStorageContents().length; slot++) {
+            ItemStack actual = player.getInventory().getItem(slot);
+            if (actual == null || !actual.equals(fish)) continue;
+            ItemStack original = actual.clone();
+            player.getInventory().setItem(slot, null);
+            if (!plugin.getEconomyManager().deposit(player, total)) {
+                player.getInventory().setItem(slot, original);
+                return 0.0;
+            }
+            return total;
         }
-        double weight = (Double)meta.getPersistentDataContainer().getOrDefault(this.weightKey, PersistentDataType.DOUBLE, 0.0);
-        double price = (Double)meta.getPersistentDataContainer().getOrDefault(this.priceKey, PersistentDataType.DOUBLE, 0.0);
-        double singleVal = this.getFishValue(weight, price);
-        double total = singleVal * (double)fish.getAmount();
-        this.plugin.getEconomyManager().deposit((OfflinePlayer)player, total);
-        return total;
+        ItemStack[] bag = fishBagManager.getBag(player.getUniqueId());
+        if (bag == null) return 0.0;
+        for (int slot = 0; slot < bag.length; slot++) {
+            if (bag[slot] == null || !bag[slot].equals(fish)) continue;
+            ItemStack original = bag[slot].clone();
+            bag[slot] = null;
+            if (!plugin.getEconomyManager().deposit(player, total)) {
+                bag[slot] = original;
+                return 0.0;
+            }
+            fishBagManager.saveBag(player.getUniqueId());
+            return total;
+        }
+        return 0.0;
     }
 
     private void sellFish(Player player, ItemStack fish) {

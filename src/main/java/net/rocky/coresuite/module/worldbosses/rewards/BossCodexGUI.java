@@ -54,7 +54,7 @@ public class BossCodexGUI {
         // ── Boss 1: Valerius, The Ashen Vanguard ──
         renderBossSlot(gui, player, 11, BossType.VALERIUS, Material.NETHERITE_AXE,
             "&c&lValerius, The Ashen Vanguard",
-            "&8Type: &7Wither Skeleton | &c4,000 HP",
+            "&8Type: &7Wither Skeleton | &cAdaptive HP",
             List.of(
                 "&7Forged in the caldera of an extinct abyssal rift.",
                 "&7Valerius wears black slag armor tempered by eternal magma.",
@@ -73,12 +73,12 @@ public class BossCodexGUI {
         // ── Boss 2: Aethelgard, The Root-Bound King ──
         renderBossSlot(gui, player, 13, BossType.AETHELGARD, Material.CARVED_PUMPKIN,
             "&2&lAethelgard, The Root-Bound King",
-            "&8Type: &7Husk | &23,500 HP",
+            "&8Type: &7Husk | &2Adaptive HP",
             List.of(
                 "&7A desperate king made a dark pact with the forest to escape death.",
                 "&7Bark replaced his skin, and writhing roots replaced his veins.",
                 "&7As long as he stands on natural soil, the earth mends him.",
-                "&7His wooden armor swallows arrows whole, turning them into vitality.",
+                "&7His wooden armor resists arrows, but axes expose his weakness.",
                 "&7The ancient wood weeps when kissed by the lumberjack's axe",
                 "&7and the cleansing spark of fire."
             ),
@@ -93,7 +93,7 @@ public class BossCodexGUI {
         // ── Boss 3: Xol'thos, The Weeping Widow ──
         renderBossSlot(gui, player, 15, BossType.XOLTHOS, Material.SPIDER_EYE,
             "&5&lXol'thos, The Weeping Widow",
-            "&8Type: &7Cave Spider | &52,800 HP",
+            "&8Type: &7Cave Spider | &5Adaptive HP",
             List.of(
                 "&7An ancient spinner residing in the darkest crevices of the world.",
                 "&7She dances in the absolute black, dodging attacks with mirage speed.",
@@ -210,7 +210,7 @@ public class BossCodexGUI {
             case VALERIUS -> {
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 TextUtil.sendMessage(player, "  &c&l⚔ VALERIUS, THE ASHEN VANGUARD &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fWither Skeleton &8| &cHealth: 4,000 HP");
+                TextUtil.sendMessage(player, "  &7Entity: &fWither Skeleton &8| &cHealth: Adaptive HP");
                 TextUtil.sendMessage(player, "");
                 TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
                 TextUtil.sendMessage(player, "  &7Forged in the caldera of an extinct abyssal rift. Valerius wears");
@@ -229,13 +229,13 @@ public class BossCodexGUI {
             case AETHELGARD -> {
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 TextUtil.sendMessage(player, "  &2&l⚔ AETHELGARD, THE ROOT-BOUND KING &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fHusk &8| &aHealth: 3,500 HP");
+                TextUtil.sendMessage(player, "  &7Entity: &fHusk &8| &aHealth: Adaptive HP");
                 TextUtil.sendMessage(player, "");
                 TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
                 TextUtil.sendMessage(player, "  &7A desperate king made a dark pact with the forest to escape death.");
                 TextUtil.sendMessage(player, "  &7Bark replaced his skin, and writhing roots replaced his veins.");
                 TextUtil.sendMessage(player, "  &7As long as he stands on natural soil, the earth mends him.");
-                TextUtil.sendMessage(player, "  &7His wooden armor swallows arrows whole, turning them into vitality.");
+                TextUtil.sendMessage(player, "  &7His wooden armor resists arrows, but axes expose his weakness.");
                 TextUtil.sendMessage(player, "");
                 TextUtil.sendMessage(player, "  &6⚔ Combat Phases:");
                 TextUtil.sendMessage(player, "  &a• Phase 1: &7Overgrowth");
@@ -248,7 +248,7 @@ public class BossCodexGUI {
             case XOLTHOS -> {
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 TextUtil.sendMessage(player, "  &5&l⚔ XOL'THOS, THE WEEPING WIDOW &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fCave Spider &8| &5Health: 2,800 HP");
+                TextUtil.sendMessage(player, "  &7Entity: &fCave Spider &8| &5Health: Adaptive HP");
                 TextUtil.sendMessage(player, "");
                 TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
                 TextUtil.sendMessage(player, "  &7An ancient spinner residing in the darkest crevices of the world.");

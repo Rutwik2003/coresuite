@@ -269,7 +269,7 @@ public class FishingLeaderboardManager {
                             }
                             meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
                             if (!itemModel.isEmpty()) {
-                                meta.setItemModel(NamespacedKey.fromString((String)itemModel));
+                                net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)itemModel));
                             }
                             if (cmd != -1) {
                                 meta.setCustomModelData(Integer.valueOf(cmd));
@@ -282,7 +282,7 @@ public class FishingLeaderboardManager {
                         ItemStack unknown = new ItemStack(Material.PAPER);
                         ItemMeta meta = unknown.getItemMeta();
                         meta.displayName(TextUtil.colorize("&8???"));
-                        meta.setItemModel(NamespacedKey.fromString((String)"barely_default:fish_unknown"));
+                        net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)"barely_default:fish_unknown"));
                         meta.lore(Arrays.asList(TextUtil.colorize("&7Catch this fish to reveal"), TextUtil.colorize("&7its Hall of Fame record.")));
                         unknown.setItemMeta(meta);
                         gui.setItem(slot, new GuiButton(unknown, e -> {}));
@@ -374,7 +374,7 @@ public class FishingLeaderboardManager {
                             lore.add(TextUtil.colorize("&eServer Record: &f" + record + " kg"));
                             meta.lore((java.util.List<net.kyori.adventure.text.Component>)(java.util.List<?>)lore);
                             if (!itemModel.isEmpty()) {
-                                meta.setItemModel(NamespacedKey.fromString((String)itemModel));
+                                net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)itemModel));
                             }
                             if (cmd != -1) {
                                 meta.setCustomModelData(Integer.valueOf(cmd));
@@ -386,7 +386,7 @@ public class FishingLeaderboardManager {
                         ItemStack unknown = new ItemStack(Material.PAPER);
                         ItemMeta meta = unknown.getItemMeta();
                         meta.displayName(TextUtil.colorize("&8???"));
-                        meta.setItemModel(NamespacedKey.fromString((String)"barely_default:fish_unknown"));
+                        net.rocky.coresuite.common.compat.PaperCompat.setItemModel(meta, NamespacedKey.fromString((String)"barely_default:fish_unknown"));
                         meta.lore(Arrays.asList(TextUtil.colorize("&7Catch this fish to view"), TextUtil.colorize("&7its leaderboard.")));
                         unknown.setItemMeta(meta);
                         gui.setItem(slot, new GuiButton(unknown, e -> {}));

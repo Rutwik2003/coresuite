@@ -1,3 +1,21 @@
+# Version compatibility update
+
+For Java 1.21–1.21.3, run from the repository root:
+
+```powershell
+python scripts/build_legacy_fish_pack.py
+```
+
+Use `build/resourcepacks/CoreSuite-FishPack-1.21-1.21.3.zip` with the updated plugin. The ZIP has `pack.mcmeta` at its root. The generator preserves the source pack and validates all reachable custom models/textures for 190 configured fish and the unknown-fish icon. Stable IDs are maintained in `src/main/resources/compat/fish-models.properties`; do not renumber existing IDs. After adding fish artwork/configuration, use `--update-mapping` to append new IDs, then rebuild the plugin and pack together.
+
+The legacy pack uses static fallback artwork; it does not reproduce newer seasonal, name-based plated-food variants or Bedrock rendering. Paper 1.21/1.21.1 receives matching CustomModelData, while 1.21.2/1.21.3 uses supplied item-model aliases. Fish items created before this fallback existed do not automatically receive new metadata. Client visual testing is still required before deploying a pack globally.
+
+The source pack is intended for newer clients using `assets/<namespace>/items` definitions. Mojang introduced `item_model` in [1.21.2](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-2) and replaced the item model format in [1.21.4](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-4).
+
+The older seven-texture setup example below is retained for reference; it does not describe the current full fish catalogue.
+
+---
+
 # CoreSuite Custom Fishing - Resource Pack Setup Guide
 
 ## How It Works

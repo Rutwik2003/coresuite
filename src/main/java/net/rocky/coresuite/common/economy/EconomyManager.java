@@ -65,19 +65,16 @@ public final class EconomyManager {
      * @return True if the transaction was successful.
      */
     public boolean deposit(OfflinePlayer player, double amount) {
-        if (!isAvailable() || player == null || amount <= 0) return false;
+        if (!isAvailable() || player == null || !Double.isFinite(amount) || amount <= 0) return false;
         try {
-            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
-            EconomyResponse response = economy.depositPlayer(target, amount);
+            EconomyResponse response = economy.depositPlayer(player, amount);
             if (response != null && response.transactionSuccess()) return true;
-        } catch (Throwable ignored) {}
-        if (player.getName() != null) {
-            try {
-                EconomyResponse response = economy.depositPlayer(player.getName(), amount);
-                if (response != null && response.transactionSuccess()) return true;
-            } catch (Throwable ignored) {}
+        } catch (RuntimeException | LinkageError e) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Economy deposit outcome uncertain for " + player.getUniqueId() + "; not retrying", e);
+            throw new IllegalStateException("Economy transaction outcome is uncertain", e);
         }
-        plugin.getLogger().warning("[EconomyManager] Failed to deposit " + amount + " to player: " + player.getName());
+        plugin.getLogger().warning("Economy deposit rejected for " + player.getUniqueId());
         return false;
     }
 
@@ -89,19 +86,16 @@ public final class EconomyManager {
      * @return True if the transaction was successful.
      */
     public boolean withdraw(OfflinePlayer player, double amount) {
-        if (!isAvailable() || player == null || amount <= 0) return false;
+        if (!isAvailable() || player == null || !Double.isFinite(amount) || amount <= 0) return false;
         try {
-            OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
-            EconomyResponse response = economy.withdrawPlayer(target, amount);
+            EconomyResponse response = economy.withdrawPlayer(player, amount);
             if (response != null && response.transactionSuccess()) return true;
-        } catch (Throwable ignored) {}
-        if (player.getName() != null) {
-            try {
-                EconomyResponse response = economy.withdrawPlayer(player.getName(), amount);
-                if (response != null && response.transactionSuccess()) return true;
-            } catch (Throwable ignored) {}
+        } catch (RuntimeException | LinkageError e) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                    "Economy withdraw outcome uncertain for " + player.getUniqueId() + "; not retrying", e);
+            throw new IllegalStateException("Economy transaction outcome is uncertain", e);
         }
-        plugin.getLogger().warning("[EconomyManager] Failed to withdraw " + amount + " from player: " + player.getName());
+        plugin.getLogger().warning("Economy withdraw rejected for " + player.getUniqueId());
         return false;
     }
 
@@ -133,7 +127,7 @@ public final class EconomyManager {
      * @return True if the player has the amount.
      */
     public boolean has(OfflinePlayer player, double amount) {
-        if (!isAvailable() || player == null) return false;
+        if (!isAvailable() || player == null || !Double.isFinite(amount) || amount < 0) return false;
         try {
             OfflinePlayer target = (player.getPlayer() != null) ? player.getPlayer() : player;
             return economy.has(target, amount);

@@ -10,6 +10,7 @@ public class BossDamageTracker {
     public static record DamageEntry(UUID uuid, String name, double damage, double percentage) {}
 
     private final double maxHealth;
+    private final Map<UUID, Long> lastActivity = new ConcurrentHashMap<>();
     private final Map<UUID, Double> playerDamage = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerNames = new ConcurrentHashMap<>();
 
@@ -18,11 +19,20 @@ public class BossDamageTracker {
     }
 
     public void addDamage(Player player, double amount) {
-        if (player == null || amount <= 0) return;
+        if (player == null || !Double.isFinite(amount) || amount <= 0) return;
+        recordParticipation(player);
         UUID uuid = player.getUniqueId();
         playerDamage.merge(uuid, amount, Double::sum);
         playerNames.put(uuid, player.getName());
     }
+
+    public void recordParticipation(Player player) {
+        if (player == null) return;
+        playerDamage.putIfAbsent(player.getUniqueId(), 0.0);
+        playerNames.put(player.getUniqueId(), player.getName());
+        lastActivity.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+    public boolean wasRecentlyActive(UUID uuid, long since) { return lastActivity.getOrDefault(uuid, 0L) >= since; }
 
     public double getDamage(UUID uuid) {
         return playerDamage.getOrDefault(uuid, 0.0);
@@ -77,6 +87,7 @@ public class BossDamageTracker {
     }
 
     public void clear() {
+        lastActivity.clear();
         playerDamage.clear();
         playerNames.clear();
     }

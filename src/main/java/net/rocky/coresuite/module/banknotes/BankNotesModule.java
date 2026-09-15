@@ -43,7 +43,7 @@ import org.bukkit.command.TabCompleter;
 public class BankNotesModule extends Module implements Listener, CommandExecutor, TabCompleter {
 
     private final NamespacedKey noteIdKey;
-    private final Map<UUID, String> pendingPrompts = new HashMap<>();
+    private final Map<UUID, String> pendingPrompts = new ConcurrentHashMap<>();
     private final Set<String> activeRedeemingNotes = ConcurrentHashMap.newKeySet();
     private final Set<UUID> activeWithdrawingPlayers = ConcurrentHashMap.newKeySet();
 
@@ -80,14 +80,12 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
     }
 
     public int getTotalExperience(Player player) {
-        int level = player.getLevel();
-        int exp = Math.round(getExpToNext(level) * player.getExp());
-        
-        while (level > 0) {
-            level--;
-            exp += getExpToNext(level);
-        }
-        return exp;
+        int level = Math.max(0, player.getLevel());
+        double base = level <= 16 ? (double)level * level + 6.0 * level
+                : level <= 31 ? 2.5 * level * level - 40.5 * level + 360
+                : 4.5 * level * level - 162.5 * level + 2220;
+        double next = level < 16 ? 2.0 * level + 7 : level < 31 ? 5.0 * level - 38 : 9.0 * level - 158;
+        return (int)Math.min(Integer.MAX_VALUE, Math.max(0, base + Math.round(next * player.getExp())));
     }
 
     private int getExpToNext(int level) {
@@ -106,14 +104,16 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
 
     private void initDatabase() {
         String sql = "CREATE TABLE IF NOT EXISTS coresuite_banknotes (" +
-                "id TEXT PRIMARY KEY, " +
+                "id VARCHAR(64) PRIMARY KEY, " +
                 "amount REAL NOT NULL, " +
                 "owner TEXT NOT NULL, " +
                 "redeemed BOOLEAN NOT NULL DEFAULT 0, " +
                 "redeemed_by TEXT, " +
-                "issue_time INTEGER NOT NULL, " +
-                "redeem_time INTEGER)";
+                "issue_time BIGINT NOT NULL, " +
+                "redeem_time BIGINT)";
         plugin.getDatabaseManager().execute(sql);
+        plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_banknote_deliveries (note_id VARCHAR(64) PRIMARY KEY, recipient VARCHAR(36) NOT NULL)");
+        for (Player player : Bukkit.getOnlinePlayers()) net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, player, () -> { if (isEnabled()) deliverPending(player); });
         
         String autoInc = plugin.getDatabaseManager().isMySQL() ? "AUTO_INCREMENT" : "AUTOINCREMENT";
         plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_banknotes_logs (id INTEGER PRIMARY KEY " + autoInc + ", action TEXT, player TEXT, amount REAL, note_id TEXT, time INTEGER)");
@@ -128,7 +128,7 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
 
     private String generateNoteId(boolean isXp) {
         String prefix = isXp ? "XP-" : "BN-";
-        return prefix + UUID.randomUUID().toString().substring(0, 8).toUpperCase() + "-" + (100000 + (int)(Math.random() * 899999));
+        return prefix + UUID.randomUUID().toString();
     }
 
     private double parseAmount(String raw) {
@@ -203,138 +203,199 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
         plugin.getDatabaseManager().execute("INSERT INTO coresuite_banknotes_logs (action, player, amount, note_id, time) VALUES (?, ?, ?, ?, ?)", action, player, amount, id, System.currentTimeMillis());
     }
 
-    // Synchronous redemption to prevent dupes natively via SQLite locks
-    // returns -1 if invalid, -2 if already redeemed, >=0 if successful amount
-    private double redeemNote(String id, Player redeemer) {
-        if (id == null || id.isEmpty()) return -1;
-
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // Check note
-                double amount = -1;
-                boolean redeemed = false;
-                try (PreparedStatement stmt = conn.prepareStatement("SELECT amount, redeemed FROM coresuite_banknotes WHERE id = ?")) {
-                    stmt.setString(1, id);
-                    try (ResultSet rs = stmt.executeQuery()) {
-                        if (rs.next()) {
-                            amount = rs.getDouble("amount");
-                            redeemed = rs.getBoolean("redeemed");
-                        } else {
-                            return -1;
-                        }
-                    }
-                }
-
-                if (redeemed) {
-                    logTransaction("DUPE-ATTEMPT", redeemer.getName(), amount, id);
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        if (p.hasPermission("coresuite.banknotes.admin")) {
-                            TextUtil.sendMessage(p, "&8[&4&lBank Alert&8] &c" + redeemer.getName() + " tried to redeem an ALREADY-REDEEMED note (ID: " + id + ").");
-                        }
-                    }
-                    return -2; // confiscate
-                }
-
-                // Mark redeemed
-                try (PreparedStatement stmt = conn.prepareStatement("UPDATE coresuite_banknotes SET redeemed = 1, redeemed_by = ?, redeem_time = ? WHERE id = ?")) {
-                    stmt.setString(1, redeemer.getName());
-                    stmt.setLong(2, System.currentTimeMillis());
-                    stmt.setString(3, id);
-                    stmt.executeUpdate();
-                }
-
-                conn.commit();
-
-                // Give money
-                boolean isXp = id.startsWith("XP-");
-                if (isXp) {
-                    redeemer.giveExp((int) amount);
-                } else {
-                    plugin.getEconomyManager().deposit(redeemer, amount);
-                }
-                logTransaction(isXp ? "REDEEM-XP" : "REDEEM", redeemer.getName(), amount, id);
-
-                return amount;
-
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to redeem note: " + id, e);
-            return -1;
+    private int noteSlot(Player player, String id) {
+        for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+            if (id.equals(getNoteId(player.getInventory().getItem(slot)))) return slot;
         }
+        return -1;
+    }
+
+    private void finishReservation(String id, boolean paid) {
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                BankNoteStore.finish(conn, id, paid);
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Bank note requires reconciliation: " + id + ", paid=" + paid, e);
+            } finally { activeRedeemingNotes.remove(id); }
+        });
+    }
+
+    private void redeemNote(String id, Player player) {
+        if (!activeRedeemingNotes.add(id)) return;
+        String name = player.getName();
+        plugin.getDatabaseManager().executeAsync(() -> {
+            BankNoteStore.Reservation result;
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                result = BankNoteStore.reserve(conn, id, name);
+            } catch (SQLException e) {
+                activeRedeemingNotes.remove(id);
+                plugin.getLogger().log(Level.SEVERE, "Failed to reserve note; item retained: " + id, e);
+                return;
+            }
+            if (!plugin.isEnabled() || !isEnabled()) {
+                if (result.state() == BankNoteStore.AVAILABLE) finishReservation(id, false);
+                else activeRedeemingNotes.remove(id);
+                return;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (result.state() != BankNoteStore.AVAILABLE) {
+                    activeRedeemingNotes.remove(id);
+                    if (player.isOnline()) TextUtil.sendMessage(player, "&cThis note is invalid, already redeemed, or awaiting settlement review. ID: " + id);
+                    return;
+                }
+                int slot = player.isOnline() && isEnabled() && net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player) ? noteSlot(player, id) : -1;
+                if (slot < 0) { finishReservation(id, false); return; }
+                boolean xp = id.startsWith("XP-");
+                double amount = result.amount();
+                if (xp && (long)getTotalExperience(player) + (long)amount > Integer.MAX_VALUE) {
+                    finishReservation(id, false);
+                    TextUtil.sendMessage(player, "&cRedeeming this note would exceed the XP limit.");
+                    return;
+                }
+                try {
+                    boolean paid;
+                    if (xp) { player.giveExp((int)amount); paid = true; }
+                    else paid = plugin.getEconomyManager().deposit(player, amount);
+                    if (!paid) {
+                        finishReservation(id, false);
+                        TextUtil.sendMessage(player, "&cPayment failed. Your note has been retained.");
+                        return;
+                    }
+                    ItemStack item = player.getInventory().getItem(slot);
+                    item.setAmount(item.getAmount() - 1);
+                    player.getInventory().setItem(slot, item.getAmount() == 0 ? null : item);
+                    if (xp) player.saveData();
+                    finishReservation(id, true);
+                    logTransaction(xp ? "REDEEM-XP" : "REDEEM", name, amount, id);
+                    TextUtil.sendMessage(player, "&aRedeemed " + TextUtil.formatNumber(amount) + (xp ? " XP." : " " + config.getString("currency", "Coins") + "."));
+                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
+                } catch (RuntimeException e) {
+                    activeRedeemingNotes.remove(id);
+                    plugin.getLogger().log(Level.SEVERE, "Uncertain bank-note payout; reservation retained for review: " + id, e);
+                    TextUtil.sendMessage(player, "&cPayment needs administrator review. Keep this note. ID: " + id);
+                }
+            });
+        });
+    }
+
+    private final Set<UUID> activeDeliveries = ConcurrentHashMap.newKeySet();
+
+    @EventHandler public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, event.getPlayer(), () -> { if (isEnabled()) deliverPending(event.getPlayer()); });
+    }
+
+    private void deliverPending(Player player) {
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
+        UUID uuid = player.getUniqueId();
+        if (!activeDeliveries.add(uuid)) return;
+        plugin.getDatabaseManager().executeAsync(() -> {
+            record Delivery(String id, double amount, String owner) {}
+            java.util.List<Delivery> deliveries = new java.util.ArrayList<>();
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT n.id, n.amount, n.owner FROM coresuite_banknote_deliveries d JOIN coresuite_banknotes n ON n.id = d.note_id WHERE d.recipient = ? AND n.redeemed = 0")) {
+                stmt.setString(1, uuid.toString());
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) deliveries.add(new Delivery(rs.getString(1), rs.getDouble(2), rs.getString(3)));
+                }
+            } catch (SQLException e) {
+                activeDeliveries.remove(uuid);
+                plugin.getLogger().log(Level.SEVERE, "Failed to load bank-note deliveries for " + uuid, e);
+                return;
+            }
+            if (!plugin.isEnabled()) { activeDeliveries.remove(uuid); return; }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                activeDeliveries.remove(uuid);
+                if (!isEnabled() || !player.isOnline() || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
+                java.util.List<String> deliveredIds = new java.util.ArrayList<>();
+                for (Delivery delivery : deliveries) {
+                    // A crash before acknowledgement can replay the item; its unique ID can only be redeemed once.
+                    if (noteSlot(player, delivery.id()) < 0) {
+                        if (player.getInventory().firstEmpty() < 0) {
+                            TextUtil.sendMessage(player, "&eMake inventory space, then use /claimnote to collect pending notes.");
+                            break;
+                        }
+                        player.getInventory().addItem(createNoteItem(delivery.id(), delivery.amount(), delivery.owner()));
+                    }
+                    deliveredIds.add(delivery.id());
+                }
+                if (!deliveredIds.isEmpty()) {
+                    // Bukkit player persistence is a server-thread operation. Save once per batch
+                    // before acknowledging delivery so a restart cannot erase issued notes.
+                    player.saveData();
+                    for (String id : deliveredIds) plugin.getDatabaseManager().execute("DELETE FROM coresuite_banknote_deliveries WHERE note_id = ?", id);
+                }
+            });
+        });
+    }
+
+    private void issueNote(Player player, double amount, boolean xp, boolean admin) {
+        UUID uuid = player.getUniqueId();
+        if (!activeWithdrawingPlayers.add(uuid)) {
+            TextUtil.sendMessage(player, "&cYour previous withdrawal is still processing.");
+            return;
+        }
+        String id = generateNoteId(xp);
+        String owner = admin ? "ADMIN" : player.getName();
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                BankNoteStore.createPending(conn, id, amount, owner, uuid.toString());
+            } catch (SQLException e) {
+                activeWithdrawingPlayers.remove(uuid);
+                plugin.getLogger().log(Level.SEVERE, "Could not create bank note; no funds withdrawn: " + id, e);
+                return;
+            }
+            if (!plugin.isEnabled()) { activeWithdrawingPlayers.remove(uuid); return; }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline() || !isEnabled() || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) {
+                    plugin.getDatabaseManager().execute("DELETE FROM coresuite_banknotes WHERE id = ? AND redeemed = 3", id);
+                    activeWithdrawingPlayers.remove(uuid);
+                    return;
+                }
+                boolean paid = admin;
+                try {
+                    if (!admin && xp && amount <= getTotalExperience(player)) { removeExp(player, (int)amount); player.saveData(); paid = true; }
+                    else if (!admin && !xp) paid = plugin.getEconomyManager().withdraw(player, amount);
+                } catch (RuntimeException e) {
+                    activeWithdrawingPlayers.remove(uuid);
+                    plugin.getLogger().log(Level.SEVERE, "Uncertain withdrawal; pending note retained for review: " + id, e);
+                    TextUtil.sendMessage(player, "&cThe payment provider returned an uncertain result. Contact an administrator with note ID " + id);
+                    return;
+                }
+                if (!paid) {
+                    plugin.getDatabaseManager().execute("DELETE FROM coresuite_banknotes WHERE id = ? AND redeemed = 3", id);
+                    activeWithdrawingPlayers.remove(uuid);
+                    TextUtil.sendMessage(player, "&cWithdrawal failed. No note was issued.");
+                    return;
+                }
+                plugin.getDatabaseManager().executeAsync(() -> {
+                    try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                        BankNoteStore.activate(conn, id, uuid.toString());
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Withdrawal completed but note activation requires reconciliation: " + id + ", player=" + uuid + ", amount=" + amount, e);
+                        activeWithdrawingPlayers.remove(uuid);
+                        return;
+                    }
+                    activeWithdrawingPlayers.remove(uuid);
+                    logTransaction(admin ? "ADMIN-GIVE" : xp ? "WITHDRAW-XP" : "WITHDRAW", owner, amount, id);
+                    if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (isEnabled() && player.isOnline()) {
+                            TextUtil.sendMessage(player, "&aNote issued for " + TextUtil.formatNumber(amount) + (xp ? " XP." : " " + config.getString("currency", "Coins") + "."));
+                            deliverPending(player);
+                        }
+                    });
+                });
+            });
+        });
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(event.getPlayer())) return;
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        
-        Player player = event.getPlayer();
-        ItemStack item = event.getItem();
-        String id = getNoteId(item);
-        
-        if (id != null) {
-            String prefix = config.getString("prefix", "&8[&6&lBank&8] &r");
-            event.setCancelled(true);
-
-            if (!activeRedeemingNotes.add(id)) {
-                return;
-            }
-
-            // Decrement 1 item from hand on main thread before async DB operation
-            ItemStack handItem = item;
-            int handAmount = handItem.getAmount();
-            handItem.setAmount(handAmount - 1);
-
-            plugin.getDatabaseManager().executeAsync(() -> {
-                double result;
-                try {
-                    result = redeemNote(id, player);
-                } finally {
-                    activeRedeemingNotes.remove(id);
-                }
-
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (!player.isOnline()) return;
-
-                    if (result == -1) {
-                        // Not in DB / error -> refund the note item back to player
-                        ItemStack refundItem = createNoteItem(id, 1, player.getName());
-                        if (id.startsWith("XP-")) {
-                            refundItem = createNoteItem(id, 1, player.getName());
-                        }
-                        // Give back item
-                        if (!player.getInventory().addItem(refundItem).isEmpty()) {
-                            player.getWorld().dropItem(player.getLocation(), refundItem);
-                        }
-                        TextUtil.sendMessage(player, prefix + "&cThis note is invalid or corrupted.");
-                        return;
-                    } else if (result == -2) {
-                        TextUtil.sendMessage(player, prefix + "&cThis note was already redeemed! Confiscating.");
-                        return;
-                    }
-
-                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
-                    
-                    if (id.startsWith("XP-")) {
-                        String depositSuccess = config.getString("messages.deposit-success-xp", "&aRedeemed &f{amount} XP&a!");
-                        depositSuccess = depositSuccess.replace("{amount}", TextUtil.formatNumber(result));
-                        TextUtil.sendMessage(player, prefix + depositSuccess);
-                        TextUtil.sendMessage(player, prefix + "&7New XP: &f" + TextUtil.formatNumber(getTotalExperience(player)));
-                    } else {
-                        String depositSuccess = config.getString("messages.deposit-success", "&aRedeemed &f{amount} {currency}&a!");
-                        depositSuccess = depositSuccess.replace("{amount}", TextUtil.formatNumber(result)).replace("{currency}", config.getString("currency", "Coins"));
-                        TextUtil.sendMessage(player, prefix + depositSuccess);
-                        TextUtil.sendMessage(player, prefix + "&7New balance: &f" + plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
-                    }
-                });
-            });
-        }
+        String id = getNoteId(event.getItem());
+        if (id == null) return;
+        event.setCancelled(true);
+        redeemNote(id, event.getPlayer());
     }
 
     @EventHandler
@@ -348,18 +409,17 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        String promptType = pendingPrompts.get(player.getUniqueId());
+        String promptType = pendingPrompts.remove(player.getUniqueId());
         if (promptType != null) {
             event.setCancelled(true);
-            pendingPrompts.remove(player.getUniqueId());
-            
             String message = event.getMessage();
             if (message.equalsIgnoreCase("cancel")) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cCancelled.");
+                Bukkit.getScheduler().runTask(plugin, () -> { if (player.isOnline()) TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cCancelled."); });
                 return;
             }
             
             Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!isEnabled() || !player.isOnline() || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
                 if (promptType.equals("xp")) {
                     player.performCommand("withdraw xp " + message);
                 } else {
@@ -376,6 +436,7 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (sender instanceof Player player && !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) { TextUtil.sendMessage(player, "&cPlease log in before using bank notes."); return true; }
         String cmd = command.getName().toLowerCase();
         
         String prefix = config.getString("prefix", "&8[&6&lBank&8] &r");
@@ -397,27 +458,27 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                 return true;
             }
             
+            String playerName = player.getName();
             plugin.getDatabaseManager().executeAsync(() -> {
+                java.util.List<String> messages = new java.util.ArrayList<>();
+                messages.add("&8[&6&lBank&8] &r&7Recent Transactions:");
                 try (Connection conn = plugin.getDatabaseManager().getConnection();
-                     PreparedStatement stmt = conn.prepareStatement("SELECT * FROM coresuite_banknotes_logs WHERE player = ? ORDER BY id DESC LIMIT 10")) {
-                    stmt.setString(1, player.getName());
+                     PreparedStatement stmt = conn.prepareStatement("SELECT action, amount, time FROM coresuite_banknotes_logs WHERE player = ? ORDER BY id DESC LIMIT 10")) {
+                    stmt.setString(1, playerName);
                     try (ResultSet rs = stmt.executeQuery()) {
-                        TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&7Recent Transactions:");
-                        boolean found = false;
                         while (rs.next()) {
-                            found = true;
-                            String action = rs.getString("action");
-                            double amount = rs.getDouble("amount");
                             String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(new java.util.Date(rs.getLong("time")));
-                            TextUtil.sendMessage(player, "&8 - &e" + time + " &7| &a" + action + " &7| &f" + TextUtil.formatNumber(amount));
-                        }
-                        if (!found) {
-                            TextUtil.sendMessage(player, prefix + config.getString("messages.no-notes-found", "&7No recent transactions found."));
+                            messages.add("&8 - &e" + time + " &7| &a" + rs.getString("action") + " &7| &f" + TextUtil.formatNumber(rs.getDouble("amount")));
                         }
                     }
+                    if (messages.size() == 1) messages.add("&7No recent transactions found.");
                 } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Failed to get logs", e);
+                    plugin.getLogger().log(Level.SEVERE, "Failed to get bank logs", e);
+                    messages.add("&cTransaction history is temporarily unavailable.");
                 }
+                if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (isEnabled() && player.isOnline()) messages.forEach(message -> TextUtil.sendMessage(player, message));
+                });
             });
             return true;
         }
@@ -462,64 +523,11 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                 return true;
             }
 
-            if (isXp) {
-                int totalExp = getTotalExperience(player);
-                if (totalExp < amount) {
-                    String failMsg = config.getString("messages.withdraw-fail-xp", "&cNeed &f{amount} XP&c but only have &f{balance} XP");
-                    failMsg = failMsg.replace("{amount}", TextUtil.formatNumber(amount)).replace("{balance}", TextUtil.formatNumber(totalExp));
-                    TextUtil.sendMessage(player, prefix + failMsg);
-                    return true;
-                }
-                removeExp(player, (int) amount);
-            } else {
-                if (!activeWithdrawingPlayers.add(player.getUniqueId())) {
-                    TextUtil.sendMessage(player, prefix + "&cYour previous withdrawal is still processing.");
-                    return true;
-                }
-                try {
-                    EconomyManager eco = plugin.getEconomyManager();
-                    if (!eco.has(player, amount)) {
-                        String failMsg = config.getString("messages.withdraw-fail", "&cNeed &f{amount}&c but only have &f{balance}");
-                        failMsg = failMsg.replace("{amount}", TextUtil.formatNumber(amount)).replace("{balance}", TextUtil.formatNumber(eco.getBalance(player)));
-                        TextUtil.sendMessage(player, prefix + failMsg);
-                        return true;
-                    }
-
-                    boolean success = eco.withdraw(player, amount);
-                    if (!success) {
-                        TextUtil.sendMessage(player, prefix + "&cTransaction failed. Please ensure you have sufficient funds.");
-                        return true;
-                    }
-                } finally {
-                    activeWithdrawingPlayers.remove(player.getUniqueId());
-                }
+            if (amount <= 0 || (isXp && amount > Integer.MAX_VALUE)) {
+                TextUtil.sendMessage(player, "&cInvalid note amount.");
+                return true;
             }
-
-            String id = generateNoteId(isXp);
-
-            plugin.getDatabaseManager().execute("INSERT INTO coresuite_banknotes (id, amount, owner, issue_time) VALUES (?, ?, ?, ?)", id, amount, player.getName(), System.currentTimeMillis());
-            
-            ItemStack note = createNoteItem(id, amount, player.getName());
-            
-            // Give item
-            if (!player.getInventory().addItem(note).isEmpty()) {
-                player.getWorld().dropItem(player.getLocation(), note);
-            }
-
-            if (isXp) {
-                String successMsg = config.getString("messages.withdraw-success-xp", "&aWithdrew &f{amount} XP&a as an XP note!");
-                successMsg = successMsg.replace("{amount}", TextUtil.formatNumber(amount));
-                TextUtil.sendMessage(player, prefix + successMsg);
-                TextUtil.sendMessage(player, prefix + "&7Remaining XP: &f" + TextUtil.formatNumber(getTotalExperience(player)));
-                logTransaction("WITHDRAW-XP", player.getName(), amount, id);
-            } else {
-                EconomyManager eco = plugin.getEconomyManager();
-                String successMsg = config.getString("messages.withdraw-success", "&aWithdrew &f{amount} {currency}&a as a bank note!");
-                successMsg = successMsg.replace("{amount}", TextUtil.formatNumber(amount)).replace("{currency}", config.getString("currency", "Coins"));
-                TextUtil.sendMessage(player, prefix + successMsg);
-                TextUtil.sendMessage(player, prefix + "&7Remaining balance: &f" + eco.format(eco.getBalance(player)));
-                logTransaction("WITHDRAW", player.getName(), amount, id);
-            }
+            issueNote(player, amount, isXp, false);
             return true;
         }
 
@@ -528,8 +536,24 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                 TextUtil.sendMessage(sender, "&8[&6&lBank&8] &r&cNo permission.");
                 return true;
             }
+            if (args.length == 1 && args[0].equalsIgnoreCase("pending")) {
+                plugin.getDatabaseManager().executeAsync(() -> {
+                    java.util.List<String> messages = new java.util.ArrayList<>();
+                    try (Connection conn = plugin.getDatabaseManager().getConnection();
+                         PreparedStatement stmt = conn.prepareStatement("SELECT id, amount, owner, redeemed, redeemed_by FROM coresuite_banknotes WHERE redeemed IN (2, 3) ORDER BY issue_time DESC LIMIT 25");
+                         ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) messages.add("&e" + rs.getString("id") + " &7| " + (rs.getInt("redeemed") == 2 ? "redemption" : "issuance") + " | " + rs.getDouble("amount") + " | owner=" + rs.getString("owner") + " | redeemer=" + rs.getString("redeemed_by"));
+                    } catch (SQLException e) {
+                        plugin.getLogger().log(Level.SEVERE, "Failed to read pending bank settlements", e);
+                        messages.add("&cCould not read pending settlements.");
+                    }
+                    if (messages.isEmpty()) messages.add("&aNo pending settlements.");
+                    if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> messages.forEach(message -> TextUtil.sendMessage(sender, message)));
+                });
+                return true;
+            }
             if (args.length < 3 || !args[0].equalsIgnoreCase("give")) {
-                TextUtil.sendMessage(sender, "&8[&6&lBank&8] &r&eUsage: &f/withdrawadmin give <player> <amount>");
+                TextUtil.sendMessage(sender, "&8[&6&lBank&8] &r&eUsage: &f/withdrawadmin give <player> <amount> &7or &f/withdrawadmin pending");
                 return true;
             }
 
@@ -545,17 +569,8 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                 return true;
             }
 
-            String id = generateNoteId(false);
-            plugin.getDatabaseManager().execute("INSERT INTO coresuite_banknotes (id, amount, owner, issue_time) VALUES (?, ?, ?, ?)", id, amount, "ADMIN", System.currentTimeMillis());
-            
-            ItemStack note = createNoteItem(id, amount, "ADMIN");
-            if (!target.getInventory().addItem(note).isEmpty()) {
-                target.getWorld().dropItem(target.getLocation(), note);
-            }
-
-            TextUtil.sendMessage(sender, "&8[&6&lBank&8] &r&aGave &f" + TextUtil.formatNumber(amount) + " &anote to &f" + target.getName() + "&a.");
-            TextUtil.sendMessage(target, "&8[&6&lBank&8] &r&aYou received a &f" + TextUtil.formatNumber(amount) + " " + config.getString("currency", "Coins") + "&a bank note from an admin!");
-            logTransaction("ADMIN-GIVE", sender.getName() + " -> " + target.getName(), amount, id);
+            issueNote(target, amount, false, true);
+            TextUtil.sendMessage(sender, "&eNote issuance queued for " + target.getName() + ".");
             return true;
         }
 
@@ -568,81 +583,14 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                 return true;
             }
 
-            // Collect all note IDs and remove from inventory synchronously first (CS-001 anti-race/anti-dupe)
-            final java.util.List<String> collectedNoteIds = new java.util.ArrayList<>();
-            for (int i = 0; i < player.getInventory().getSize(); i++) {
-                ItemStack item = player.getInventory().getItem(i);
-                if (item == null || item.getType() == Material.AIR) continue;
-                String noteIdStr = getNoteId(item);
-                if (noteIdStr != null) {
-                    int countInSlot = item.getAmount();
-                    for (int c = 0; c < countInSlot; c++) {
-                        collectedNoteIds.add(noteIdStr);
-                    }
-                    player.getInventory().setItem(i, null);
-                }
+            deliverPending(player);
+            java.util.Set<String> ids = new java.util.LinkedHashSet<>();
+            for (ItemStack item : player.getInventory().getContents()) {
+                String id = getNoteId(item);
+                if (id != null) ids.add(id);
             }
-            
-            if (collectedNoteIds.isEmpty()) {
-                TextUtil.sendMessage(player, prefix + config.getString("messages.claim-fail", "&7No claimable bank notes found in your inventory."));
-                return true;
-            }
-            
-            // Process redemptions on DB thread
-            plugin.getDatabaseManager().executeAsync(() -> {
-                int count = 0;
-                double total = 0;
-                double totalXp = 0;
-                final java.util.List<String> failedIds = new java.util.ArrayList<>();
-                
-                for (String noteId : collectedNoteIds) {
-                    double result = redeemNote(noteId, player);
-                    if (result > 0) {
-                        count++;
-                        if (noteId.startsWith("XP-")) {
-                            totalXp += result;
-                        } else {
-                            total += result;
-                        }
-                    } else if (result == -2) {
-                        // Confiscated - already redeemed note, do not refund
-                    } else {
-                        // -1 or error -> restore
-                        failedIds.add(noteId);
-                    }
-                }
-                
-                final int fCount = count;
-                final double fTotal = total;
-                final double fTotalXp = totalXp;
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (player.isOnline()) {
-                        for (String failedId : failedIds) {
-                            ItemStack refund = createNoteItem(failedId, 1, player.getName());
-                            if (!player.getInventory().addItem(refund).isEmpty()) {
-                                player.getWorld().dropItem(player.getLocation(), refund);
-                            }
-                        }
-                    }
-                    
-                    if (fCount == 0 && failedIds.isEmpty()) {
-                        TextUtil.sendMessage(player, prefix + config.getString("messages.claim-fail", "&7No claimable bank notes found in your inventory."));
-                    } else if (fCount > 0) {
-                        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-                        String claimSuccess = config.getString("messages.claim-success", "&aClaimed &f{count}&a note(s)!");
-                        claimSuccess = claimSuccess.replace("{count}", String.valueOf(fCount));
-                        TextUtil.sendMessage(player, prefix + claimSuccess);
-                        if (fTotal > 0) {
-                            TextUtil.sendMessage(player, prefix + "&7Deposited: &a" + TextUtil.formatNumber(fTotal) + " " + config.getString("currency", "Coins"));
-                            TextUtil.sendMessage(player, prefix + "&7New balance: &f" + plugin.getEconomyManager().format(plugin.getEconomyManager().getBalance(player)));
-                        }
-                        if (fTotalXp > 0) {
-                            TextUtil.sendMessage(player, prefix + "&7Deposited: &a" + TextUtil.formatNumber(fTotalXp) + " XP");
-                            TextUtil.sendMessage(player, prefix + "&7New XP: &f" + TextUtil.formatNumber(getTotalExperience(player)));
-                        }
-                    }
-                });
-            });
+            for (String id : ids) redeemNote(id, player);
+            if (ids.isEmpty()) TextUtil.sendMessage(player, "&7Checking for pending notes. Right-click a delivered note to redeem it.");
             return true;
         }
 
@@ -732,7 +680,7 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
         java.util.List<String> completions = new java.util.ArrayList<>();
         if (command.getName().equalsIgnoreCase("withdrawadmin")) {
             if (args.length == 1) {
-                org.bukkit.util.StringUtil.copyPartialMatches(args[0], java.util.Collections.singletonList("give"), completions);
+                org.bukkit.util.StringUtil.copyPartialMatches(args[0], java.util.List.of("give", "pending"), completions);
                 java.util.Collections.sort(completions);
                 return completions;
             } else if (args.length == 2 && args[0].equalsIgnoreCase("give")) {

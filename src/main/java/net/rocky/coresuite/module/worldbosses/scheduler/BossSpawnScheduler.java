@@ -4,438 +4,199 @@ import net.rocky.coresuite.CoreSuitePlugin;
 import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.worldbosses.WorldBossesModule;
 import net.rocky.coresuite.module.worldbosses.boss.BossType;
-import org.bukkit.Bukkit;
-import org.bukkit.HeightMap;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.scheduler.BukkitTask;
-
-import org.bukkit.block.Biome;
-import org.bukkit.util.BiomeSearchResult;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+/** Chunk generation is asynchronous; all Bukkit inspection and spawning runs on the server thread. */
 public class BossSpawnScheduler {
-
     private final CoreSuitePlugin plugin;
     private final WorldBossesModule module;
     private final FileConfiguration config;
     private final Random random = new Random();
-
+    private final Set<CompletableFuture<Location>> searches = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private BukkitTask timerTask;
     private int secondsRemaining;
-    private int intervalSeconds;
+    private final int intervalSeconds;
     private boolean enabled;
+    private volatile boolean stopped;
+    private boolean spawnPending;
 
     public BossSpawnScheduler(CoreSuitePlugin plugin, WorldBossesModule module, FileConfiguration config) {
-        this.plugin = plugin;
-        this.module = module;
-        this.config = config;
-        this.enabled = config.getBoolean("scheduler.enabled", true);
-        this.intervalSeconds = config.getInt("scheduler.interval-seconds", 14400);
-        this.secondsRemaining = this.intervalSeconds;
+        this.plugin = plugin; this.module = module; this.config = config;
+        enabled = config.getBoolean("scheduler.enabled", true);
+        intervalSeconds = Math.max(1, config.getInt("scheduler.interval-seconds", 14400));
+        secondsRemaining = intervalSeconds;
     }
-
     public void start() {
-        if (!enabled) return;
-        if (timerTask != null) {
-            timerTask.cancel();
-        }
-
-        this.timerTask = Bukkit.getScheduler().runTaskTimer(plugin, this::onTick, 20L, 20L);
+        stopped = false;
+        if (timerTask != null) timerTask.cancel();
+        timerTask = enabled ? Bukkit.getScheduler().runTaskTimer(plugin, this::onTick, 20, 20) : null;
     }
-
     public void stop() {
-        if (timerTask != null) {
-            timerTask.cancel();
-            timerTask = null;
-        }
+        stopped = true;
+        if (timerTask != null) timerTask.cancel();
+        timerTask = null;
+        for (CompletableFuture<Location> search : List.copyOf(searches)) search.complete(null);
+        searches.clear();
     }
-
     private void onTick() {
-        if (!enabled) return;
-
-        // If a boss is currently alive, do not countdown to spawn another
-        if (module.isBossActive()) {
+        if (stopped || !enabled || spawnPending || module.isBossActive()) return;
+        if (--secondsRemaining > 0) {
+            if (config.getIntegerList("scheduler.broadcast-warnings").contains(secondsRemaining)) broadcastWarning(secondsRemaining);
             return;
         }
-
-        secondsRemaining--;
-
-        // Check broadcast warnings
-        List<Integer> warnings = config.getIntegerList("scheduler.broadcast-warnings");
-        if (warnings.contains(secondsRemaining)) {
-            broadcastWarning(secondsRemaining);
+        if (Bukkit.getOnlinePlayers().size() < Math.max(0, config.getInt("scheduler.min-players", 1))) {
+            secondsRemaining = retrySeconds();
+            return;
         }
-
-        // Spawn time reached
-        if (secondsRemaining <= 0) {
-            int minPlayers = config.getInt("scheduler.min-players", 3);
-            int onlineCount = Bukkit.getOnlinePlayers().size();
-
-            if (onlineCount < minPlayers) {
-                // Not enough players: postpone by 5 minutes (300 seconds)
-                secondsRemaining = 300;
-                Bukkit.broadcast(TextUtil.colorize("&8[&4&lBoss&8] &7The world boss slumber continues: Not enough online hunters (&e" + onlineCount + "&7/&e" + minPlayers + "&7). Retrying in 5m."));
-                return;
-            }
-
-            // Spawn boss asynchronously so the main thread never freezes or drops TPS
-            triggerSpawnAsync();
-            secondsRemaining = intervalSeconds;
-        }
+        triggerSpawnAsync().thenAccept(success -> secondsRemaining = success ? intervalSeconds : retrySeconds());
     }
-
+    private int retrySeconds() { return Math.max(10, config.getInt("scheduler.retry-seconds", 300)); }
     public CompletableFuture<Boolean> triggerSpawnAsync() {
         BossType[] types = BossType.values();
-        BossType chosen = types[random.nextInt(types.length)];
-        return triggerSpawnAsync(chosen, null);
+        return triggerSpawnAsync(types[random.nextInt(types.length)], null);
     }
-
-    public CompletableFuture<Boolean> triggerSpawnAsync(BossType type, Location targetLoc) {
-        if (targetLoc != null) {
-            return CompletableFuture.completedFuture(module.spawnBoss(type, targetLoc));
-        }
-
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        findSafeSpawnLocationAsync(type).thenAccept(spawnLoc -> {
-            if (spawnLoc == null) {
-                plugin.getLogger().warning("[WorldBosses] Could not find a safe location to spawn scheduled boss " + type.name());
-                future.complete(false);
-                return;
-            }
-
-            boolean success = module.spawnBoss(type, spawnLoc);
-            future.complete(success);
-        }).exceptionally(t -> {
-            plugin.getLogger().log(java.util.logging.Level.SEVERE, "[WorldBosses] Error during async boss spawn", t);
-            future.complete(false);
-            return null;
-        });
-
-        return future;
-    }
-
-    public boolean triggerSpawn() {
-        triggerSpawnAsync();
-        return true;
-    }
-
-    public boolean triggerSpawn(BossType type, Location targetLoc) {
-        triggerSpawnAsync(type, targetLoc);
-        return true;
-    }
-
-    public Location findSafeSpawnLocation(BossType type) {
-        try {
-            return findSafeSpawnLocationAsync(type).join();
-        } catch (Throwable t) {
-            plugin.getLogger().warning("[WorldBosses] Error in findSafeSpawnLocation: " + t.getMessage());
-            return null;
-        }
-    }
-
-    public CompletableFuture<Location> findSafeSpawnLocationAsync(BossType type) {
-        List<String> allowedWorlds = config.getStringList("scheduler.allowed-worlds");
-        if (allowedWorlds.isEmpty()) {
-            allowedWorlds = List.of("world");
-        }
-
-        String worldName = allowedWorlds.get(random.nextInt(allowedWorlds.size()));
-        World world = Bukkit.getWorld(worldName);
-        if (world == null) {
-            world = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
-        }
-        if (world == null) {
-            return CompletableFuture.completedFuture(null);
-        }
-
-        int radius = config.getInt("scheduler.spawn-radius", 5000);
-        List<String> configuredBiomes = config.getStringList(type.getConfigKey() + ".biomes");
-
-        if (type == BossType.XOLTHOS) {
-            return findSafeCaveSpawnLocationAsync(world, radius, configuredBiomes);
-        } else {
-            return findSafeSurfaceBiomeSpawnLocationAsync(world, radius, configuredBiomes);
-        }
-    }
-
-    public CompletableFuture<Location> findSafeSurfaceBiomeSpawnLocationAsync(World world, int radius, List<String> targetBiomes) {
-        final Location worldSpawn = world.getSpawnLocation();
-        final int minDistance = config.getInt("scheduler.min-spawn-distance", 800);
-        final int effectiveRadius = (radius <= minDistance) ? (minDistance + 1000) : radius;
-
-        CompletableFuture<Location> future = new CompletableFuture<>();
-
-        // 1. Precise Biome Search using Bukkit locateNearestBiome (instant mathematical noise query)
-        if (targetBiomes != null && !targetBiomes.isEmpty()) {
-            List<Biome> matchingBiomes = new ArrayList<>();
-            for (String tb : targetBiomes) {
-                for (Biome b : Biome.values()) {
-                    if (b.name().equalsIgnoreCase(tb) || b.name().contains(tb.toUpperCase())) {
-                        if (!matchingBiomes.contains(b)) {
-                            matchingBiomes.add(b);
-                        }
-                    }
-                }
-            }
-
-            if (!matchingBiomes.isEmpty()) {
+    public CompletableFuture<Boolean> triggerSpawnAsync(BossType type, Location target) {
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        Location requested = target == null ? null : target.clone();
+        onMain(() -> {
+            if (stopped || spawnPending || !module.isEnabled() || module.isBossActive() || type == null) { result.complete(false); return; }
+            spawnPending = true;
+            CompletableFuture<Location> search = requested == null ? findSafeSpawnLocationAsync(type) : CompletableFuture.completedFuture(requested);
+            search.whenComplete((location, error) -> {
                 try {
-                    double initAngle = random.nextDouble() * 2 * Math.PI;
-                    Location searchOrigin = new Location(
-                            world,
-                            worldSpawn.getBlockX() + Math.cos(initAngle) * minDistance,
-                            64,
-                            worldSpawn.getBlockZ() + Math.sin(initAngle) * minDistance
-                    );
-
-                    BiomeSearchResult result = world.locateNearestBiome(
-                            searchOrigin,
-                            effectiveRadius,
-                            matchingBiomes.toArray(new Biome[0])
-                    );
-
-                    if (result != null && result.getLocation() != null) {
-                        Location found = result.getLocation();
-                        double d2 = Math.pow(found.getBlockX() - worldSpawn.getBlockX(), 2)
-                                + Math.pow(found.getBlockZ() - worldSpawn.getBlockZ(), 2);
-                        if (d2 >= (minDistance * minDistance)) {
-                            // Asynchronously load the candidate chunk on Paper worker threads
-                            world.getChunkAtAsync(found.getBlockX() >> 4, found.getBlockZ() >> 4).thenAccept(chunk -> {
-                                Location safeSpot = findSafeGroundNear(world, found.getBlockX(), found.getBlockZ(), 20);
-                                if (safeSpot != null) {
-                                    future.complete(safeSpot);
-                                } else {
-                                    searchRingAsync(world, effectiveRadius, minDistance, targetBiomes, 0, null, future);
-                                }
-                            }).exceptionally(t -> {
-                                searchRingAsync(world, effectiveRadius, minDistance, targetBiomes, 0, null, future);
-                                return null;
-                            });
-                            return future;
-                        }
-                    }
-                } catch (Throwable t) {
-                    plugin.getLogger().warning("[WorldBosses] locateNearestBiome skipped: " + t.getMessage());
-                }
-            }
-        }
-
-        // 2. Start Async Ring Search
-        searchRingAsync(world, effectiveRadius, minDistance, targetBiomes, 0, null, future);
-        return future;
-    }
-
-    private void searchRingAsync(World world, int radius, int minDistance, List<String> targetBiomes,
-                                 int attempt, Location fallback, CompletableFuture<Location> future) {
-        if (attempt >= 30) {
-            if (fallback != null) {
-                future.complete(fallback);
-                return;
-            }
-
-            // Guaranteed safe wilderness spot at minDistance
-            double angle = random.nextDouble() * 2 * Math.PI;
-            double dist = minDistance + random.nextDouble() * 500;
-            Location worldSpawn = world.getSpawnLocation();
-            int fx = (int) (worldSpawn.getBlockX() + dist * Math.cos(angle));
-            int fz = (int) (worldSpawn.getBlockZ() + dist * Math.sin(angle));
-
-            world.getChunkAtAsync(fx >> 4, fz >> 4).thenAccept(chunk -> {
-                int fy = world.getHighestBlockYAt(fx, fz, HeightMap.MOTION_BLOCKING);
-                future.complete(new Location(world, fx + 0.5, Math.max(64, fy), fz + 0.5));
-            }).exceptionally(t -> {
-                int defY = world.getHighestBlockYAt(fx, fz, HeightMap.MOTION_BLOCKING);
-                future.complete(new Location(world, fx + 0.5, Math.max(64, defY), fz + 0.5));
-                return null;
+                    boolean success = error == null && location != null && !stopped && module.isEnabled() && !module.isBossActive() && module.spawnBoss(type, location);
+                    if (!success && !stopped) plugin.getLogger().warning("[WorldBosses] Spawn did not complete for " + type + "; no safe location or encounter unavailable.");
+                    result.complete(success);
+                } catch (Exception | LinkageError failure) {
+                    plugin.getLogger().log(java.util.logging.Level.SEVERE, "[WorldBosses] Spawn failed", failure);
+                    result.complete(false);
+                } finally { spawnPending = false; }
             });
+        }, () -> result.complete(false));
+        return result;
+    }
+    /** Legacy return value means the request was accepted; use the future for its outcome. */
+    public boolean triggerSpawn() { if (stopped || spawnPending) return false; triggerSpawnAsync(); return true; }
+    public boolean triggerSpawn(BossType type, Location target) { if (stopped || spawnPending) return false; triggerSpawnAsync(type, target); return true; }
+    public Location findSafeSpawnLocation(BossType type) {
+        if (Bukkit.isPrimaryThread()) throw new IllegalStateException("Use findSafeSpawnLocationAsync on the server thread");
+        return findSafeSpawnLocationAsync(type).join();
+    }
+    public CompletableFuture<Location> findSafeSpawnLocationAsync(BossType type) {
+        CompletableFuture<Location> result = new CompletableFuture<>();
+        onMain(() -> {
+            List<World> worlds = config.getStringList("scheduler.allowed-worlds").stream().map(Bukkit::getWorld)
+                    .filter(Objects::nonNull).filter(w -> w.getDifficulty() != Difficulty.PEACEFUL).toList();
+            if (worlds.isEmpty() || type == null) { result.complete(null); return; }
+            World world = worlds.get(random.nextInt(worlds.size()));
+            beginSearch(world, config.getInt("scheduler.spawn-radius", 5000), config.getStringList(type.getConfigKey() + ".biomes"), type == BossType.XOLTHOS, result);
+        }, () -> result.complete(null));
+        return result;
+    }
+    public CompletableFuture<Location> findSafeSurfaceBiomeSpawnLocationAsync(World world, int radius, List<String> biomes) { return search(world, radius, biomes, false); }
+    public CompletableFuture<Location> findSafeCaveSpawnLocationAsync(World world, int radius, List<String> biomes) { return search(world, radius, biomes, true); }
+    private CompletableFuture<Location> search(World world, int radius, List<String> biomes, boolean cave) {
+        CompletableFuture<Location> result = new CompletableFuture<>();
+        onMain(() -> beginSearch(world, radius, biomes, cave, result), () -> result.complete(null));
+        return result;
+    }
+    private void beginSearch(World world, int radius, List<String> biomes, boolean cave, CompletableFuture<Location> result) {
+        int minimum = Math.max(0, config.getInt("scheduler.min-spawn-distance", 800));
+        if (stopped || world == null || radius <= minimum || world.getDifficulty() == Difficulty.PEACEFUL) { result.complete(null); return; }
+        searches.add(result);
+        BukkitTask timeout = Bukkit.getScheduler().runTaskLater(plugin, () -> result.complete(null), Math.max(20, Math.min(120, config.getInt("scheduler.search-timeout-seconds", 45))) * 20L);
+        result.whenComplete((location, error) -> { searches.remove(result); timeout.cancel(); });
+        sample(world, radius, minimum, biomes == null ? List.of() : List.copyOf(biomes), cave, 0, null, result);
+    }
+    private void sample(World world, int radius, int minimum, List<String> biomes, boolean cave, int attempt, Location fallback, CompletableFuture<Location> result) {
+        if (result.isDone() || stopped) { result.complete(null); return; }
+        int attempts = Math.max(1, Math.min(128, config.getInt("scheduler.search-attempts", 32)));
+        if (attempt >= attempts) {
+            result.complete(config.getBoolean("scheduler.allow-biome-fallback", true) ? fallback : null);
             return;
         }
-
-        Location worldSpawn = world.getSpawnLocation();
-        double angle = random.nextDouble() * 2 * Math.PI;
-        double dist = minDistance + random.nextDouble() * (radius - minDistance);
-        int x = (int) (worldSpawn.getBlockX() + dist * Math.cos(angle));
-        int z = (int) (worldSpawn.getBlockZ() + dist * Math.sin(angle));
-
-        // Load chunk asynchronously on Paper background worker thread
-        world.getChunkAtAsync(x >> 4, z >> 4).thenAccept(chunk -> {
-            int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING);
-            Location newFallback = fallback;
-
-            if (y > world.getMinHeight() + 5) {
-                Block ground = world.getBlockAt(x, y - 1, z);
-                Block feet = world.getBlockAt(x, y, z);
-                Block head = world.getBlockAt(x, y + 1, z);
-
-                if (ground.getType().isSolid() && !ground.isLiquid() && feet.getType().isAir() && head.getType().isAir()) {
-                    String gName = ground.getType().name();
-                    if (!gName.contains("LAVA") && !gName.contains("FIRE") && !gName.contains("CACTUS")) {
-                        Location candidate = new Location(world, x + 0.5, y, z + 0.5);
-                        if (newFallback == null) {
-                            newFallback = candidate;
-                        }
-
-                        if (targetBiomes != null && !targetBiomes.isEmpty()) {
-                            String currentBiome = world.getBiome(x, y, z).name();
-                            boolean biomeMatch = false;
-                            for (String tb : targetBiomes) {
-                                if (currentBiome.equalsIgnoreCase(tb) || currentBiome.contains(tb.toUpperCase())) {
-                                    biomeMatch = true;
-                                    break;
-                                }
-                            }
-                            if (biomeMatch) {
-                                future.complete(candidate);
-                                return;
-                            }
-                        } else {
-                            future.complete(candidate);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            searchRingAsync(world, radius, minDistance, targetBiomes, attempt + 1, newFallback, future);
-        }).exceptionally(t -> {
-            searchRingAsync(world, radius, minDistance, targetBiomes, attempt + 1, fallback, future);
-            return null;
-        });
-    }
-
-    private Location findSafeGroundNear(World world, int centerX, int centerZ, int searchRadius) {
-        for (int r = 0; r <= searchRadius; r += 2) {
-            for (int dx = -r; dx <= r; dx += (r == 0 ? 1 : r * 2)) {
-                for (int dz = -r; dz <= r; dz += (r == 0 ? 1 : r * 2)) {
-                    int x = centerX + dx;
-                    int z = centerZ + dz;
-                    if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
-
-                    int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING);
-                    if (y <= world.getMinHeight() + 5) continue;
-
-                    Block ground = world.getBlockAt(x, y - 1, z);
-                    Block feet = world.getBlockAt(x, y, z);
-                    Block head = world.getBlockAt(x, y + 1, z);
-
-                    if (ground.getType().isSolid() && !ground.isLiquid() && feet.getType().isAir() && head.getType().isAir()) {
-                        String gName = ground.getType().name();
-                        if (!gName.contains("LAVA") && !gName.contains("FIRE") && !gName.contains("CACTUS")) {
-                            return new Location(world, x + 0.5, y, z + 0.5);
-                        }
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    public CompletableFuture<Location> findSafeCaveSpawnLocationAsync(World world, int radius, List<String> targetBiomes) {
-        final Location worldSpawn = world.getSpawnLocation();
-        final int minDistance = config.getInt("scheduler.min-spawn-distance", 800);
-        final int effectiveRadius = (radius <= minDistance) ? (minDistance + 1000) : radius;
-
-        CompletableFuture<Location> future = new CompletableFuture<>();
-        searchCaveAsync(world, effectiveRadius, minDistance, targetBiomes, 0, null, future);
-        return future;
-    }
-
-    private void searchCaveAsync(World world, int radius, int minDistance, List<String> targetBiomes,
-                                 int attempt, Location fallback, CompletableFuture<Location> future) {
-        if (attempt >= 30) {
-            if (fallback != null) {
-                future.complete(fallback);
-                return;
-            }
-            findSafeSurfaceBiomeSpawnLocationAsync(world, radius, targetBiomes).thenAccept(future::complete);
+        Location origin = world.getSpawnLocation();
+        double angle = random.nextDouble() * Math.PI * 2;
+        double distance = minimum + random.nextDouble() * (radius - minimum);
+        int x = (int)Math.floor(origin.getX() + Math.cos(angle) * distance);
+        int z = (int)Math.floor(origin.getZ() + Math.sin(angle) * distance);
+        Location borderPoint = new Location(world, x + .5, origin.getY(), z + .5);
+        if (!world.getWorldBorder().isInside(borderPoint)) {
+            next(() -> sample(world, radius, minimum, biomes, cave, attempt + 1, fallback, result), result);
             return;
         }
-
-        Location worldSpawn = world.getSpawnLocation();
-        double angle = random.nextDouble() * 2 * Math.PI;
-        double dist = minDistance + random.nextDouble() * (radius - minDistance);
-        int x = (int) (worldSpawn.getBlockX() + dist * Math.cos(angle));
-        int z = (int) (worldSpawn.getBlockZ() + dist * Math.sin(angle));
-
-        world.getChunkAtAsync(x >> 4, z >> 4).thenAccept(chunk -> {
-            int surfaceY = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING);
-            int startY = Math.min(30, surfaceY - 15);
-            int minY = Math.max(world.getMinHeight() + 5, -45);
-            Location newFallback = fallback;
-
-            for (int y = startY; y >= minY; y--) {
-                Block ground = world.getBlockAt(x, y - 1, z);
-                Block feet = world.getBlockAt(x, y, z);
-
-                if (ground.getType().isSolid() && !ground.isLiquid() && feet.getType().isAir()) {
-                    String gName = ground.getType().name();
-                    if (gName.contains("LAVA") || gName.contains("FIRE") || gName.contains("WATER")) {
-                        continue;
+        List<CompletableFuture<Chunk>> chunks = new ArrayList<>();
+        for (int cx = (x - 2) >> 4; cx <= (x + 2) >> 4; cx++) {
+            for (int cz = (z - 2) >> 4; cz <= (z + 2) >> 4; cz++) chunks.add(world.getChunkAtAsync(cx, cz));
+        }
+        CompletableFuture.allOf(chunks.toArray(CompletableFuture[]::new)).whenComplete((ignored, error) -> next(() -> {
+            if (result.isDone() || stopped) return;
+            Location candidate = null;
+            if (error == null) {
+                if (cave) {
+                    int top = Math.min(30, world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES) - 10);
+                    for (int y = top; y >= Math.max(world.getMinHeight() + 1, -45); y--) {
+                        if (safeAt(world, x, y, z) && world.getBlockAt(x, y, z).getLightFromSky() == 0) { candidate = new Location(world, x + .5, y, z + .5); break; }
                     }
-
-                    if (feet.getLightFromSky() > 0) {
-                        continue;
-                    }
-
-                    boolean openVertical = true;
-                    for (int dy = 1; dy <= 4; dy++) {
-                        if (!world.getBlockAt(x, y + dy, z).getType().isAir()) {
-                            openVertical = false;
-                            break;
-                        }
-                    }
-                    if (!openVertical) continue;
-
-                    boolean openHorizontal = true;
-                    int[][] offsets = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {3, 0}, {-3, 0}, {0, 3}, {0, -3}};
-                    for (int[] off : offsets) {
-                        Block checkFeet = world.getBlockAt(x + off[0], y, z + off[1]);
-                        Block checkHead = world.getBlockAt(x + off[0], y + 1, z + off[1]);
-                        if (!checkFeet.getType().isAir() || !checkHead.getType().isAir()) {
-                            openHorizontal = false;
-                            break;
-                        }
-                    }
-                    if (!openHorizontal) continue;
-
-                    Location candidate = new Location(world, x + 0.5, y, z + 0.5);
-                    if (newFallback == null) {
-                        newFallback = candidate;
-                    }
-
-                    if (targetBiomes != null && !targetBiomes.isEmpty()) {
-                        String currentBiome = world.getBiome(x, y, z).name();
-                        boolean biomeMatch = false;
-                        for (String tb : targetBiomes) {
-                            if (currentBiome.equalsIgnoreCase(tb) || currentBiome.contains(tb.toUpperCase())) {
-                                biomeMatch = true;
-                                break;
-                            }
-                        }
-                        if (biomeMatch) {
-                            future.complete(candidate);
-                            return;
-                        }
-                    } else {
-                        future.complete(candidate);
-                        return;
-                    }
+                } else {
+                    int y = world.getHighestBlockYAt(x, z, HeightMap.MOTION_BLOCKING_NO_LEAVES) + 1;
+                    if (safeAt(world, x, y, z)) candidate = new Location(world, x + .5, y, z + .5);
                 }
             }
-
-            searchCaveAsync(world, radius, minDistance, targetBiomes, attempt + 1, newFallback, future);
-        }).exceptionally(t -> {
-            searchCaveAsync(world, radius, minDistance, targetBiomes, attempt + 1, fallback, future);
-            return null;
+            if (candidate != null && !net.rocky.coresuite.common.integration.BossProtectionGate.allows(candidate)) candidate = null;
+            if (candidate != null) {
+                String biome = ((Keyed)world.getBiome(candidate.getBlockX(), candidate.getBlockY(), candidate.getBlockZ())).getKey().getKey().toUpperCase(Locale.ROOT);
+                if (biomes.isEmpty() || biomes.stream().anyMatch(b -> biome.equals(b.toUpperCase(Locale.ROOT)) || biome.contains(b.toUpperCase(Locale.ROOT)))) { result.complete(candidate); return; }
+                if (fallback == null) { sample(world, radius, minimum, biomes, cave, attempt + 1, candidate, result); return; }
+            }
+            sample(world, radius, minimum, biomes, cave, attempt + 1, fallback, result);
+        }, result));
+    }
+    public static boolean isSafeLocation(Location location) {
+        return location != null && location.getWorld() != null
+                && Double.isFinite(location.getX()) && Double.isFinite(location.getY()) && Double.isFinite(location.getZ())
+                && safeAt(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+    }
+    static boolean safeAt(World world, int x, int y, int z) {
+        if (y <= world.getMinHeight() || y + 5 >= world.getMaxHeight()) return false;
+        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
+            if (!world.isChunkLoaded((x + dx) >> 4, (z + dz) >> 4)) return false;
+            if (!world.getWorldBorder().isInside(new Location(world, x + dx + .5, y, z + dz + .5))) return false;
+            for (int dy = 0; dy < 5; dy++) if (!world.getBlockAt(x + dx, y + dy, z + dz).getType().isAir()) return false;
+        }
+        Block ground = world.getBlockAt(x, y - 1, z);
+        String material = ground.getType().name();
+        return ground.getType().isSolid() && !ground.isLiquid() && !material.contains("LEAVES") && !material.contains("CACTUS") && !material.contains("MAGMA") && !material.contains("CAMPFIRE") && !material.contains("POWDER_SNOW");
+    }
+    private void next(Runnable action, CompletableFuture<Location> result) {
+        if (stopped || result.isDone() || !plugin.isEnabled()) { result.complete(null); return; }
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (stopped || result.isDone()) return;
+            try { action.run(); } catch (Exception | LinkageError error) { result.completeExceptionally(error); }
         });
     }
-
+    private void onMain(Runnable action, Runnable unavailable) {
+        if (stopped || !plugin.isEnabled()) { unavailable.run(); return; }
+        Runnable guarded = () -> {
+            if (stopped || !plugin.isEnabled()) { unavailable.run(); return; }
+            try { action.run(); }
+            catch (Exception | LinkageError error) {
+                spawnPending = false;
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "[WorldBosses] Spawn search failed", error);
+                unavailable.run();
+            }
+        };
+        if (Bukkit.isPrimaryThread()) guarded.run();
+        else {
+            try { Bukkit.getScheduler().runTask(plugin, guarded); }
+            catch (org.bukkit.plugin.IllegalPluginAccessException error) { unavailable.run(); }
+        }
+    }
     private void broadcastWarning(int seconds) {
         String timeFormatted;
         if (seconds >= 3600) {
@@ -455,19 +216,8 @@ public class BossSpawnScheduler {
         Bukkit.broadcast(TextUtil.colorize(""));
     }
 
-    public int getSecondsRemaining() {
-        return secondsRemaining;
-    }
-
-    public void setSecondsRemaining(int secondsRemaining) {
-        this.secondsRemaining = secondsRemaining;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
+    public int getSecondsRemaining() { return secondsRemaining; }
+    public void setSecondsRemaining(int seconds) { secondsRemaining = Math.max(0, seconds); }
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; if (!stopped) start(); }
 }
