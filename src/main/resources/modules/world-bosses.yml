@@ -1,0 +1,528 @@
+# ==============================================================================
+#                      CORE SUITE - WORLD BOSSES MODULE
+# ==============================================================================
+# Fully configurable MMORPG World Boss system inspired by Shangri-La Frontier.
+# Supports Paper 1.20.6 / 1.21+ Java & Bedrock Crossplay.
+
+enabled: true
+prefix: "&8[&4&lBoss&8] &r"
+
+# ------------------------------------------------------------------------------
+# Arena & Domain Boundaries
+# ------------------------------------------------------------------------------
+domain:
+  # The radius of the visual combat domain in blocks
+  radius: 35.0
+  # If boss is pulled beyond this distance from its spawn point, it leashes back
+  leash-distance: 50.0
+  # Protect blocks in the domain from breaking/placing during combat
+  anti-grief-protection: true
+  # Visual boundary particles (displayed along the ground perimeter)
+  boundary-particle: "FLAME"
+  # Cinematic Adventure BossBar atmosphere flags
+  darken-screen: true
+  create-world-fog: true
+  # Background music volume (0.0 to 1.0, default 0.85 cuts clearly through storm/rain)
+  bgm-volume: 0.85
+  # Sound channel category for BGM (RECORDS, MUSIC, MASTER, etc.)
+  bgm-category: "RECORDS"
+  # Victory fanfare volume upon boss defeat (0.0 to 1.0)
+  victory-volume: 0.50
+  # Victory fanfare duration before automatic fadeout/silence (seconds)
+  victory-duration-seconds: 25
+  # Force storm downfall weather during combat (set false for clear weather)
+  storm-weather: true
+  # Dormant preparation countdown in seconds before boss awakens and combat begins
+  awakening-seconds: 45
+  # Ominous buildup BGM played during the dormant countdown before combat begins
+  awakening-bgm: "coresuite:boss.awakening"
+  awakening-bgm-duration-seconds: 45
+  # Allow placing/breaking utility blocks (Ender Chests, Shulker Boxes, Crafting Tables, etc.) mid-fight
+  allow-utility-blocks: true
+  # Prevent players inside the boss arena from sleeping in beds mid-fight
+  prevent-sleeping: true
+  # Prevent minions and bosses from combusting in daylight if daytime arrives
+  prevent-daylight-combustion: true
+  # Minimum online players required to summon a boss with a totem (default 1 for solo/duo)
+  totem-min-players: 1
+  # 72-point 4-tier vertical barrier (Y to Y+4.5)
+  boundary-points: 72
+  boundary-tiers: 4
+  boundary-vertical-span: 4.5
+  ambient-particles: true
+
+  # Arena Lockdown & Fog Gate
+  lockdown:
+    enabled: true
+    prep-grace-seconds: 45
+    blocked-commands:
+      - "spawn"
+      - "home"
+      - "tpa"
+      - "tpahere"
+      - "tpaccept"
+      - "warp"
+      - "back"
+      - "hub"
+
+# ------------------------------------------------------------------------------
+# Combat Engine Settings
+# ------------------------------------------------------------------------------
+combat:
+  # Attack charge threshold (below this, strikes land as glancing hits with scaled damage)
+  attack-cooldown-threshold: 0.85
+  # Glancing damage factor when below threshold (0.30 = deals 30% damage smoothly)
+  glancing-damage-factor: 0.30
+  # Hunter's Rhythm (Combo streak system on fully charged hits)
+  combo:
+    enabled: true
+    max-combo: 5
+    bonus-damage-per-combo: 0.05
+    combo-timeout-seconds: 4
+  # Apply deflection to boss minions as well
+  deflect-minions: true
+
+# ------------------------------------------------------------------------------
+# Automated Scheduled Spawner
+# ------------------------------------------------------------------------------
+scheduler:
+  enabled: true
+  # Interval in seconds between wild boss spawns (e.g. 14400 = 4 hours)
+  interval-seconds: 14400
+  # Minimum online players required for a scheduled spawn to occur
+  min-players: 3
+  # Broadcast warning checkpoints in seconds before spawn
+  broadcast-warnings: [1800, 900, 300, 60]
+  # Worlds where wild bosses are allowed to spawn
+  allowed-worlds:
+    - "world"
+  # Maximum search distance from world spawn (X/Z coordinates between -5000 and +5000)
+  spawn-radius: 5000
+  # Minimum search distance from world spawn (prevents boss from spawning in hub / claims / (0,0))
+  min-spawn-distance: 800
+
+# ------------------------------------------------------------------------------
+# Garrick the Hunter (NPC Pity-Exchange System)
+# ------------------------------------------------------------------------------
+exchange:
+  # Citizens NPC ID for Garrick the Hunter (-1 = disabled / unset)
+  npc-id: -1
+  # Allow players to open the exchange menu via /boss shop command
+  allow-command-shop: true
+  gui-title: "&8▶ &6&lGarrick's Hunter Exchange &8◀"
+  
+  # Exchange trade options
+  trades:
+    totem-valerius:
+      name: "&c&lValerius Summon Totem"
+      icon: "TOTEM_OF_UNDYING"
+      required-specific-shard: "ashen"
+      required-shards: 15
+      required-currency: 500000
+    totem-aethelgard:
+      name: "&a&lAethelgard Summon Totem"
+      icon: "TOTEM_OF_UNDYING"
+      required-specific-shard: "royal_bark"
+      required-shards: 20
+      required-currency: 750000
+    totem-xolthos:
+      name: "&5&lXol'thos Summon Totem"
+      icon: "TOTEM_OF_UNDYING"
+      required-specific-shard: "phantom_silk"
+      required-shards: 25
+      required-currency: 1000000
+    rare-key:
+      name: "&b&lRare Crate Key"
+      icon: "TRIPWIRE_HOOK"
+      required-specific-shard: "any"
+      required-shards: 30
+      required-currency: 250000
+      command: "crate key give %player% Rare 1"
+    enchanter-key:
+      name: "&d&lEnchanter Crate Key"
+      icon: "TRIPWIRE_HOOK"
+      required-specific-shard: "any"
+      required-shards: 40
+      required-currency: 500000
+      command: "crate key give %player% enchanter 1"
+    elite-key:
+      name: "&6&lElite Crate Key"
+      icon: "TRIPWIRE_HOOK"
+      required-specific-shard: "any"
+      required-shards: 50
+      required-currency: 1000000
+      command: "crate key give %player% Elite 1"
+    alchemy-satchel:
+      name: "&e&lHunter's Alchemy Satchel"
+      icon: "BUNDLE"
+      required-specific-shard: "any"
+      required-shards: 8
+      required-currency: 75000
+    vanguard-cleaver:
+      name: "&c&lThe Vanguard's Cleaver"
+      icon: "NETHERITE_AXE"
+      required-specific-shard: "ashen"
+      required-shards: 90
+      required-currency: 2500000
+    crown-of-forest:
+      name: "&a&lCrown of the Forest"
+      icon: "NETHERITE_HELMET"
+      required-specific-shard: "royal_bark"
+      required-shards: 100
+      required-currency: 3500000
+    widows-fang:
+      name: "&5&lThe Widow's Fang"
+      icon: "NETHERITE_SWORD"
+      required-specific-shard: "phantom_silk"
+      required-shards: 110
+      required-currency: 5000000
+
+# ------------------------------------------------------------------------------
+# BOSS 1: VALERIUS, THE ASHEN VANGUARD
+# ------------------------------------------------------------------------------
+valerius:
+  display-name: "&c&lValerius, The Ashen Vanguard"
+  base-entity: "WITHER_SKELETON"
+  scale: 1.35
+  max-health: 1200.0
+  melee-damage: 14.0
+  movement-speed: 0.28
+  biomes:
+    - "BADLANDS"
+    - "ERODED_BADLANDS"
+    - "WOODED_BADLANDS"
+    - "DESERT"
+  lore:
+    - "&7Valerius was the grand forgemaster of a lost desert empire,"
+    - "&7ultimately sealed within his own masterpiece."
+    - "&7Tempered in deep magma, his armor laughs at swords."
+    - "&7Yet, when searing metal is kissed by a &b&nsudden torrential chill&7,"
+    - "&7the rigid shell forgets its strength."
+    - "&7Only the &e&nblunt tools of the deep earth&7 can shatter what remains."
+  
+  bgm: "coresuite:boss.valerius"
+  bgm-duration-seconds: 375
+  bgm-p1: "coresuite:boss.valerius.p1"
+  bgm-p1-duration-seconds: 200
+  bgm-p2: "coresuite:boss.valerius.p2"
+  bgm-p2-duration-seconds: 375
+  bgm-p3: "coresuite:boss.valerius.p3"
+  bgm-p3-duration-seconds: 165
+
+  combat:
+    ashen-slam:
+      cooldown-seconds: 8
+      radius: 5.0
+      damage: 14.0
+      knockback: 1.2
+      fire-seconds: 4
+    caldera-mortar:
+      cooldown-seconds: 6
+      min-range: 7.0
+      damage: 12.0
+      splash-radius: 4.0
+      wither-seconds: 5
+    searing-siphon:
+      interval-seconds: 6
+      heal-per-player: 5.0
+      drain-damage: 2.0
+      max-heal-per-pulse: 15.0
+    volcanic-geyser:
+      cooldown-seconds: 10
+      damage: 16.0
+      telegraph-ticks: 30
+      knockup: 1.1
+    magma-rush:
+      cooldown-seconds: 12
+      speed: 1.6
+      damage: 10.0
+    cataclysmic-supernova:
+      cooldown-seconds: 24
+      telegraph-ticks: 40
+      radius: 12.0
+      damage: 24.0
+
+  # Cryptic Weakness Mechanics
+  weakness:
+    sword-damage-multiplier: 0.70   # 30% damage reduction from blades & bows (balanced)
+    quenched-duration-seconds: 12   # Hit with Splash Potion of Water
+    pickaxe-damage-multiplier: 2.50 # +150% bonus damage from Pickaxes (natively, +250% when Quenched)
+  
+  # Anti-Cheese Punishments
+  anti-cheese:
+    pillaring-y-threshold: 4.0      # If player is 4+ blocks higher
+    gravity-tether-slowness-duration: 4
+    burrow-shockwave-radius: 5.0
+    burrow-shockwave-damage: 12.0
+    kiting-distance-threshold: 22.0
+  
+  # Combat Phases
+  phases:
+    phase-1:
+      health-percent-min: 60.0
+      bossbar-color: "BLUE"
+      domain-effect: "CINDERS"
+      hunger-level: 1
+      blindness-interval-ticks: 400
+    phase-2:
+      health-percent-min: 20.0
+      bossbar-color: "YELLOW"
+      domain-effect: "MELTDOWN"
+      ground-fire: true
+      vaporize-water: true
+      wither-level: 1
+    phase-3:
+      health-percent-min: 0.0
+      bossbar-color: "RED"
+      domain-effect: "ASH_VOID"
+      attack-speed-multiplier: 2.5
+      defense-multiplier: 0.0
+
+  # Rewards
+  loot:
+    rank-1:
+      currency: 25000
+      shards: 4
+      commands:
+        - "crate key give %player% Uncommon 1"
+    rank-2-3:
+      currency: 15000
+      shards: 2
+      commands:
+        - "crate key give %player% Common 1"
+    participation:
+      currency: 5000
+      shards: 1
+    rare-drops:
+      crate-key-chance: 8.0
+      crate-key-command: "crate key give %player% enchanter 1"
+      signature-weapon-chance: 4.0
+
+# ------------------------------------------------------------------------------
+# BOSS 2: AETHELGARD, THE ROOT-BOUND KING
+# ------------------------------------------------------------------------------
+aethelgard:
+  display-name: "&a&lAethelgard, The Root-Bound King"
+  base-entity: "HUSK"
+  scale: 1.55
+  max-health: 2000.0
+  melee-damage: 18.0
+  movement-speed: 0.24
+  biomes:
+    - "DARK_FOREST"
+    - "OLD_GROWTH_PINE_TAIGA"
+    - "OLD_GROWTH_SPRUCE_TAIGA"
+  lore:
+    - "&7A desperate king made a dark pact with the forest to escape death."
+    - "&7Bark replaced his skin, and writhing roots replaced his veins."
+    - "&7As long as he treads upon &2&nnatural soil&7, the earth mends him."
+    - "&7His wooden armor swallows arrows whole, turning them into vitality."
+    - "&7Wild growth must be pruned: the ancient wood weeps when kissed"
+    - "&7by the &e&nlumberjack's bite&7, and the &c&ncleansing spark of fire&7."
+
+  bgm: "coresuite:boss.aethelgard"
+  bgm-duration-seconds: 155
+  bgm-p1: "coresuite:boss.aethelgard.p1"
+  bgm-p1-duration-seconds: 259
+  bgm-p2: "coresuite:boss.aethelgard.p2"
+  bgm-p2-duration-seconds: 155
+  bgm-p3: "coresuite:boss.aethelgard.p3"
+  bgm-p3-duration-seconds: 334
+
+  combat:
+    overgrowth-cleave:
+      cooldown-seconds: 7
+      radius: 5.0
+      damage: 16.0
+      slowness-duration: 4
+      slowness-amplifier: 1
+    briar-volley:
+      cooldown-seconds: 7
+      min-range: 6.0
+      projectile-count: 4
+      damage: 10.0
+      poison-duration: 3
+    rootling-ghouls:
+      max-health: 35.0
+      movement-speed: 0.32
+      spawn-interval-seconds: 25
+      spawn-count: 2
+    strangling-brambles:
+      cooldown-seconds: 14
+      damage: 14.0
+      cage-duration-seconds: 4
+      telegraph-ticks: 30
+    timber-stomp:
+      cooldown-seconds: 20
+      rings: 3
+      damage: 22.0
+      telegraph-ticks: 35
+
+  weakness:
+    soil-regen-hp: 30.0             # Regenerates 30 HP every 2s on natural blocks
+    axe-damage-multiplier: 2.00     # Axes deal double damage
+    fire-silence-seconds: 6         # Fire halts minion summon & soil regen
+    arrow-heal-percent: 0.03        # Arrows heal him for 3% HP!
+
+  anti-cheese:
+    anti-pillar-fangs-count: 6
+    fang-damage: 8.0
+
+  phases:
+    phase-1:
+      health-percent-min: 50.0
+      bossbar-color: "GREEN"
+      domain-effect: "OVERGROWTH"
+      thorns-recoil-percent: 0.25
+      spider-summon-interval-ticks: 500
+    phase-2:
+      health-percent-min: 20.0
+      bossbar-color: "YELLOW"
+      domain-effect: "THE_HARVEST"
+      vortex-pull-interval-ticks: 300
+      poison-level: 0
+      nausea-interval-ticks: 200
+    phase-3:
+      health-percent-min: 0.0
+      bossbar-color: "RED"
+      domain-effect: "DEADWOOD"
+      lifesteal-percent: 1.0
+
+  loot:
+    rank-1:
+      currency: 35000
+      shards: 4
+      commands:
+        - "crate key give %player% Rare 1"
+    rank-2-3:
+      currency: 20000
+      shards: 2
+      commands:
+        - "crate key give %player% Uncommon 1"
+    participation:
+      currency: 7500
+      shards: 1
+    rare-drops:
+      crate-key-chance: 8.0
+      crate-key-command: "crate key give %player% enchanter 1"
+      signature-weapon-chance: 4.0
+
+# ------------------------------------------------------------------------------
+# BOSS 3: XOL'THOS, THE WEEPING WIDOW
+# ------------------------------------------------------------------------------
+xolthos:
+  display-name: "&5&lXol'thos, The Weeping Widow"
+  base-entity: "CAVE_SPIDER"
+  scale: 2.1
+  max-health: 2800.0
+  melee-damage: 22.0
+  movement-speed: 0.35
+  biomes:
+    - "DEEP_DARK"
+    - "DRIPSTONE_CAVES"
+    - "LUSH_CAVES"
+  lore:
+    - "&7An ancient spinner residing in the darkest crevices of the world."
+    - "&7She dances in the absolute black, effortlessly dodging 90% of blows"
+    - "&7with mirage-like deception and subterranean stealth."
+    - "&7Her sensitive subterranean eyes harbor a fatal vulnerability:"
+    - "&7She cannot endure artificial enlightenment! Hitting her with a"
+    - "&d&lSplash Potion of Night Vision &7shatters her evasion and stuns her for 20s!"
+
+  bgm: "coresuite:boss.xolthos"
+  bgm-duration-seconds: 169
+  bgm-p1: "coresuite:boss.xolthos.p1"
+  bgm-p1-duration-seconds: 169
+  bgm-p2: "coresuite:boss.xolthos.p2"
+  bgm-p2-duration-seconds: 169
+  bgm-p3: "coresuite:boss.xolthos.p3"
+  bgm-p3-duration-seconds: 423
+
+  combat:
+    stealth:
+      interval-seconds: 30
+      duration-seconds: 12
+      speed-boost: 0.30
+      ambush-damage-multiplier: 1.75
+    shadow-step:
+      cooldown-seconds: 15
+      damage: 16.0
+    acid-rain:
+      cooldown-seconds: 22
+      telegraph-ticks: 30
+      radius: 7.0
+      damage: 12.0
+    neurotoxin-leap:
+      cooldown-seconds: 8
+      leap-speed: 1.5
+      damage: 18.0
+      nausea-duration: 6
+      poison-duration: 6
+      slowness-duration: 4
+    web-spit:
+      cooldown-seconds: 14
+      projectile-count: 3
+      web-radius: 2
+      web-decay-seconds: 6
+    toxic-burst:
+      cooldown-seconds: 18
+      radius: 6.0
+      damage: 14.0
+      poison-duration: 5
+      slowness-duration: 4
+    broodlings:
+      scale: 0.75
+      max-health: 25.0
+      movement-speed: 0.34
+      spawn-interval-seconds: 18
+      spawn-count: 3
+
+  weakness:
+    base-evasion-percent: 0.90      # 90% chance to evade physical attacks
+    stun-duration-seconds: 20       # Hit with Splash Potion of Night Vision
+    stun-vulnerability-multiplier: 1.50 # +50% damage taken while stunned
+
+  anti-cheese:
+    runner-distance-threshold: 25.0
+    cocoon-duration-seconds: 6
+    bunker-teleport: true
+
+  phases:
+    phase-1:
+      health-percent-min: 70.0
+      bossbar-color: "PURPLE"
+      domain-effect: "THE_TRAP"
+      darkness-aura: true
+    phase-2:
+      health-percent-min: 30.0
+      bossbar-color: "YELLOW"
+      domain-effect: "THE_BROOD"
+      cobweb-spawn-interval-ticks: 200
+      silverfish-interval-ticks: 350
+    phase-3:
+      health-percent-min: 0.0
+      bossbar-color: "RED"
+      domain-effect: "FRENZY"
+      slowness-level: 3
+      necrosis: true
+
+  loot:
+    rank-1:
+      currency: 50000
+      shards: 5
+      commands:
+        - "crate key give %player% Rare 1"
+        - "crate key give %player% potions 1"
+        - "crate key give %player% enchanter 1"
+    rank-2-3:
+      currency: 30000
+      shards: 3
+      commands:
+        - "crate key give %player% Rare 1"
+    participation:
+      currency: 10000
+      shards: 1
+    rare-drops:
+      crate-key-chance: 6.0
+      crate-key-command: "crate key give %player% Elite 1"
+      signature-weapon-chance: 3.0

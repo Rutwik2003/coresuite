@@ -1,7 +1,8 @@
 {
-	"pack": {
-		"description": "§dCoreSuite Custom Fish.",
-		"min_format": 55,
-		"max_format": 999
-	}
+  "pack": {
+    "pack_format": 46,
+    "description": "§dCoreSuite Custom Fish.",
+    "min_format": 15,
+    "max_format": 999
+  }
 }

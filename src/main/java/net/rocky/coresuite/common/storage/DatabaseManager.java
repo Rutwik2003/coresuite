@@ -29,6 +29,7 @@ public final class DatabaseManager {
     private final CoreSuitePlugin plugin;
     private HikariDataSource dataSource;
     private final ExecutorService asyncExecutor;
+    private String storageType = "SQLITE";
 
     /**
      * Constructs a new DatabaseManager.
@@ -53,14 +54,17 @@ public final class DatabaseManager {
      * Initializes the database connection pool.
      */
     public void initialize() {
-        String storageType = plugin.getConfig().getString("storage.type", "SQLITE").toUpperCase();
+        this.storageType = plugin.getConfig().getString("storage.type", "SQLITE").toUpperCase();
 
         if ("MYSQL".equals(storageType)) {
             setupMySQL();
-            checkAndMigrate();
         } else {
             setupSQLite();
         }
+    }
+
+    public boolean isMySQL() {
+        return "MYSQL".equalsIgnoreCase(storageType);
     }
 
     private void setupMySQL() {
@@ -108,7 +112,7 @@ public final class DatabaseManager {
         plugin.getLogger().info("Database connected: " + dbFile.getPath());
     }
 
-    private void checkAndMigrate() {
+    public void checkAndMigrate() {
         File sqliteFile = new File(plugin.getDataFolder(), "data/coresuite.db");
         if (!sqliteFile.exists()) {
             return;
@@ -165,7 +169,9 @@ public final class DatabaseManager {
              }
              sql.append(")");
              
+             boolean originalAutoCommit = mysqlConn.getAutoCommit();
              try (PreparedStatement mysqlStmt = mysqlConn.prepareStatement(sql.toString())) {
+                 mysqlConn.setAutoCommit(false);
                  int count = 0;
                  while (rs.next()) {
                      for (int i = 1; i <= columnCount; i++) {
@@ -178,7 +184,19 @@ public final class DatabaseManager {
                      }
                  }
                  mysqlStmt.executeBatch();
+                 mysqlConn.commit();
                  plugin.getLogger().info("Migrated " + count + " rows into " + tableName);
+             } catch (SQLException e) {
+                 try {
+                     mysqlConn.rollback();
+                 } catch (SQLException rollbackEx) {
+                     plugin.getLogger().log(Level.WARNING, "Failed to rollback migration batch", rollbackEx);
+                 }
+                 throw e;
+             } finally {
+                 try {
+                     mysqlConn.setAutoCommit(originalAutoCommit);
+                 } catch (SQLException ignored) {}
              }
              
         } catch (SQLException e) {

@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import net.kyori.adventure.text.Component;
 import net.rocky.coresuite.CoreSuitePlugin;
@@ -54,8 +55,8 @@ public class FishingCollectionManager
 implements Listener {
     private final CoreSuitePlugin plugin;
     private final CustomFishingModule module;
-    private final Map<UUID, String> pendingSearch = new HashMap<UUID, String>();
-    private final Map<UUID, String> currentCategory = new HashMap<UUID, String>();
+    private final Map<UUID, String> pendingSearch = new ConcurrentHashMap<UUID, String>();
+    private final Map<UUID, String> currentCategory = new ConcurrentHashMap<UUID, String>();
 
     public FishingCollectionManager(CoreSuitePlugin plugin, CustomFishingModule module) {
         this.plugin = plugin;

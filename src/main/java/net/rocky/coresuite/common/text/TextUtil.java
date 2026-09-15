@@ -9,6 +9,8 @@ package net.rocky.coresuite.common.text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
+import net.kyori.adventure.text.minimessage.tag.standard.StandardTags;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Material;
@@ -29,6 +31,16 @@ import java.util.regex.Pattern;
  */
 public final class TextUtil {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.builder().strict(false).build();
+    private static final MiniMessage SAFE_MINI_MESSAGE = MiniMessage.builder()
+        .strict(false)
+        .tags(TagResolver.resolver(
+            StandardTags.color(),
+            StandardTags.decorations(),
+            StandardTags.gradient(),
+            StandardTags.rainbow(),
+            StandardTags.reset()
+        ))
+        .build();
     private static final LegacyComponentSerializer LEGACY_SERIALIZER = 
         LegacyComponentSerializer.builder().character('&').hexColors().build();
     private static final ThreadLocal<DecimalFormat> NUMBER_FORMAT = ThreadLocal.withInitial(() -> new DecimalFormat("#,##0.##"));
@@ -47,6 +59,9 @@ public final class TextUtil {
      */
     public static Component colorize(String text) {
         if (text == null || text.isEmpty()) return Component.empty();
+
+        // Sanitize legacy section signs (§) into ampersands (&) to prevent MiniMessage ParsingException
+        text = text.replace('§', '&');
         
         // Clean any CP1252/UTF-8 decompiler artifacts
         text = text.replace("âœ¦", "\u2726")
@@ -86,6 +101,53 @@ public final class TextUtil {
 
         return MINI_MESSAGE.deserialize(text)
             .decoration(TextDecoration.ITALIC, false); // Don't inherit italic by default
+    }
+
+    /**
+     * Parses legacy and color codes for untrusted user input, strictly denying
+     * click, hover, insertion, and command execution tags to prevent MiniMessage injection.
+     *
+     * @param text The raw untrusted text string.
+     * @return The sanitized Component.
+     */
+    public static Component colorizeUntrusted(String text) {
+        if (text == null || text.isEmpty()) return Component.empty();
+
+        text = text.replace('§', '&');
+        text = text.replace("âœ¦", "\u2726")
+                   .replace("\u00e2\u0153\u00a6", "\u2726")
+                   .replace("â", "")
+                   .replace("œ", "")
+                   .replace("¦", "");
+
+        text = text.replaceAll("&#([0-9a-fA-F]{6})", "<#$1>");
+        text = DOUBLE_HEX_PATTERN.matcher(text).replaceAll("<#$1>");
+
+        text = text.replace("&0", "<black>")
+                   .replace("&1", "<dark_blue>")
+                   .replace("&2", "<dark_green>")
+                   .replace("&3", "<dark_aqua>")
+                   .replace("&4", "<dark_red>")
+                   .replace("&5", "<dark_purple>")
+                   .replace("&6", "<gold>")
+                   .replace("&7", "<gray>")
+                   .replace("&8", "<dark_gray>")
+                   .replace("&9", "<blue>")
+                   .replace("&a", "<green>")
+                   .replace("&b", "<aqua>")
+                   .replace("&c", "<red>")
+                   .replace("&d", "<light_purple>")
+                   .replace("&e", "<yellow>")
+                   .replace("&f", "<white>")
+                   .replace("&k", "<obf>")
+                   .replace("&l", "<b>")
+                   .replace("&m", "<st>")
+                   .replace("&n", "<u>")
+                   .replace("&o", "<i>")
+                   .replace("&r", "<reset>");
+
+        return SAFE_MINI_MESSAGE.deserialize(text)
+            .decoration(TextDecoration.ITALIC, false);
     }
 
     /**

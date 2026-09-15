@@ -1,0 +1,147 @@
+{
+  "boss.awakening": {
+    "category": "record",
+    "subtitle": "coresuite.subtitle.boss.awakening",
+    "sounds": [
+      {
+        "name": "coresuite:boss/awakening",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.valerius": {
+    "category": "record",
+    "subtitle": "coresuite.subtitle.boss.valerius",
+    "sounds": [
+      {
+        "name": "coresuite:boss/valerius_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.valerius.p1": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/valerius_p1",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.valerius.p2": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/valerius_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.valerius.p3": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/valerius_p3",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.aethelgard": {
+    "category": "record",
+    "subtitle": "coresuite.subtitle.boss.aethelgard",
+    "sounds": [
+      {
+        "name": "coresuite:boss/aethelgard_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.aethelgard.p1": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/aethelgard_p1",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.aethelgard.p2": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/aethelgard_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.aethelgard.p3": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/aethelgard_p3",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.xolthos": {
+    "category": "record",
+    "subtitle": "coresuite.subtitle.boss.xolthos",
+    "sounds": [
+      {
+        "name": "coresuite:boss/xolthos_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.xolthos.p1": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/xolthos_p1",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.xolthos.p2": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/xolthos_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.xolthos.p3": {
+    "category": "record",
+    "sounds": [
+      {
+        "name": "coresuite:boss/xolthos_p3",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.victory": {
+    "category": "record",
+    "subtitle": "coresuite.subtitle.boss.victory",
+    "sounds": [
+      {
+        "name": "coresuite:boss/victory",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  }
+}

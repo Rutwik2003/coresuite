@@ -104,9 +104,12 @@ public final class ServerStatusEmbedManager {
                             Matcher m = ID_PATTERN.matcher(responseBody);
                             if (m.find()) {
                                 this.messageId = m.group(1);
-                                config.set("server-status.message-id", this.messageId);
-                                module.saveModuleConfig();
-                                plugin.getLogger().info("[Discord] Created status embed message ID: " + this.messageId);
+                                String idToSave = this.messageId;
+                                Bukkit.getScheduler().runTask(plugin, () -> {
+                                    config.set("server-status.message-id", idToSave);
+                                    module.saveModuleConfig();
+                                    plugin.getLogger().info("[Discord] Created status embed message ID: " + idToSave);
+                                });
                             }
                         }
                         isUpdating.set(false);

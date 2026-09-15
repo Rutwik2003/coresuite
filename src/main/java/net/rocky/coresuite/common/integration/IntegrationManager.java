@@ -41,7 +41,8 @@ public final class IntegrationManager {
         cache.clear();
         StringBuilder found = new StringBuilder();
         for (String name : WATCHED_PLUGINS) {
-            boolean available = Bukkit.getPluginManager().getPlugin(name) != null;
+            org.bukkit.plugin.Plugin p = Bukkit.getPluginManager().getPlugin(name);
+            boolean available = p != null && p.isEnabled();
             cache.put(name.toLowerCase(), available);
             if (available) {
                 if (!found.isEmpty()) found.append(", ");

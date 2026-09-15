@@ -20,6 +20,9 @@ broadcast-win-threshold: 100000
 enable-sounds: true
 enable-fireworks: true
 
+# One-time 1-click casino terms & disclaimer popup on first entry
+require-disclaimer: true
+
 # ── PVP Coinflip ──────────────────────────────────────────────────────────────
 pvp-coinflip:
   enabled: true

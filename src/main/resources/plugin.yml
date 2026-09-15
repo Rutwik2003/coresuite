@@ -225,6 +225,18 @@ commands:
     permission: coresuite.discord.use
     aliases: [dc]
 
+  boss:
+    description: View World Boss status, active coordinates, and Garrick's exchange
+    usage: /<command> [status|lore|shop]
+    permission: coresuite.boss.use
+    aliases: [worldboss, wb]
+
+  bossadmin:
+    description: Manage World Bosses (spawn, killall, reload, summonitem, setnpc)
+    usage: /<command> <spawn|killall|reload|summonitem|setnpc|give>
+    permission: coresuite.boss.admin
+    aliases: [wba, worldbossadmin]
+
 permissions:
   coresuite.admin:
     description: Access to /coresuite admin commands
@@ -361,4 +373,11 @@ permissions:
     default: true
   coresuite.discord.admin:
     description: Manage Discord bridge (force update, reload)
+    default: op
+  # World Bosses
+  coresuite.boss.use:
+    description: View World Boss status, active coordinates, and shop
+    default: true
+  coresuite.boss.admin:
+    description: Manage World Bosses (spawn, killall, reload, summonitem, setnpc)
     default: op

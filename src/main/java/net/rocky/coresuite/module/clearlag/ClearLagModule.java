@@ -107,6 +107,16 @@ public class ClearLagModule extends Module implements CommandExecutor, TabComple
                 boolean isArrow = entity instanceof org.bukkit.entity.Arrow;
                 
                 if (isItem || types.contains(entity.getType().name())) {
+                    // Do not clear Citizens NPCs, DecentHolograms, custom display entities, or persistent grave items
+                    if (entity.hasMetadata("NPC") || entity.hasMetadata("DecentHologram") || entity.hasMetadata("shopkeeper")) {
+                        continue;
+                    }
+                    if (entity.isCustomNameVisible()) {
+                        continue;
+                    }
+                    if (entity.getPersistentDataContainer().has(new org.bukkit.NamespacedKey("axgraves", "grave"), org.bukkit.persistence.PersistentDataType.STRING)) {
+                        continue;
+                    }
                     entity.remove();
                     itemsRemoved++;
                 }

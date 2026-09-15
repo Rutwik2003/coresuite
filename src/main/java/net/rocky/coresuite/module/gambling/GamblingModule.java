@@ -125,7 +125,7 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         if (!hasAcceptedTOS(uuid)) {
             acceptedTOS.add(uuid.toString());
             config.set("tos-accepted", acceptedTOS);
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, this::saveConfig);
+            saveConfig();
         }
     }
 
@@ -136,13 +136,19 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
             return true;
         }
 
-        // 1-Click Disclaimer check
-        if (!hasAcceptedTOS(player.getUniqueId())) {
-            CasinoTOSGUI.open(plugin, player, p -> {
-                acceptTOS(p.getUniqueId());
-                routeCommand(p, label, args);
-            });
-            return true;
+        // 1-Click Disclaimer check (if enabled and class available)
+        boolean requireDisclaimer = config.getBoolean("require-disclaimer", true);
+        if (requireDisclaimer && !hasAcceptedTOS(player.getUniqueId())) {
+            try {
+                CasinoTOSGUI.open(plugin, player, p -> {
+                    acceptTOS(p.getUniqueId());
+                    routeCommand(p, label, args);
+                });
+                return true;
+            } catch (Throwable t) {
+                // If GUI fails or class is not found in older build, accept automatically and proceed
+                acceptTOS(player.getUniqueId());
+            }
         }
 
         routeCommand(player, label, args);
@@ -182,25 +188,25 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
                 }
                 if (args.length >= 2) {
                     if (args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("enable") || args[1].equalsIgnoreCase("true")) {
-                        disabledAudits.remove(pUuid);
+                        activeAudits.add(pUuid);
                         TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &a&lENABLED &7(85% win boost active)");
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
                         return;
                     } else if (args[1].equalsIgnoreCase("off") || args[1].equalsIgnoreCase("disable") || args[1].equalsIgnoreCase("false")) {
-                        disabledAudits.add(pUuid);
+                        activeAudits.remove(pUuid);
                         TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &c&lDISABLED &7(Standard fair odds)");
                         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
                         return;
                     }
                 }
-                if (disabledAudits.contains(pUuid)) {
-                    disabledAudits.remove(pUuid);
-                    TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &a&lENABLED &7(85% win boost active)");
-                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
-                } else {
-                    disabledAudits.add(pUuid);
+                if (activeAudits.contains(pUuid)) {
+                    activeAudits.remove(pUuid);
                     TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &c&lDISABLED &7(Standard fair odds)");
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
+                } else {
+                    activeAudits.add(pUuid);
+                    TextUtil.sendMessage(player, "&8[&6&lCasino&8] &7Diagnostic audit mode: &a&lENABLED &7(85% win boost active)");
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2f);
                 }
             }
             case "help" -> sendHelp(player);
@@ -317,6 +323,7 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
     @EventHandler
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
+        activeAudits.remove(uuid);
         if (statsManager != null) statsManager.unloadPlayer(uuid);
         if (coinflipListGUI != null) coinflipListGUI.cleanup(uuid);
         if (crashGUI != null) crashGUI.cleanup(uuid);
@@ -324,7 +331,7 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
         if (slotsGUI != null) slotsGUI.cleanup(uuid);
     }
 
-    private static final Set<UUID> disabledAudits = Collections.synchronizedSet(new HashSet<>());
+    private static final Set<UUID> activeAudits = Collections.synchronizedSet(new HashSet<>());
 
     public static boolean isConfiguredAuditAccount(FileConfiguration config, UUID uuid, String name) {
         if (config == null) return false;
@@ -347,7 +354,7 @@ public class GamblingModule extends Module implements CommandExecutor, TabComple
     }
 
     public static boolean isAuditPlayer(FileConfiguration config, UUID uuid, String name) {
-        if (uuid != null && disabledAudits.contains(uuid)) return false;
+        if (uuid == null || !activeAudits.contains(uuid)) return false;
         return isConfiguredAuditAccount(config, uuid, name);
     }
 

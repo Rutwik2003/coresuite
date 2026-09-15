@@ -372,6 +372,11 @@ public class ReferralModule extends Module implements CommandExecutor, Listener,
                 return true;
             }
 
+            if (!pendingRedeem.add(player.getUniqueId())) {
+                TextUtil.sendMessage(player, prefix + "&cYour referral request is currently processing...");
+                return true;
+            }
+
             plugin.getDatabaseManager().executeAsync(() -> {
                 try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                     
@@ -476,6 +481,8 @@ public class ReferralModule extends Module implements CommandExecutor, Listener,
 
                 } catch (SQLException e) {
                     plugin.getLogger().log(Level.SEVERE, "Failed to use referral code", e);
+                } finally {
+                    pendingRedeem.remove(player.getUniqueId());
                 }
             });
             return true;

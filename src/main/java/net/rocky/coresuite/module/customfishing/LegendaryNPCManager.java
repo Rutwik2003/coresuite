@@ -109,6 +109,7 @@ implements Listener {
     }
 
     public void spawnLegendaryNPC(UUID ownerId, Location loc) {
+        if (!CitizensAPI.hasImplementation()) return;
         this.removeNPC(ownerId);
         NPC npc = CitizensAPI.getNPCRegistry().createNPC(EntityType.PLAYER, TextUtil.legacyColorize("&b&lAncient Angler"));
         SkinTrait skinTrait = (SkinTrait)npc.getOrAddTrait(SkinTrait.class);
@@ -143,7 +144,9 @@ implements Listener {
         NPC npc = this.activeNPCs.remove(ownerId);
         this.lastInteractionTime.remove(ownerId);
         if (npc != null) {
-            npc.destroy();
+            if (CitizensAPI.hasImplementation()) {
+                npc.destroy();
+            }
         }
         if ((lilyLoc = this.spawnedLilyPads.remove(ownerId)) != null && lilyLoc.getBlock().getType() == Material.LILY_PAD) {
             lilyLoc.getBlock().setType(Material.AIR);

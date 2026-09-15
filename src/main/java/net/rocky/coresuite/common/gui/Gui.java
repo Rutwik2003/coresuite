@@ -169,12 +169,20 @@ public class Gui implements InventoryHolder {
      * @param event the event
      */
     void handleClick(InventoryClickEvent event) {
+        if (event.getClickedInventory() == null) {
+            event.setCancelled(true);
+            return;
+        }
+
         // Only unconditionally cancel clicks in the GUI's own inventory
         if (event.getClickedInventory() == inventory) {
             event.setCancelled(true);
         } else {
             // Player's own inventory — cancel unless explicitly allowed
-            if (!allowPlayerInventoryClicks) {
+            // Even when allowed, strictly prevent shift-clicking or moving items into the GUI
+            if (!allowPlayerInventoryClicks || event.isShiftClick()
+                    || event.getAction() == org.bukkit.event.inventory.InventoryAction.MOVE_TO_OTHER_INVENTORY
+                    || event.getAction() == org.bukkit.event.inventory.InventoryAction.COLLECT_TO_CURSOR) {
                 event.setCancelled(true);
             }
             return;

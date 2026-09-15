@@ -159,28 +159,24 @@ public final class CoreSuiteCommand implements CommandExecutor, TabCompleter {
                 });
             });
         } else {
-            org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                plugin.reloadConfig();
-                plugin.getConfig().options().copyDefaults(true);
-                plugin.saveConfig();
-                
-                org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
-                    org.bukkit.configuration.ConfigurationSection section = plugin.getConfig().getConfigurationSection("modules");
-                    if (section != null) {
-                        for (Module module : mm.getAllModules()) {
-                            boolean shouldBeEnabled = section.getBoolean(module.getConfigKey(), false);
-                            if (shouldBeEnabled && !module.isEnabled()) {
-                                mm.enableModule(module.getConfigKey());
-                            } else if (!shouldBeEnabled && module.isEnabled()) {
-                                mm.disableModule(module.getConfigKey());
-                            } else if (shouldBeEnabled && module.isEnabled()) {
-                                mm.reloadModule(module.getConfigKey());
-                            }
-                        }
+            plugin.reloadConfig();
+            plugin.getConfig().options().copyDefaults(true);
+            plugin.saveConfig();
+            
+            org.bukkit.configuration.ConfigurationSection section = plugin.getConfig().getConfigurationSection("modules");
+            if (section != null) {
+                for (Module module : mm.getAllModules()) {
+                    boolean shouldBeEnabled = section.getBoolean(module.getConfigKey(), false);
+                    if (shouldBeEnabled && !module.isEnabled()) {
+                        mm.enableModule(module.getConfigKey());
+                    } else if (!shouldBeEnabled && module.isEnabled()) {
+                        mm.disableModule(module.getConfigKey());
+                    } else if (shouldBeEnabled && module.isEnabled()) {
+                        mm.reloadModule(module.getConfigKey());
                     }
-                    TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded master configuration and all enabled modules.");
-                });
-            });
+                }
+            }
+            TextUtil.sendMessage(sender, PREFIX + "&aSuccessfully reloaded master configuration and all enabled modules.");
         }
     }
 

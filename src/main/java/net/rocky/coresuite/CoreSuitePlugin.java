@@ -69,6 +69,11 @@ public final class CoreSuitePlugin extends JavaPlugin {
         registerModules();
         moduleManager.enableModules();
 
+        // ── Check migrations after modules have created their tables (CS-014) ──
+        if (databaseManager != null && "MYSQL".equalsIgnoreCase(getConfig().getString("storage.type", "SQLITE"))) {
+            databaseManager.checkAndMigrate();
+        }
+
         // ── Register admin command ──
         CoreSuiteCommand coreCommand = new CoreSuiteCommand(this);
         PluginCommand cmd = getCommand("coresuite");
@@ -91,6 +96,10 @@ public final class CoreSuitePlugin extends JavaPlugin {
         if (databaseManager != null) {
             databaseManager.close();
         }
+
+        // Safety net: cancel remaining tasks and unregister listeners (CS-010)
+        getServer().getScheduler().cancelTasks(this);
+        org.bukkit.event.HandlerList.unregisterAll(this);
 
         getServer().getConsoleSender().sendMessage(
             DGRAY + " [" + CYAN + "CoreSuite" + DGRAY + "] " + GRAY + "Shutdown complete. Goodbye!" + RESET
@@ -197,6 +206,9 @@ public final class CoreSuitePlugin extends JavaPlugin {
 
         // Phase 13 — Discord Bridge
         moduleManager.registerModule(new net.rocky.coresuite.module.discord.DiscordModule(this));
+
+        // Phase 14 — World Bosses (Shangri-La Frontier custom multi-phase bosses)
+        moduleManager.registerModule(new net.rocky.coresuite.module.worldbosses.WorldBossesModule(this));
     }
 
     // ── Static accessor ──

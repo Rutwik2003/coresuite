@@ -7,3 +7,27 @@ out/
 .idea/
 *.iml
 .vscode/
+
+# Local databases and backups
+*.db
+*.rar
+*.zip
+*.log
+24th august backup/
+My coresuit config/
+economy shop gui/
+decompiled_src/
+.agents/
+
+# Temporary test / diagnostic scripts
+*.py
+*.bat
+!gradlew.bat
+*.ps1
+build_errors*.txt
+commit_msg.txt
+TestParticle.java
+ORIGINAL_REQUEST.md
+TEST_INFRA.md
+TEST_READY.md
+

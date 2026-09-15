@@ -33,6 +33,7 @@ modules:
   gambling: true
   profile: true
   website: true
+  world-bosses: true
 
 # Storage settings
 storage:

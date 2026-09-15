@@ -29,6 +29,7 @@ repositories {
 dependencies {
     // Core Paper API
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     
     // Soft dependencies (transitive = false: these are server plugins, we only need compile-time API)
     compileOnly("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
@@ -39,6 +40,7 @@ dependencies {
     
     // Implementations to be shadowed
     implementation("com.zaxxer:HikariCP:6.2.1")
+    testImplementation("com.zaxxer:HikariCP:6.2.1")
 }
 
 tasks {

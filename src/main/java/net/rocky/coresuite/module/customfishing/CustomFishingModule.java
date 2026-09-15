@@ -552,7 +552,6 @@ TabCompleter {
         this.lastFishTime.remove(event.getPlayer().getUniqueId());
         this.fishStreak.remove(event.getPlayer().getUniqueId());
         this.actionbarOverride.remove(event.getPlayer().getUniqueId());
-        this.chunkCatches.remove(event.getPlayer().getUniqueId());
         if (this.collectionManager != null) {
             this.collectionManager.unloadPlayer(event.getPlayer().getUniqueId());
         }

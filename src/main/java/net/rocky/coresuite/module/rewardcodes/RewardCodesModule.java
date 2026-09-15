@@ -18,6 +18,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 
 public class RewardCodesModule extends Module implements CommandExecutor, TabCompleter {
@@ -81,14 +82,22 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
         plugin.getDatabaseManager().execute(sql);
 
         plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement ps = conn.prepareStatement("PRAGMA table_info(coresuite_reward_codes)");
-                 ResultSet rs = ps.executeQuery()) {
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                 boolean hasIp = false;
-                while (rs.next()) {
-                    if ("ip".equalsIgnoreCase(rs.getString("name"))) {
-                        hasIp = true;
-                        break;
+                if (plugin.getDatabaseManager().isMySQL()) {
+                    try (PreparedStatement ps = conn.prepareStatement("SHOW COLUMNS FROM coresuite_reward_codes LIKE 'ip'");
+                         ResultSet rs = ps.executeQuery()) {
+                        hasIp = rs.next();
+                    }
+                } else {
+                    try (PreparedStatement ps = conn.prepareStatement("PRAGMA table_info(coresuite_reward_codes)");
+                         ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            if ("ip".equalsIgnoreCase(rs.getString("name"))) {
+                                hasIp = true;
+                                break;
+                            }
+                        }
                     }
                 }
                 if (!hasIp) {
@@ -131,7 +140,7 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
     }
 
     private void markRedeemed(OfflinePlayer player, String code, String ip) {
-        String sql = "INSERT OR REPLACE INTO coresuite_reward_codes (uuid, player_name, code, time, ip) VALUES (?, ?, ?, ?, ?)";
+        String sql = "REPLACE INTO coresuite_reward_codes (uuid, player_name, code, time, ip) VALUES (?, ?, ?, ?, ?)";
         plugin.getDatabaseManager().execute(sql, player.getUniqueId().toString(), player.getName(), code.toLowerCase(), System.currentTimeMillis(), ip);
     }
 
@@ -153,6 +162,16 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
         }
     }
 
+    private final java.util.Set<UUID> pendingRedemptions = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private void giveCustomCodeReward(OfflinePlayer player, String codeKey) {
+        List<String> commands = config.getStringList("codes." + codeKey + ".commands");
+        for (String cmd : commands) {
+            String parsed = cmd.replace("%player%", player.getName() != null ? player.getName() : "");
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
+        }
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         String expectedCode = config.getString("code", "M7X2Q9");
@@ -166,8 +185,37 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
                 return true;
             }
 
-            if (args.length == 0 || !args[0].equalsIgnoreCase(expectedCode)) {
+            if (args.length == 0) {
+                TextUtil.sendMessage(player, "&cInvalid redeem code! Usage: /reward <code>");
+                return true;
+            }
+
+            String inputCode = args[0];
+            String matchedCode = null;
+            boolean isCustom = false;
+
+            if (inputCode.equalsIgnoreCase(expectedCode)) {
+                matchedCode = expectedCode;
+            } else if (config.isConfigurationSection("codes")) {
+                for (String codeKey : config.getConfigurationSection("codes").getKeys(false)) {
+                    if (codeKey.equalsIgnoreCase(inputCode)) {
+                        matchedCode = codeKey;
+                        isCustom = true;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedCode == null) {
                 TextUtil.sendMessage(player, "&cInvalid redeem code!");
+                return true;
+            }
+
+            final String finalCode = matchedCode;
+            final boolean finalIsCustom = isCustom;
+
+            if (!pendingRedemptions.add(player.getUniqueId())) {
+                TextUtil.sendMessage(player, "&cYour reward redemption is currently processing...");
                 return true;
             }
 
@@ -175,26 +223,35 @@ public class RewardCodesModule extends Module implements CommandExecutor, TabCom
             boolean bypassIp = player.hasPermission("coresuite.reward.bypassip");
 
             plugin.getDatabaseManager().executeAsync(() -> {
-                if (hasRedeemed(player, expectedCode)) {
-                    Bukkit.getScheduler().runTask(plugin, () -> 
-                        TextUtil.sendMessage(player, "&cYou have already redeemed this code!"));
-                    return;
-                }
-
-                if (!bypassIp && hasIpRedeemed(playerIp, expectedCode)) {
-                    Bukkit.getScheduler().runTask(plugin, () -> 
-                        TextUtil.sendMessage(player, "&cThis reward code has already been redeemed from your IP address!"));
-                    return;
-                }
-
-                markRedeemed(player, expectedCode, playerIp);
-                
-                Bukkit.getScheduler().runTask(plugin, () -> {
-                    giveReward(player);
-                    for (String msg : config.getStringList("success-messages")) {
-                        TextUtil.sendMessage(player, msg);
+                try {
+                    if (hasRedeemed(player, finalCode)) {
+                        Bukkit.getScheduler().runTask(plugin, () -> 
+                            TextUtil.sendMessage(player, "&cYou have already redeemed this code!"));
+                        return;
                     }
-                });
+
+                    if (!bypassIp && hasIpRedeemed(playerIp, finalCode)) {
+                        Bukkit.getScheduler().runTask(plugin, () -> 
+                            TextUtil.sendMessage(player, "&cThis reward code has already been redeemed from your IP address!"));
+                        return;
+                    }
+
+                    markRedeemed(player, finalCode, playerIp);
+                    
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (finalIsCustom) {
+                            giveCustomCodeReward(player, finalCode);
+                            TextUtil.sendMessage(player, "&aSuccessfully redeemed code &e" + finalCode + "&a!");
+                        } else {
+                            giveReward(player);
+                            for (String msg : config.getStringList("success-messages")) {
+                                TextUtil.sendMessage(player, msg);
+                            }
+                        }
+                    });
+                } finally {
+                    pendingRedemptions.remove(player.getUniqueId());
+                }
             });
             return true;
         }

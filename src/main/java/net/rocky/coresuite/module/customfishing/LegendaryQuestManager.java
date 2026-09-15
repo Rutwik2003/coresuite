@@ -54,7 +54,6 @@
  */
 package net.rocky.coresuite.module.customfishing;
 
-import java.lang.invoke.CallSite;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -134,6 +133,11 @@ implements Listener {
     private final Map<UUID, Long> summonCooldowns = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Long> chatStateTimestamps = new ConcurrentHashMap<UUID, Long>();
     private final Map<UUID, Integer> failCounters = new ConcurrentHashMap<UUID, Integer>();
+    private final Map<UUID, Integer> timesCompletedCache = new ConcurrentHashMap<UUID, Integer>();
+    private final Map<UUID, Integer> timesGotTCCache = new ConcurrentHashMap<UUID, Integer>();
+    private final Map<UUID, Integer> timesDisrespectedCache = new ConcurrentHashMap<UUID, Integer>();
+    private final Map<UUID, Boolean> fossilizedAnchorCache = new ConcurrentHashMap<UUID, Boolean>();
+    private final Map<UUID, Boolean> stormcallerTridentCache = new ConcurrentHashMap<UUID, Boolean>();
     private BukkitTask compassTrackerTask = null;
     private static final String[][] SCENARIO_TEXTS = new String[][]{{"The freezing tide numbs all panic eventually.", "A man burdened by gold sinks without a fight.", "The leviathans below dragged him down too fast.", "He simply accepted the peace of the deep.", "Stop the riddles, old man. I need a favor.", "He was counting his treasures when the waves took him.", "The abyss itself reached up and pulled him under.", "He clawed at the water, trading everything for one more breath.", "A bolt from the heavens split the sea, and he simply... fell in.", "The fool? He jumped in thinking he could command the tide."}, {"The endless need to fight against the current.", "The shimmer of sunken empires buried in the muck.", "The pure adrenaline when the line snaps taut.", "The absolute silence when the surface breaks.", "You are. Now give me what I'm owed.", "The promise of fortune hidden beneath every wave.", "The pull of something ancient lurking far below.", "The fear that drives a man to risk everything.", "The crack of thunder before the heavens weep.", "I command the sea, old man. It bows to me."}, {"Endurance. He kept swimming long after hope had drowned.", "The weight of his purse pulled him to the bottom.", "Something in the dark water wanted him more than the surface did.", "He made peace with the silence and let it take him.", "Enough with your games. Just tell me what I need.", "He was too busy admiring his reflection in golden coins.", "The deep has teeth, and it was hungry that night.", "He traded his last breath for a chance, and lost.", "The sky cracked open and the sea swallowed the light.", "He believed the ocean owed him something. It didn't."}, {"The cold numbed his fear until surrender felt like warmth.", "He drowned clutching gold bars, refusing to let go.", "A hunter became the hunted in the blackwater.", "In the end, the quiet was all he ever wanted.", "Your riddles bore me. Give me what I came for.", "Fortune smiled, then pushed him overboard.", "Whatever lives in the trench claimed him without ceremony.", "He begged the waves for mercy. They don't speak mortal.", "Lightning kissed the water and something ancient stirred.", "He shouted orders at the tide. The tide did not listen."}, {"The freezing water taught him that survival is the only instinct.", "His pockets were heavy with treasure, his lungs empty of air.", "The predator's jaws closed before he could even scream.", "He chose the stillness. The deep embraced him willingly.", "Spare me the philosophy, I have things to do.", "He spent his life chasing riches and the sea collected the debt.", "From the bottomless dark, something whispered his name.", "Desperation made him foolish. The ocean made him vanish.", "The storm broke him before the water ever could.", "Arrogance is the heaviest anchor a fool can carry."}};
     private static final String[] SCENARIO_PROMPTS = new String[]{"*Cough*... I watched a man surrender to the water 'ere yesterday. Didn't thrash. Didn't scream. Just sank like a stone. Why d'ye think he stayed so quiet?", "Look at 'em... Every fish bites the iron thinkin' it's a blessin'. Tell me, youngster, what's the iron hook that caught your soul?", "I once watched a ship's captain throw his compass into the sea. His crew wept, but he smiled. Why d'ye think he destroyed his only guide?", "There's a fish that swallows its own young to protect them from the storm. Tell me, mortal \u2014 what would ye swallow to keep what matters safe?", "The deepest trench holds no light, no warmth, no mercy. Yet something lives there still. What drives a creature to thrive where everything says it should perish?"};
@@ -216,24 +220,40 @@ implements Listener {
     public void loadPlayer(UUID uuid) {
         this.plugin.getDatabaseManager().executeAsync(() -> {
             try (Connection c = this.plugin.getDatabaseManager().getConnection();
-                 PreparedStatement ps = c.prepareStatement("SELECT stage FROM coresuite_fisherman_quest WHERE uuid = ?");){
+                 PreparedStatement ps = c.prepareStatement("SELECT stage, times_completed, times_got_tc, times_disrespected, fail_count, has_fossilized_anchor, has_stormcaller_trident FROM coresuite_fisherman_quest WHERE uuid = ?");){
                 ps.setString(1, uuid.toString());
                 ResultSet rs = ps.executeQuery();
                 if (rs.next()) {
                     this.questStages.put(uuid, rs.getInt("stage"));
+                    this.timesCompletedCache.put(uuid, rs.getInt("times_completed"));
+                    this.timesGotTCCache.put(uuid, rs.getInt("times_got_tc"));
+                    this.timesDisrespectedCache.put(uuid, rs.getInt("times_disrespected"));
+                    this.failCounters.put(uuid, rs.getInt("fail_count"));
+                    this.fossilizedAnchorCache.put(uuid, rs.getInt("has_fossilized_anchor") == 1);
+                    this.stormcallerTridentCache.put(uuid, rs.getInt("has_stormcaller_trident") == 1);
                 } else {
                     this.questStages.put(uuid, 0);
+                    this.timesCompletedCache.put(uuid, 0);
+                    this.timesGotTCCache.put(uuid, 0);
+                    this.timesDisrespectedCache.put(uuid, 0);
+                    this.failCounters.put(uuid, 0);
+                    this.fossilizedAnchorCache.put(uuid, false);
+                    this.stormcallerTridentCache.put(uuid, false);
                 }
             }
             catch (Exception e) {
                 e.printStackTrace();
             }
         });
-        this.loadFailCount(uuid);
     }
 
     public void unloadPlayer(UUID uuid) {
         this.questStages.remove(uuid);
+        this.timesCompletedCache.remove(uuid);
+        this.timesGotTCCache.remove(uuid);
+        this.timesDisrespectedCache.remove(uuid);
+        this.fossilizedAnchorCache.remove(uuid);
+        this.stormcallerTridentCache.remove(uuid);
         this.chatState.remove(uuid);
         this.introOptions.remove(uuid);
         this.inDialogueSequence.remove(uuid);
@@ -249,6 +269,11 @@ implements Listener {
             this.compassTrackerTask = null;
         }
         this.questStages.clear();
+        this.timesCompletedCache.clear();
+        this.timesGotTCCache.clear();
+        this.timesDisrespectedCache.clear();
+        this.fossilizedAnchorCache.clear();
+        this.stormcallerTridentCache.clear();
         this.chatState.clear();
         this.introOptions.clear();
         this.inDialogueSequence.clear();
@@ -267,144 +292,58 @@ implements Listener {
         this.plugin.getDatabaseManager().execute("INSERT INTO coresuite_fisherman_quest (uuid, stage) VALUES (?, ?) ON CONFLICT(uuid) DO UPDATE SET stage = excluded.stage", uuid.toString(), stage);
     }
 
-    /*
-     * Enabled aggressive block sorting
-     * Enabled unnecessary exception pruning
-     * Enabled aggressive exception aggregation
-     */
     public int getTimesCompleted(UUID uuid) {
-        try (Connection c = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT times_completed FROM coresuite_fisherman_quest WHERE uuid = ?");){
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return 0;
-            int n = rs.getInt("times_completed");
-            return n;
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return 0;
+        return this.timesCompletedCache.getOrDefault(uuid, 0);
     }
 
     public void incrementTimesCompleted(UUID uuid) {
-        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_completed = times_completed + 1 WHERE uuid = ?", uuid.toString());
+        int next = this.timesCompletedCache.compute(uuid, (k, v) -> v == null ? 1 : v + 1);
+        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_completed = ? WHERE uuid = ?", next, uuid.toString());
     }
 
-    /*
-     * Enabled aggressive block sorting
-     * Enabled unnecessary exception pruning
-     * Enabled aggressive exception aggregation
-     */
     public int getTimesGotTC(UUID uuid) {
-        try (Connection c = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT times_got_tc FROM coresuite_fisherman_quest WHERE uuid = ?");){
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return 0;
-            int n = rs.getInt("times_got_tc");
-            return n;
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return 0;
+        return this.timesGotTCCache.getOrDefault(uuid, 0);
     }
 
     public void incrementTimesGotTC(UUID uuid) {
-        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_got_tc = times_got_tc + 1 WHERE uuid = ?", uuid.toString());
+        int next = this.timesGotTCCache.compute(uuid, (k, v) -> v == null ? 1 : v + 1);
+        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_got_tc = ? WHERE uuid = ?", next, uuid.toString());
     }
 
-    /*
-     * Enabled aggressive block sorting
-     * Enabled unnecessary exception pruning
-     * Enabled aggressive exception aggregation
-     */
     public int getTimesDisrespected(UUID uuid) {
-        try (Connection c = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT times_disrespected FROM coresuite_fisherman_quest WHERE uuid = ?");){
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return 0;
-            int n = rs.getInt("times_disrespected");
-            return n;
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return 0;
+        return this.timesDisrespectedCache.getOrDefault(uuid, 0);
     }
 
     public void incrementTimesDisrespected(UUID uuid) {
-        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_disrespected = times_disrespected + 1 WHERE uuid = ?", uuid.toString());
+        int next = this.timesDisrespectedCache.compute(uuid, (k, v) -> v == null ? 1 : v + 1);
+        this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET times_disrespected = ? WHERE uuid = ?", next, uuid.toString());
     }
 
-    /*
-     * Enabled aggressive block sorting
-     * Enabled unnecessary exception pruning
-     * Enabled aggressive exception aggregation
-     */
     public boolean hasFossilizedAnchor(UUID uuid) {
-        try (Connection c = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT has_fossilized_anchor FROM coresuite_fisherman_quest WHERE uuid = ?");){
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return false;
-            boolean bl = rs.getInt("has_fossilized_anchor") == 1;
-            return bl;
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
+        return this.fossilizedAnchorCache.getOrDefault(uuid, false);
     }
 
     public void setHasFossilizedAnchor(UUID uuid) {
+        this.fossilizedAnchorCache.put(uuid, true);
         this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET has_fossilized_anchor = 1 WHERE uuid = ?", uuid.toString());
     }
 
-    /*
-     * Enabled aggressive block sorting
-     * Enabled unnecessary exception pruning
-     * Enabled aggressive exception aggregation
-     */
     public boolean hasStormcallerTrident(UUID uuid) {
-        try (Connection c = this.plugin.getDatabaseManager().getConnection();
-             PreparedStatement ps = c.prepareStatement("SELECT has_stormcaller_trident FROM coresuite_fisherman_quest WHERE uuid = ?");){
-            ps.setString(1, uuid.toString());
-            ResultSet rs = ps.executeQuery();
-            if (!rs.next()) return false;
-            boolean bl = rs.getInt("has_stormcaller_trident") == 1;
-            return bl;
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
+        return this.stormcallerTridentCache.getOrDefault(uuid, false);
     }
 
     public void setHasStormcallerTrident(UUID uuid) {
+        this.stormcallerTridentCache.put(uuid, true);
         this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET has_stormcaller_trident = 1 WHERE uuid = ?", uuid.toString());
     }
 
     public void saveFailCount(UUID uuid, int count) {
+        this.failCounters.put(uuid, count);
         this.plugin.getDatabaseManager().execute("UPDATE coresuite_fisherman_quest SET fail_count = ? WHERE uuid = ?", count, uuid.toString());
     }
 
     public void loadFailCount(UUID uuid) {
-        this.plugin.getDatabaseManager().executeAsync(() -> {
-            try (Connection c = this.plugin.getDatabaseManager().getConnection();
-                 PreparedStatement ps = c.prepareStatement("SELECT fail_count FROM coresuite_fisherman_quest WHERE uuid = ?");){
-                ps.setString(1, uuid.toString());
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) {
-                    this.failCounters.put(uuid, rs.getInt("fail_count"));
-                }
-            }
-            catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        // Handled in loadPlayer
     }
 
     public boolean isInChatState(UUID uuid) {
