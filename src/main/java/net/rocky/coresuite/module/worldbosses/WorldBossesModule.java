@@ -267,6 +267,9 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (isBossActive()) return rejectSpawn(type, loc, "Another boss is already active.");
         String problem = BossSpawnScheduler.locationProblem(loc);
         if (problem == null) problem = net.rocky.coresuite.common.integration.BossProtectionGate.denialReason(loc);
+        if (problem == null) problem = BossSpawnScheduler.arenaProblem(loc,
+                Math.max(1, Math.min(256, config.getDouble("domain.radius", 35.0))),
+                net.rocky.coresuite.common.integration.BossProtectionGate::denialReason);
         if (problem != null) return rejectSpawn(type, loc, problem);
         loc = new Location(loc.getWorld(), loc.getBlockX() + .5, loc.getBlockY(), loc.getBlockZ() + .5);
         if (loc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
@@ -490,7 +493,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 return;
             }
 
-            if (event.getFinalDamage() > 0) activeBoss.recordParticipation(player);
+            if (event.getFinalDamage() > 0) activeBoss.recordTankContribution(player);
             event.setDamage(event.getDamage() * activeBoss.getOutgoingDamageMultiplier());
             // Xolthos Stalker Ambush Strike from Invisibility
             if (activeBoss instanceof XolthosBoss xb && xb.isStealthed()) {
@@ -565,14 +568,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 }
 
                 Block block = hitLoc.getBlock();
-                if (block.getType() == Material.AIR && net.rocky.coresuite.common.integration.BossProtectionGate.allows(block.getLocation())) {
-                    block.setType(Material.COBWEB);
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                        if (block.getType() == Material.COBWEB) {
-                            block.setType(Material.AIR);
-                        }
-                    }, snareSec * 20L);
-                }
+                if (activeBoss != null) activeBoss.placeTemporaryBlock(block, Material.COBWEB, snareSec * 20L);
             }
         }
     }
@@ -599,14 +595,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         }
 
         Block block = hitLoc.getBlock();
-        if (block.getType() == Material.AIR && net.rocky.coresuite.common.integration.BossProtectionGate.allows(block.getLocation())) {
-            block.setType(Material.FIRE);
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (block.getType() == Material.FIRE) {
-                    block.setType(Material.AIR);
-                }
-            }, 120L);
-        }
+        if (activeBoss != null) activeBoss.placeTemporaryBlock(block, Material.FIRE, 120L);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -646,14 +635,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (isWater && activeBoss instanceof ValeriusBoss valerius) {
             int duration = config.getInt("valerius.weakness.quenched-duration-seconds", 10);
             valerius.applyQuenched(duration);
-            if (potion.getShooter() instanceof Player participant) activeBoss.recordParticipation(participant);
+            if (potion.getShooter() instanceof Player participant) activeBoss.recordMechanicContribution(participant, "Water interrupted Valerius");
         }
 
         // 2. Splash Night Vision Counter on Xol'thos
         if (hasNightVision && activeBoss instanceof XolthosBoss xolthos) {
             int duration = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
             xolthos.applyStun(duration);
-            if (potion.getShooter() instanceof Player participant) activeBoss.recordParticipation(participant);
+            if (potion.getShooter() instanceof Player participant) activeBoss.recordMechanicContribution(participant, "Night Vision revealed Xol'thos");
         }
     }
 
@@ -804,6 +793,10 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             event.setDroppedExp(0);
             activeBoss.die();
             activeBoss = null;
+            return;
+        }
+        if (activeBoss.isMinion(event.getEntity()) && event.getEntity().getKiller() != null) {
+            activeBoss.recordMinionContribution(event.getEntity().getKiller());
         }
     }
 

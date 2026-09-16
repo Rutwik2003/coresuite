@@ -40,8 +40,13 @@ public class BossLootManager {
 
     public void distributeRewards(BossType bossType, BossDamageTracker damageTracker, String bossDisplayName) {
         try {
-            List<BossDamageTracker.DamageEntry> sortedDamagers = damageTracker.getSortedDamagers();
-            if (sortedDamagers.isEmpty()) return;
+            double minimumDamage = minimumDamage(bossType);
+            int minimumContribution = minimumContribution(bossType);
+            List<BossDamageTracker.DamageEntry> sortedDamagers = damageTracker.getQualifiedParticipants(minimumDamage, minimumContribution);
+            if (sortedDamagers.isEmpty()) {
+                Bukkit.broadcast(TextUtil.colorize("&8[&4&lBoss&8] &eNo player met the contribution requirement; no boss rewards were issued."));
+                return;
+            }
 
             // Record discovery unlock for all participating damagers
             if (discoveryManager != null) {
@@ -100,7 +105,7 @@ public class BossLootManager {
                 rewards.add(0, BossRewardMailbox.Reward.items(items));
                 mailbox.enqueue(entry.uuid(), rewards);
             }
-            Bukkit.broadcast(TextUtil.colorize("  &aAll " + sortedDamagers.size() + " participants earned loot! &7Unclaimed rewards are saved: &e/boss claim"));
+            Bukkit.broadcast(TextUtil.colorize("  &aAll " + sortedDamagers.size() + " qualified participants earned loot! &7Unclaimed rewards are saved: &e/boss claim"));
 
             Bukkit.broadcast(TextUtil.colorize("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -138,6 +143,15 @@ public class BossLootManager {
     public void inspectPendingRewards(org.bukkit.command.CommandSender sender) { mailbox.inspectPending(sender); }
     public void reconcileReward(org.bukkit.command.CommandSender sender, String id, boolean delivered) { mailbox.reconcile(sender, id, delivered); }
     public void claimRewards(Player player) { mailbox.claim(player); }
+
+    private double minimumDamage(BossType type) {
+        return Math.max(0, config.getDouble(type.getConfigKey() + ".loot.participation.minimum-damage",
+                config.getDouble("rewards.participation.minimum-damage", 20.0)));
+    }
+    private int minimumContribution(BossType type) {
+        return Math.max(1, config.getInt(type.getConfigKey() + ".loot.participation.minimum-contribution",
+                config.getInt("rewards.participation.minimum-contribution", 3)));
+    }
 
     private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards) {
         int shards = tier == null ? 0 : tier.getInt("shards", 0);

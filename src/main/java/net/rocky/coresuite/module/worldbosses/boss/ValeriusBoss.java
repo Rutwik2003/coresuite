@@ -30,6 +30,8 @@ import org.bukkit.util.Vector;
 public class ValeriusBoss extends WorldBoss {
 
     private long quenchedUntil = 0;
+    private double overheat;
+    private long exposedUntil;
 
     public ValeriusBoss(CoreSuitePlugin plugin, FileConfiguration config, BossLootManager lootManager) {
         super(plugin, BossType.VALERIUS, config, lootManager);
@@ -69,6 +71,12 @@ public class ValeriusBoss extends WorldBoss {
         if (entity == null || !entity.isValid()) return;
 
         Location bossLoc = entity.getLocation();
+        if (isExposed()) {
+            bossLoc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bossLoc.clone().add(0, 1.2, 0), 18, .45, .7, .45, .03);
+            for (Player player : barManager.getViewers()) sendCombatAlert(player, StatusBadge.QUENCHED,
+                    "&bOVERHEATED CORE EXPOSED! &fAttack now for bonus damage.", 2);
+            return;
+        }
 
         // Quenched steam particles
         if (isQuenched()) {
@@ -130,7 +138,7 @@ public class ValeriusBoss extends WorldBoss {
                         if (tickCount % 2 == 0) {
                             Block under = p.getLocation().getBlock();
                             if (under.getType() == Material.AIR && under.getRelative(0, -1, 0).getType().isSolid()) {
-                                if (net.rocky.coresuite.common.integration.BossProtectionGate.allows(under.getLocation())) under.setType(Material.FIRE);
+                                placeTemporaryBlock(under, Material.FIRE, 60L);
                             }
                         }
 
@@ -163,6 +171,7 @@ public class ValeriusBoss extends WorldBoss {
         java.util.List<Player> targets = new java.util.ArrayList<>(barManager.getViewers());
         targets.removeIf(p -> p == null || !p.isOnline() || p.getWorld() == null || !p.getWorld().equals(bossLoc.getWorld()));
         if (targets.isEmpty()) return;
+        addOverheat(12, "Volcanic Geyser");
 
         int count = Math.min(2, targets.size());
         for (int i = 0; i < count; i++) {
@@ -220,6 +229,7 @@ public class ValeriusBoss extends WorldBoss {
 
     private void executeMagmaRush(Location bossLoc) {
         if (entity == null || !entity.isValid()) return;
+        addOverheat(10, "Magma Rush");
         Vector dir = entity.getLocation().getDirection().setY(0).normalize();
         double speed = config.getDouble("valerius.combat.magma-rush.speed", 1.6);
         double damage = config.getDouble("valerius.combat.magma-rush.damage", 10.0);
@@ -254,6 +264,7 @@ public class ValeriusBoss extends WorldBoss {
 
     private void executeCataclysmicSupernova(Location bossLoc) {
         if (entity == null || !entity.isValid()) return;
+        addOverheat(18, "Supernova charge");
         double radius = config.getDouble("valerius.combat.cataclysmic-supernova.radius", 12.0);
         double damage = config.getDouble("valerius.combat.cataclysmic-supernova.damage", 24.0);
         int telegraphTicks = config.getInt("valerius.combat.cataclysmic-supernova.telegraph-ticks", 40);
@@ -318,6 +329,7 @@ public class ValeriusBoss extends WorldBoss {
         if (isQuenched()) {
             return;
         }
+        addOverheat(6, "Searing Siphon");
 
         double drainDmg = config.getDouble("valerius.combat.searing-siphon.drain-damage", 2.0);
         double healAmt = config.getDouble("valerius.combat.searing-siphon.heal-per-player", 5.0);
@@ -346,6 +358,7 @@ public class ValeriusBoss extends WorldBoss {
     }
 
     private void executeAshenSlam(Location bossLoc) {
+        if (isExposed()) return;
         double radius = config.getDouble("valerius.combat.ashen-slam.radius", 5.0);
         double damage = config.getDouble("valerius.combat.ashen-slam.damage", 14.0);
         double kbForce = config.getDouble("valerius.combat.ashen-slam.knockback", 1.2);
@@ -366,6 +379,7 @@ public class ValeriusBoss extends WorldBoss {
         }
 
         if (hitAny) {
+            addOverheat(8, "Ashen Slam");
             bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, 0.75f);
             bossLoc.getWorld().playSound(bossLoc, Sound.BLOCK_ANVIL_LAND, 1.5f, 0.6f);
             bossLoc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, bossLoc, 1);
@@ -387,6 +401,7 @@ public class ValeriusBoss extends WorldBoss {
         }
 
         if (target != null) {
+            addOverheat(10, "Caldera Mortar");
             final Player finalTarget = target;
             Location fireLoc = bossLoc.clone().add(0, 2.2, 0);
             Vector toTarget = finalTarget.getEyeLocation().toVector().subtract(fireLoc.toVector());
@@ -448,6 +463,7 @@ public class ValeriusBoss extends WorldBoss {
 
     public void applyQuenched(int seconds) {
         this.quenchedUntil = System.currentTimeMillis() + (seconds * 1000L);
+        this.overheat = Math.max(0, overheat - Math.max(1, config.getDouble("valerius.combat.overheat.water-cooling", 35.0)));
         if (entity != null && entity.isValid()) {
             entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.5f, 0.6f);
             entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_FIRE_EXTINGUISH, 1.5f, 0.8f);
@@ -462,9 +478,27 @@ public class ValeriusBoss extends WorldBoss {
     public boolean isQuenched() {
         return System.currentTimeMillis() < quenchedUntil;
     }
+    public double getOverheat() { return overheat; }
+    public boolean isExposed() { return System.currentTimeMillis() < exposedUntil; }
+    private void addOverheat(double amount, String source) {
+        if (isExposed()) return;
+        double threshold = Math.max(25, config.getDouble("valerius.combat.overheat.threshold", 100));
+        overheat = Math.min(threshold, overheat + Math.max(0, amount));
+        if (overheat < threshold) return;
+        overheat = 0;
+        int seconds = Math.max(3, config.getInt("valerius.combat.overheat.exposed-seconds", 8));
+        exposedUntil = System.currentTimeMillis() + seconds * 1000L;
+        if (entity == null || !entity.isValid()) return;
+        entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_BLASTFURNACE_FIRE_CRACKLE, 2f, .55f);
+        entity.getWorld().spawnParticle(Particle.EXPLOSION, entity.getLocation().add(0, 1.2, 0), 3, .5, .6, .5, .05);
+        for (Player player : barManager.getViewers()) {
+            TextUtil.sendTitle(player, "&b&lCORE EXPOSED!", "&f" + source + " overheated Valerius — strike now!", 5, seconds * 20, 8);
+        }
+    }
 
     @Override
     public double calculateIncomingDamage(Player player, double originalDamage, ItemStack weapon) {
+        if (isExposed()) originalDamage *= Math.max(1.0, config.getDouble("valerius.combat.overheat.exposed-damage-multiplier", 1.35));
         if (weapon == null || weapon.getType() == Material.AIR) return originalDamage;
 
         String matName = weapon.getType().name();

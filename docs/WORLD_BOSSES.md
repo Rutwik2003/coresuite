@@ -41,6 +41,16 @@ Fifty-six JUnit regressions and 238 existing checks pass. Tests cover scaling/pr
 
 Player-issued `/bossadmin spawn <boss>` now searches a bounded nearby loaded area when the exact position is unsuitable. Explicit coordinates are kept exact. Rejections show the actual reason in chat and console; protection denials are not silently treated as terrain failure.
 
+## Encounter state, arena safety and contribution
+
+Each live encounter has a unique ID and progresses through `PREPARING`, `FIGHTING`, then either `DEFEATED` or `ABANDONED`. Rewards only run from `DEFEATED`. The arena checker samples its centre and perimeter for loaded terrain, border access and protection, so a boss does not begin across a claim or an unloaded edge.
+
+CoreSuite tracks transient fire and cobwebs it places for a fight. It restores them at expiry and terminal cleanup only when the block still matches the encounter's own placed block, preserving later player edits.
+
+`rewards.participation.minimum-damage` defaults to `20.0` and `minimum-contribution` defaults to `3`. Damage grants contribution activity; tanking boss/minion damage gives two points; a successful Water/Night Vision counter gives three; and a minion kill gives one. Meeting either threshold earns participation loot. The player action bar shows qualification status while fighting. Per-boss values under `<boss>.loot.participation` override the global values.
+
+Valerius builds heat when he uses abilities. At the configured threshold he exposes his core for eight seconds and takes 1.35× damage, rather than continuing overlapping ability pressure. Water cools the meter and applies Quenched. Xol'thos only ignores attacks during her clear Shadow Phase; Night Vision reveals and stuns her. The old Xol'thos evasion setting remains readable for existing configurations but defaults to zero for the new behavior.
+
 ## ExcellentCrates rewards and recovery
 
 Stock `crate/crates/excellentcrates key give %player% <key> [amount]` rewards use the installed ExcellentCrates key API. Existing configuration and pending command payloads do not need rewriting. Physical rewards use real provider key items, wait for enough inventory space, and never drop overflow. Virtual keys use the provider's balance methods and check the resulting balance. Missing keys or unavailable APIs leave the reward pending and report why; custom commands outside this supported form retain command dispatch behavior.

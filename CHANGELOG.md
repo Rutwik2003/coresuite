@@ -1,5 +1,14 @@
 # CoreSuite changelog
 
+## World Boss encounter foundation and readable counterplay
+
+- Add encounter IDs and explicit `PREPARING`, `FIGHTING`, `DEFEATED`, and `ABANDONED` states.
+- Validate the loaded arena footprint, border, and protection at the centre and perimeter before a boss spawns. Rejections identify the failing part of the arena.
+- Restore CoreSuite-placed fire and cobwebs when an encounter ends, while leaving later player changes untouched.
+- Require meaningful participation: 20 boss damage or three contribution points from tanking, counters, or minion kills. The action bar now shows personal qualification progress.
+- Redesign Valerius around a visible overheat cycle: ability pressure exposes a vulnerable core instead of stacking attacks; Water cools the core and retains Quenched counterplay.
+- Replace Xol'thos's random hit evasion with a predictable Shadow Phase. Normal hits land outside stealth; Splash Night Vision reveals and stuns her.
+
 ## ExcellentCrates boss reward and receipt recovery hotfix
 
 - Deliver standard ExcellentCrates `key give` boss rewards through its key API, accepting both legacy `crate` and current `crates` aliases without depending on command registration.

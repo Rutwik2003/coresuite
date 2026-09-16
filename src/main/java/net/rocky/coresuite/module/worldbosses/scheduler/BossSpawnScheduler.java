@@ -198,6 +198,26 @@ public class BossSpawnScheduler {
         }
         return null;
     }
+    /**
+     * Checks the loaded usable arena footprint without loading terrain. Protection is sampled at
+     * the centre, cardinal points and diagonals, which catches claims/regions crossing the arena.
+     */
+    public static String arenaProblem(Location center, double radius, java.util.function.Function<Location, String> protectionProblem) {
+        if (center == null || center.getWorld() == null) return "Missing arena world.";
+        if (!Double.isFinite(radius) || radius < 1 || radius > 256) return "Arena radius must be between 1 and 256.";
+        World world = center.getWorld();
+        for (int angle = 0; angle < 360; angle += 45) {
+            double radians = Math.toRadians(angle);
+            Location sample = center.clone().add(Math.cos(radians) * radius, 0, Math.sin(radians) * radius);
+            if (!world.isChunkLoaded(sample.getBlockX() >> 4, sample.getBlockZ() >> 4)) return "Arena terrain is not loaded near " + sample.getBlockX() + ", " + sample.getBlockZ() + ".";
+            if (!world.getWorldBorder().isInside(sample)) return "Arena crosses the world border near " + sample.getBlockX() + ", " + sample.getBlockZ() + ".";
+            if (protectionProblem != null) {
+                String problem = protectionProblem.apply(sample);
+                if (problem != null) return "Arena is unavailable near " + sample.getBlockX() + ", " + sample.getBlockZ() + ": " + problem;
+            }
+        }
+        return null;
+    }
     private void next(Runnable action, CompletableFuture<Location> result) {
         if (stopped || result.isDone() || !plugin.isEnabled()) { result.complete(null); return; }
         Bukkit.getScheduler().runTask(plugin, () -> {

@@ -79,6 +79,14 @@ balance:
   # Total healing across the entire encounter, including all phases.
   maximum-healing-fraction: 0.15
 
+# A player qualifies through damage or three useful combat actions: tanking boss/minion hits,
+# performing a counter (Water/Night Vision), or helping remove minions. These defaults also apply
+# to older world-bosses.yml files that do not yet contain this section.
+rewards:
+  participation:
+    minimum-damage: 20.0
+    minimum-contribution: 3
+
 combat:
   # Attack charge threshold (below this, strikes land as glancing hits with scaled damage)
   attack-cooldown-threshold: 0.85
@@ -226,6 +234,11 @@ valerius:
   bgm-p3-duration-seconds: 165
 
   combat:
+    overheat:
+      threshold: 100.0
+      exposed-seconds: 8
+      exposed-damage-multiplier: 1.35
+      water-cooling: 35.0
     ashen-slam:
       cooldown-seconds: 8
       radius: 5.0
@@ -499,8 +512,8 @@ xolthos:
       spawn-interval-seconds: 18
       spawn-count: 3
 
-  weakness:
-    base-evasion-percent: 0.25      # Runtime cap: 35%; Night Vision removes evasion
+    weakness:
+      base-evasion-percent: 0.0       # Legacy setting retained; evasion is now only during visible Shadow Phase.
     stun-duration-seconds: 20       # Hit with Splash Potion of Night Vision
     stun-vulnerability-multiplier: 1.50 # +50% damage taken while stunned
 

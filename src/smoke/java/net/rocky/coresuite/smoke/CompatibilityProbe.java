@@ -114,6 +114,11 @@ public final class CompatibilityProbe extends JavaPlugin {
         // Exercise the production module entry point, including clearance and protection checks.
         Location platform = world.getSpawnLocation().add(12, 12, 0);
         int px = platform.getBlockX(), py = platform.getBlockY(), pz = platform.getBlockZ();
+        // The production check refuses an arena that extends into unloaded terrain. Mirror a player
+        // having the configured 35-block arena loaded before testing module-level admin spawning.
+        for (int cx = (px - 35) >> 4; cx <= (px + 35) >> 4; cx++) for (int cz = (pz - 35) >> 4; cz <= (pz + 35) >> 4; cz++) {
+            world.getChunkAt(cx, cz);
+        }
         for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
             world.getBlockAt(px + dx, py - 1, pz + dz).setType(Material.STONE);
             for (int dy = 0; dy < 4; dy++) world.getBlockAt(px + dx, py + dy, pz + dz).setType(Material.AIR);

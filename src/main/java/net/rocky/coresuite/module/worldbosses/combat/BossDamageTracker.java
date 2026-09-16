@@ -13,6 +13,7 @@ public class BossDamageTracker {
     private final Map<UUID, Long> lastActivity = new ConcurrentHashMap<>();
     private final Map<UUID, Double> playerDamage = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerNames = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> contribution = new ConcurrentHashMap<>();
 
     public BossDamageTracker(double maxHealth) {
         this.maxHealth = maxHealth;
@@ -24,6 +25,7 @@ public class BossDamageTracker {
         UUID uuid = player.getUniqueId();
         playerDamage.merge(uuid, amount, Double::sum);
         playerNames.put(uuid, player.getName());
+        contribution.merge(uuid, 1, Integer::sum);
     }
 
     public void recordParticipation(Player player) {
@@ -33,6 +35,20 @@ public class BossDamageTracker {
         lastActivity.put(player.getUniqueId(), System.currentTimeMillis());
     }
     public boolean wasRecentlyActive(UUID uuid, long since) { return lastActivity.getOrDefault(uuid, 0L) >= since; }
+
+    /** Non-damage support: tanking, countering a mechanic, or removing a minion. */
+    public void recordContribution(Player player, int points) {
+        if (player == null || points < 1) return;
+        recordParticipation(player);
+        contribution.merge(player.getUniqueId(), Math.min(20, points), Integer::sum);
+    }
+    public int getContribution(UUID uuid) { return contribution.getOrDefault(uuid, 0); }
+    public boolean qualifies(UUID uuid, double minimumDamage, int minimumContribution) {
+        return getDamage(uuid) >= Math.max(0, minimumDamage) || getContribution(uuid) >= Math.max(1, minimumContribution);
+    }
+    public List<DamageEntry> getQualifiedParticipants(double minimumDamage, int minimumContribution) {
+        return getSortedDamagers().stream().filter(entry -> qualifies(entry.uuid(), minimumDamage, minimumContribution)).toList();
+    }
 
     public double getDamage(UUID uuid) {
         return playerDamage.getOrDefault(uuid, 0.0);
@@ -90,5 +106,6 @@ public class BossDamageTracker {
         lastActivity.clear();
         playerDamage.clear();
         playerNames.clear();
+        contribution.clear();
     }
 }

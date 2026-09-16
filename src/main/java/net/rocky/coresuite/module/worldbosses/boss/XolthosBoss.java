@@ -156,14 +156,7 @@ public class XolthosBoss extends WorldBoss {
                         // Cobweb trapping around fighters every 10 seconds
                         if (tickCount % 10 == 0 && random.nextDouble() < 0.4) {
                             Block b = p.getLocation().getBlock();
-                            if (b.getType() == Material.AIR) {
-                                if (net.rocky.coresuite.common.integration.BossProtectionGate.allows(b.getLocation())) b.setType(Material.COBWEB);
-                                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                                    if (b.getType() == Material.COBWEB) {
-                                        b.setType(Material.AIR);
-                                    }
-                                }, 120L);
-                            }
+                            placeTemporaryBlock(b, Material.COBWEB, 120L);
                         }
                     }
 
@@ -469,14 +462,13 @@ public class XolthosBoss extends WorldBoss {
             return originalDamage * vulnMult;
         }
 
-        // Evasion is capped so ordinary attacks can always defeat this boss.
-        double evasionPercent = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(config.getDouble("xolthos.weakness.base-evasion-percent", .25), .25, 0, .35);
-        if (random.nextDouble() < evasionPercent) {
-            // Cosmetic dodge avoids teleporting into walls or unsupported cave edges.
+        // Shadow phases replace random evasion: ordinary attacks always land outside stealth,
+        // and Night Vision breaks stealth immediately through applyStun.
+        if (isStealthed()) {
             Location loc = entity.getLocation();
             loc.getWorld().spawnParticle(Particle.PORTAL, loc.add(0, 0.5, 0), 20, 0.3, 0.3, 0.3, 0.1);
             loc.getWorld().playSound(loc, Sound.ENTITY_ENDERMAN_TELEPORT, 1.2f, 1.5f);
-            TextUtil.sendActionBar(player, "&5&l✦ EVADED! &7Xol'thos slipped into the shadows! Use Splash Night Vision!");
+            TextUtil.sendActionBar(player, "&5&l✦ SHADOW PHASE &7— use Splash Night Vision to reveal Xol'thos!");
             return 0.0;
         }
 

@@ -28,9 +28,11 @@ import org.bukkit.entity.Entity;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import net.rocky.coresuite.module.worldbosses.combat.StatusBadge;
+import net.rocky.coresuite.module.worldbosses.combat.EncounterState;
 import net.rocky.coresuite.module.worldbosses.party.BossPartyManager;
 
 import java.util.ArrayList;
@@ -70,12 +72,16 @@ public abstract class WorldBoss {
     private final java.util.Map<java.util.UUID, Long> alertExpiry = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<java.util.UUID, net.rocky.coresuite.module.worldbosses.combat.StatusBadge> alertBadge = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<java.util.UUID, String> alertMessage = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<Location, TemporaryBlock> temporaryBlocks = new java.util.concurrent.ConcurrentHashMap<>();
+    private record TemporaryBlock(BlockData original, BlockData placed) {}
 
     protected boolean isAwakened = false;
     protected int totalAwakeningSeconds;
     protected int awakeningRemainingSeconds;
     private int emptyDomainSeconds = 0;
     protected BossPartyManager partyManager;
+    private final UUID encounterId = UUID.randomUUID();
+    private EncounterState encounterState = EncounterState.PREPARING;
 
     public WorldBoss(CoreSuitePlugin plugin, BossType type, FileConfiguration config, BossLootManager lootManager) {
         this.plugin = plugin;
@@ -119,6 +125,7 @@ public abstract class WorldBoss {
         if (location == null || location.getWorld() == null) return false;
         try {
             this.spawnLocation = location.clone();
+            this.encounterState = isAwakened ? EncounterState.FIGHTING : EncounterState.PREPARING;
             this.currentHealth = maxHealth;
 
             // Proactively purge any orphaned boss entities nearby from previous server runs or reloads
@@ -421,6 +428,7 @@ public abstract class WorldBoss {
     public void awaken() {
         if (isAwakened || !active) return;
         isAwakened = true;
+        encounterState = EncounterState.FIGHTING;
         awakeningRemainingSeconds = 0;
 
         if (entity != null && entity.isValid()) {
@@ -838,11 +846,19 @@ public abstract class WorldBoss {
         // 2. Column 2: Personal Stats (DMG & Rank)
         double dmg = damageTracker.getDamage(uuid);
         int rank = damageTracker.getRank(uuid);
+        int contribution = damageTracker.getContribution(uuid);
+        double minimumDamage = Math.max(0, config.getDouble(type.getConfigKey() + ".loot.participation.minimum-damage",
+                config.getDouble("rewards.participation.minimum-damage", 20.0)));
+        int minimumContribution = Math.max(1, config.getInt(type.getConfigKey() + ".loot.participation.minimum-contribution",
+                config.getInt("rewards.participation.minimum-contribution", 3)));
+        String qualification = damageTracker.qualifies(uuid, minimumDamage, minimumContribution)
+                ? " &a✓ qualified" : " &7(" + String.format("%.0f", Math.max(0, minimumDamage - dmg)) + " DMG or "
+                + Math.max(0, minimumContribution - contribution) + " assists)";
         String col2;
         if (dmg > 0 && rank > 0) {
-            col2 = "&6DMG: &e" + String.format("%,.0f", dmg) + " &8(&6#" + rank + "&8)";
+            col2 = "&6DMG: &e" + String.format("%,.0f", dmg) + " &8(&6#" + rank + "&8)" + qualification;
         } else {
-            col2 = "&7DMG: &f0";
+            col2 = "&7DMG: &f0" + qualification;
         }
 
         // 3. Column 3: Boss HP
@@ -884,6 +900,29 @@ public abstract class WorldBoss {
         minions.clear();
     }
 
+    /** Places transient encounter terrain and restores it after expiry or terminal cleanup. */
+    public boolean placeTemporaryBlock(Block block, Material material, long lifetimeTicks) {
+        if (!active || block == null || material == null || lifetimeTicks < 1 || !block.getType().isAir()
+                || !net.rocky.coresuite.common.integration.BossProtectionGate.allows(block.getLocation())) return false;
+        Location location = block.getLocation();
+        BlockData original = block.getBlockData();
+        block.setType(material, false);
+        BlockData placed = block.getBlockData();
+        temporaryBlocks.put(location, new TemporaryBlock(original, placed));
+        Bukkit.getScheduler().runTaskLater(plugin, () -> restoreTemporaryBlock(location), lifetimeTicks);
+        return true;
+    }
+    private void restoreTemporaryBlock(Location location) {
+        TemporaryBlock temporary = temporaryBlocks.remove(location);
+        if (temporary == null || location.getWorld() == null) return;
+        Block block = location.getBlock();
+        if (block.getBlockData().matches(temporary.placed())) block.setBlockData(temporary.original(), false);
+    }
+    private void cleanupTemporaryBlocks() {
+        for (Location location : java.util.List.copyOf(temporaryBlocks.keySet())) restoreTemporaryBlock(location);
+        temporaryBlocks.clear();
+    }
+
     public java.util.Set<LivingEntity> getMinions() {
         return java.util.Collections.unmodifiableSet(minions);
     }
@@ -898,6 +937,7 @@ public abstract class WorldBoss {
     public void die() {
         if (!active) return;
         active = false;
+        encounterState = EncounterState.DEFEATED;
         releaseChunks();
 
         // Stop all combat tracks and reset atmosphere for all domain viewers
@@ -958,6 +998,7 @@ public abstract class WorldBoss {
         domainViewers.clear();
         bgmPlaybackStartTimes.clear();
         clearMinions();
+        cleanupTemporaryBlocks();
         alertExpiry.clear();
         alertBadge.clear();
         alertMessage.clear();
@@ -992,6 +1033,7 @@ public abstract class WorldBoss {
     public void despawn() {
         if (!active) return;
         active = false;
+        encounterState = EncounterState.ABANDONED;
         releaseChunks();
 
         for (java.util.UUID uuid : domainViewers) {
@@ -1004,6 +1046,7 @@ public abstract class WorldBoss {
         domainViewers.clear();
         bgmPlaybackStartTimes.clear();
         clearMinions();
+        cleanupTemporaryBlocks();
         alertExpiry.clear();
         alertBadge.clear();
         alertMessage.clear();
@@ -1130,6 +1173,8 @@ public abstract class WorldBoss {
     }
 
     public BossType getType() { return type; }
+    public UUID getEncounterId() { return encounterId; }
+    public EncounterState getEncounterState() { return encounterState; }
     public LivingEntity getEntity() { return entity; }
     private double healthForPlayers(int players) {
         if (!config.getBoolean("balance.adaptive-scaling", true)) return configuredHealth;
@@ -1140,6 +1185,19 @@ public abstract class WorldBoss {
         if (!active || !isAwakened || player == null || player.isDead()) return;
         damageTracker.recordParticipation(player);
         hasBeenEngaged = true;
+    }
+    public void recordTankContribution(Player player) {
+        if (!active || !isAwakened) return;
+        damageTracker.recordContribution(player, 2);
+    }
+    public void recordMechanicContribution(Player player, String objective) {
+        if (!active || !isAwakened) return;
+        damageTracker.recordContribution(player, 3);
+        sendCombatAlert(player, StatusBadge.DEFLECTED, "&aMechanic completed: &f" + objective, 2);
+    }
+    public void recordMinionContribution(Player player) {
+        if (!active || !isAwakened) return;
+        damageTracker.recordContribution(player, 1);
     }
     private void updateScaling() {
         if (entity == null || !entity.isValid() || !config.getBoolean("balance.adaptive-scaling", true)) return;
