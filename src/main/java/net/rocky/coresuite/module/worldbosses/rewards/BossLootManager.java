@@ -136,6 +136,7 @@ public class BossLootManager {
 
     public void initializeMailbox() { mailbox.initialize(); }
     public void inspectPendingRewards(org.bukkit.command.CommandSender sender) { mailbox.inspectPending(sender); }
+    public void reconcileReward(org.bukkit.command.CommandSender sender, String id, boolean delivered) { mailbox.reconcile(sender, id, delivered); }
     public void claimRewards(Player player) { mailbox.claim(player); }
 
     private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards) {

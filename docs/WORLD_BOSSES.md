@@ -37,6 +37,16 @@ On first upgrade, the exact former stock values (scheduled minimum 3, evasion 0.
 
 ## Validation
 
-Forty-nine JUnit regressions and 238 existing checks pass. New tests cover scaling/progress, healing limits, invalid damage, participation, inventory capacity without partial mutation, durable reward reservation, and spawn clearance/borders/chunks. The isolated Paper probe exercises real boss entities on 1.21 and 26.2: spawning, bounded healing, defeat, capped overkill credit, and one reward callback per boss. It uses a simulated participant, not an authenticated gameplay client. Multiplayer difficulty and third-party protection/economy workflows still need staging playtests.
+Fifty-six JUnit regressions and 238 existing checks pass. Tests cover scaling/progress, healing limits, invalid damage, participation, inventory capacity without partial mutation, durable reward reservation/reconciliation, crate key preparation, and spawn clearance/borders/chunks. The isolated Paper probe exercises real boss entities on 1.21 and 26.2: spawning, bounded healing, defeat, capped overkill credit, and one reward callback per boss. It uses a simulated participant, not an authenticated gameplay client. Multiplayer difficulty and third-party protection/economy workflows still need staging playtests.
 
 Player-issued `/bossadmin spawn <boss>` now searches a bounded nearby loaded area when the exact position is unsuitable. Explicit coordinates are kept exact. Rejections show the actual reason in chat and console; protection denials are not silently treated as terrain failure.
+
+## ExcellentCrates rewards and recovery
+
+Stock `crate/crates/excellentcrates key give %player% <key> [amount]` rewards use the installed ExcellentCrates key API. Existing configuration and pending command payloads do not need rewriting. Physical rewards use real provider key items, wait for enough inventory space, and never drop overflow. Virtual keys use the provider's balance methods and check the resulting balance. Missing keys or unavailable APIs leave the reward pending and report why; custom commands outside this supported form retain command dispatch behavior.
+
+The Paper 26.2 integration probe with ExcellentCrates 6.6.1 and NightCore 2.16.4 confirms that full inventory defers delivery, freeing a slot permits delivery of a provider-recognized key, and an unknown key ID is deferred. This test uses a simulated inventory; virtual balance behavior has unit coverage.
+
+For a receipt already marked `RESERVED / REVIEW`, `/boss claim` intentionally does not replay it. Run `/bossadmin rewards` to see its command and inspect the player's inventory/virtual balance and provider logs. If no reward was delivered, use `/bossadmin rewards retry <receipt>` then have the player free space and run `/boss claim`. If it was already delivered or manually compensated, use `/bossadmin rewards delivered <receipt>`. These admin actions are logged, refuse active claims, and cannot reopen acknowledged rewards. Do not retry an uncertain receipt without checking: command return values alone do not prove whether a plugin changed inventory or balance.
+
+Provider references: [ExcellentCrates commands](https://nightexpressdev.com/excellentcrates/commands/) and [6.6.1 key manager source](https://github.com/nulli0n/ExcellentCrates-spigot/blob/d9ba2393a5dc812368379acc907f61a34aabb7bb/src/main/java/su/nightexpress/excellentcrates/key/KeyManager.java).

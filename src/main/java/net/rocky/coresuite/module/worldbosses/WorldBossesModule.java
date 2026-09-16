@@ -1167,7 +1167,13 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         try {
             String sub = args[0].toLowerCase();
             switch (sub) {
-                case "rewards" -> { lootManager.inspectPendingRewards(sender); return true; }
+                case "rewards" -> {
+                    if (args.length == 1) lootManager.inspectPendingRewards(sender);
+                    else if (args.length == 3 && (args[1].equalsIgnoreCase("retry") || args[1].equalsIgnoreCase("delivered")))
+                        lootManager.reconcileReward(sender, args[2], args[1].equalsIgnoreCase("delivered"));
+                    else TextUtil.sendMessage(sender, "&e/bossadmin rewards [retry|delivered <receipt>] &7- Inspect first. Retry only after verifying the reward was not delivered; otherwise mark delivered.");
+                    return true;
+                }
                 case "spawn" -> {
                     if (args.length < 2) {
                         TextUtil.sendMessage(sender, "&cUsage: /bossadmin spawn <valerius|aethelgard|xolthos> [x y z world]");
@@ -1357,6 +1363,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         TextUtil.sendMessage(sender, "  &e/bossadmin kill &8- &7Kill active boss & drop combat loot");
         TextUtil.sendMessage(sender, "  &e/bossadmin despawn &8- &7Despawn active boss without rewards");
         TextUtil.sendMessage(sender, "  &e/bossadmin rewards &8- &7Inspect pending reward receipts");
+        TextUtil.sendMessage(sender, "  &e/bossadmin rewards <retry|delivered> <receipt> &8- &7Resolve a reviewed receipt; retry only if not delivered");
         TextUtil.sendMessage(sender, "  &e/bossadmin clearall &8- &7Purge all orphaned bosses across all worlds");
         TextUtil.sendMessage(sender, "  &e/bossadmin summonitem <boss> [player] &8- &7Give summon totem");
         TextUtil.sendMessage(sender, "  &e/bossadmin setnpc <npc-id> &8- &7Set Garrick exchange NPC ID");

@@ -54,4 +54,17 @@ class BossRewardMailboxTest {
             assertTrue(BossRewardMailbox.reserve(conn, "receipt"));
         }
     }
+    @Test void reconciliationOnlyChangesReservedReceiptsAndDoesNotReopenDeliveredRewards() throws Exception {
+        try (var conn = DriverManager.getConnection("jdbc:sqlite::memory:"); var stmt = conn.createStatement()) {
+            stmt.execute("CREATE TABLE coresuite_boss_rewards (reward_id TEXT PRIMARY KEY, state INTEGER)");
+            stmt.execute("INSERT INTO coresuite_boss_rewards VALUES ('retry', 2), ('delivered', 2), ('pending', 0)");
+            assertTrue(BossRewardMailbox.reconcile(conn, "retry", false));
+            assertTrue(BossRewardMailbox.reserve(conn, "retry"));
+            assertTrue(BossRewardMailbox.reconcile(conn, "delivered", true));
+            assertFalse(BossRewardMailbox.reconcile(conn, "delivered", false));
+            assertFalse(BossRewardMailbox.reserve(conn, "delivered"));
+            assertFalse(BossRewardMailbox.reconcile(conn, "pending", true));
+            assertFalse(BossRewardMailbox.reconcile(conn, "missing", false));
+        }
+    }
 }

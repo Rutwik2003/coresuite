@@ -1,5 +1,13 @@
 # CoreSuite changelog
 
+## ExcellentCrates boss reward and receipt recovery hotfix
+
+- Deliver standard ExcellentCrates `key give` boss rewards through its key API, accepting both legacy `crate` and current `crates` aliases without depending on command registration.
+- Validate key IDs before delivery. Fit the actual physical key into inventory before changing any slots; a full inventory leaves the reward pending for `/boss claim`, without dropping keys. Check virtual-key balance changes after delivery.
+- Preserve uncertain deliveries for review rather than replaying them. Include the configured command and failure reason in diagnostics and pending-receipt inspection.
+- Add `/bossadmin rewards retry <receipt>` and `/bossadmin rewards delivered <receipt>` for explicitly reviewed receipts. Only reserved receipts can change, and active claims block reconciliation.
+- Validate with 56 JUnit tests, 238 existing boss checks, and an isolated Paper 26.2 probe using ExcellentCrates 6.6.1 and NightCore 2.16.4. The physical-key probe uses real provider items with a simulated player inventory: full inventory, successful retry, and missing key ID.
+
 ## Spawn diagnostics and nearby placement hotfix
 
 - Report every module spawn rejection in chat and console, including the blocking material/coordinates, missing support, unloaded terrain, border, claim, disabled provider, denied WorldGuard flag, or initialization error.

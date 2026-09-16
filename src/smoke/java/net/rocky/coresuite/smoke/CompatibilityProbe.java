@@ -44,6 +44,7 @@ public final class CompatibilityProbe extends JavaPlugin {
                 throw new AssertionError("Legacy fish model mapping mismatch");
         }
         verifyBosses(core, world);
+        verifyCrateRewards(core);
         FishBagManager bags = new FishBagManager(core);
         var encode = FishBagManager.class.getDeclaredMethod("toBase64", ItemStack[].class);
         var decode = FishBagManager.class.getDeclaredMethod("fromBase64", String.class);
@@ -58,6 +59,55 @@ public final class CompatibilityProbe extends JavaPlugin {
             if (fishing.getLegendaryNPCManager().isAvailable()) throw new AssertionError("Citizens incorrectly detected");
             fishing.getLegendaryNPCManager().removeNPC(UUID.randomUUID());
         }
+    }
+    private void verifyCrateRewards(CoreSuitePlugin core) throws Exception {
+        var provider = Bukkit.getPluginManager().getPlugin("ExcellentCrates");
+        if (provider == null) return;
+        if (!provider.isEnabled()) throw new AssertionError("ExcellentCrates test dependency failed to enable");
+        Object manager = provider.getClass().getMethod("getKeyManager").invoke(provider);
+        String id = "coresuite_probe_physical";
+        Object key = manager.getClass().getMethod("getKeyById", String.class).invoke(manager, id);
+        if (key == null) {
+            manager.getClass().getMethod("createKey", String.class).invoke(manager, id);
+            key = manager.getClass().getMethod("getKeyById", String.class).invoke(manager, id);
+        }
+        key.getClass().getMethod("setVirtual", boolean.class).invoke(key, false);
+        ItemStack[][] contents = {new ItemStack[36]};
+        java.util.Arrays.setAll(contents[0], slot -> new ItemStack(Material.STONE, 64));
+        int[] saves = {0}, writes = {0};
+        var inventory = (org.bukkit.inventory.PlayerInventory) java.lang.reflect.Proxy.newProxyInstance(getClassLoader(),
+                new Class<?>[]{org.bukkit.inventory.PlayerInventory.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getStorageContents" -> contents[0];
+                    case "getMaxStackSize" -> 64;
+                    case "setStorageContents" -> { writes[0]++; contents[0] = (ItemStack[]) args[0]; yield null; }
+                    default -> null;
+                });
+        UUID uuid = UUID.randomUUID();
+        var player = (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(getClassLoader(),
+                new Class<?>[]{org.bukkit.entity.Player.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getName" -> "ProbeReward";
+                    case "getUniqueId" -> uuid;
+                    case "getInventory" -> inventory;
+                    case "saveData" -> { saves[0]++; yield null; }
+                    default -> method.getReturnType() == boolean.class ? false : null;
+                });
+        var mailbox = new net.rocky.coresuite.module.worldbosses.rewards.BossRewardMailbox(core);
+        var deliver = mailbox.getClass().getDeclaredMethod("deliver", org.bukkit.entity.Player.class,
+                net.rocky.coresuite.module.worldbosses.rewards.BossRewardMailbox.Reward.class);
+        deliver.setAccessible(true);
+        var reward = net.rocky.coresuite.module.worldbosses.rewards.BossRewardMailbox.Reward.command("crate key give %player% " + id + " 1");
+        if ((boolean) deliver.invoke(mailbox, player, reward) || writes[0] != 0 || saves[0] != 0)
+            throw new AssertionError("Full inventory did not defer the real ExcellentCrates key cleanly");
+        contents[0][35] = null;
+        if (!(boolean) deliver.invoke(mailbox, player, reward) || writes[0] != 1 || saves[0] != 1)
+            throw new AssertionError("Physical key failed to deliver after freeing space");
+        if (manager.getClass().getMethod("getKeyByItem", ItemStack.class).invoke(manager, contents[0][35]) != key)
+            throw new AssertionError("Delivered item is not a recognized ExcellentCrates key");
+        var missing = net.rocky.coresuite.module.worldbosses.rewards.BossRewardMailbox.Reward.command("crates key give %player% coresuite_probe_missing 1");
+        if ((boolean) deliver.invoke(mailbox, player, missing) || writes[0] != 1)
+            throw new AssertionError("Unknown key was not safely deferred");
+        getLogger().info("CORESUITE_CRATE_REWARD_PROBE_PASS: ExcellentCrates " + provider.getDescription().getVersion()
+                + "; full inventory deferred, retry delivered a recognized key, missing key deferred (simulated player inventory)");
     }
     private void verifyBosses(CoreSuitePlugin core, World world) throws Exception {
         var module = (net.rocky.coresuite.module.worldbosses.WorldBossesModule)core.getModuleManager().getModule("world-bosses");

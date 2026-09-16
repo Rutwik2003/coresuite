@@ -54,10 +54,11 @@ public final class BossRewardMailbox {
         plugin.getDatabaseManager().executeAsync(() -> {
             List<String> lines = new ArrayList<>();
             try (Connection conn = plugin.getDatabaseManager().getConnection();
-                 PreparedStatement stmt = conn.prepareStatement("SELECT reward_id, recipient, kind, state FROM coresuite_boss_rewards WHERE state <> 1 ORDER BY created_at LIMIT 25");
+                 PreparedStatement stmt = conn.prepareStatement("SELECT reward_id, recipient, kind, state, payload FROM coresuite_boss_rewards WHERE state <> 1 ORDER BY created_at LIMIT 25");
                  ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) lines.add("&e" + rs.getString(1) + " &7recipient=" + rs.getString(2)
-                        + " type=" + rs.getString(3) + (rs.getInt(4) == 2 ? " &cRESERVED / REVIEW" : " &aAWAITING CLAIM"));
+                        + " type=" + rs.getString(3) + (rs.getInt(4) == 2 ? " &cRESERVED / REVIEW" : " &aAWAITING CLAIM")
+                        + ("COMMAND".equals(rs.getString(3)) ? " &7command=" + rs.getString(5) : ""));
             } catch (SQLException error) { lines.add("&cCannot read reward receipts; check the server log."); plugin.getLogger().log(Level.WARNING, "Cannot inspect boss rewards", error); }
             if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
                 TextUtil.sendMessage(sender, "&6Pending boss rewards (up to 25). Verify delivery before reconciling reserved receipts.");
@@ -70,6 +71,39 @@ public final class BossRewardMailbox {
         try (PreparedStatement stmt = conn.prepareStatement("UPDATE coresuite_boss_rewards SET state = 2 WHERE reward_id = ? AND state = 0")) {
             stmt.setString(1, id); return stmt.executeUpdate() == 1;
         }
+    }
+    static boolean reconcile(Connection conn, String id, boolean delivered) throws SQLException {
+        try (PreparedStatement stmt = conn.prepareStatement("UPDATE coresuite_boss_rewards SET state = ? WHERE reward_id = ? AND state = 2")) {
+            stmt.setInt(1, delivered ? 1 : 0); stmt.setString(2, id);
+            return stmt.executeUpdate() == 1;
+        }
+    }
+    public void reconcile(org.bukkit.command.CommandSender sender, String id, boolean delivered) {
+        try { UUID.fromString(id); }
+        catch (IllegalArgumentException error) { TextUtil.sendMessage(sender, "&cInvalid reward receipt UUID."); return; }
+        String administrator = sender.getName();
+        plugin.getDatabaseManager().executeAsync(() -> {
+            String message;
+            UUID recipient = null;
+            boolean locked = false;
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement stmt = conn.prepareStatement("SELECT recipient FROM coresuite_boss_rewards WHERE reward_id = ? AND state = 2")) {
+                stmt.setString(1, id);
+                try (ResultSet rs = stmt.executeQuery()) { if (rs.next()) recipient = UUID.fromString(rs.getString(1)); }
+                if (recipient == null) message = "&eNo reserved receipt found; nothing changed.";
+                else if (!(locked = claiming.add(recipient))) message = "&eThis player's rewards are being processed. Try again shortly.";
+                else if (!reconcile(conn, id, delivered)) message = "&eReceipt state changed; nothing changed.";
+                else {
+                    message = delivered ? "&aReceipt marked delivered; it will not pay again." : "&aReceipt reopened. The player can use /boss claim after making inventory space.";
+                    plugin.getLogger().warning("[WorldBosses] Administrator " + administrator + " reconciled receipt=" + id + " recipient=" + recipient + " action=" + (delivered ? "delivered" : "retry"));
+                }
+            } catch (SQLException | IllegalArgumentException error) {
+                message = "&cCannot reconcile reward; check the server log.";
+                plugin.getLogger().log(Level.SEVERE, "Cannot reconcile boss reward " + id, error);
+            } finally { if (locked) claiming.remove(recipient); }
+            String result = message;
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> TextUtil.sendMessage(sender, result));
+        });
     }
     public void claim(Player player) {
         if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
@@ -101,7 +135,8 @@ public final class BossRewardMailbox {
                             boolean delivered = deliver(player, reward);
                             finish(reward, delivered);
                         } catch (Exception | LinkageError error) {
-                            plugin.getLogger().log(Level.SEVERE, "Uncertain boss reward; retained for review: " + reward.id() + " recipient=" + uuid, error);
+                            plugin.getLogger().log(Level.SEVERE, "Uncertain boss reward; retained for review: " + reward.id() + " recipient=" + uuid
+                                    + " kind=" + reward.kind() + ("COMMAND".equals(reward.kind()) ? " command=" + reward.payload() : ""), error);
                             TextUtil.sendMessage(player, "&cA boss reward needs administrator review. Receipt: " + reward.id());
                         }
                     }
@@ -112,7 +147,7 @@ public final class BossRewardMailbox {
     private void finish(Reward reward, boolean delivered) {
         plugin.getDatabaseManager().execute("UPDATE coresuite_boss_rewards SET state = ? WHERE reward_id = ? AND state = 2", delivered ? 1 : 0, reward.id());
     }
-    private boolean deliver(Player player, Reward reward) {
+    private boolean deliver(Player player, Reward reward) throws ReflectiveOperationException {
         switch (reward.kind()) {
             case "ITEMS" -> {
                 String[] data = JSON.fromJson(reward.payload(), String[].class);
@@ -138,15 +173,38 @@ public final class BossRewardMailbox {
                 return true;
             }
             case "COMMAND" -> {
-                String command = reward.payload().replace("%player%", player.getName()).replaceFirst("^/", "");
-                String root = command.split(" ")[0].toLowerCase(Locale.ROOT);
+                String command = reward.payload().replace("%player%", player.getName()).replace("{player}", player.getName()).strip().replaceFirst("^/", "");
+                ExcellentCratesRewardBridge.Delivery keyDelivery;
+                try {
+                    var grant = ExcellentCratesRewardBridge.parse(command, player.getName());
+                    var provider = Bukkit.getPluginManager().getPlugin("ExcellentCrates");
+                    if (grant != null && provider != null) {
+                        if (!provider.isEnabled()) return deferCommand(player, reward, "ExcellentCrates is disabled");
+                        keyDelivery = ExcellentCratesRewardBridge.prepare(provider, player, grant);
+                    } else keyDelivery = null;
+                } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
+                    return deferCommand(player, reward, "ExcellentCrates preflight failed: " + error);
+                }
+                if (keyDelivery != null) {
+                    // No catch/retry after a mutation: a delivery exception keeps the reserved receipt for review.
+                    if (!keyDelivery.deliver()) return deferCommand(player, reward, "Not enough inventory space for the crate key");
+                    TextUtil.sendMessage(player, "&aYour boss crate key reward has been delivered!");
+                    return true;
+                }
+                String root = command.split("\\s+")[0].toLowerCase(Locale.ROOT);
                 if ((root.equals("crate") || root.equals("crates") || root.equals("crazycrates"))
-                        && !Bukkit.getPluginManager().isPluginEnabled("ExcellentCrates") && !Bukkit.getPluginManager().isPluginEnabled("CrazyCrates") && !Bukkit.getPluginManager().isPluginEnabled("GoldenCrates")) return false;
-                if (!Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command)) throw new IllegalStateException("Reward command did not report success");
+                        && !Bukkit.getPluginManager().isPluginEnabled("ExcellentCrates") && !Bukkit.getPluginManager().isPluginEnabled("CrazyCrates") && !Bukkit.getPluginManager().isPluginEnabled("GoldenCrates")) return deferCommand(player, reward, "No enabled crate provider");
+                if (Bukkit.getCommandMap().getCommand(root) == null) return deferCommand(player, reward, "Command is not registered: " + root);
+                if (!Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command)) throw new IllegalStateException("Reward command returned false: " + command);
                 return true;
             }
             default -> throw new IllegalArgumentException("Unknown reward type");
         }
+    }
+    private boolean deferCommand(Player player, Reward reward, String reason) {
+        plugin.getLogger().warning("[WorldBosses] Reward kept pending: " + reward.id() + " recipient=" + player.getUniqueId() + " command=" + reward.payload() + " reason=" + reason);
+        TextUtil.sendMessage(player, "&eYour boss command reward is saved: " + reason + ". Use /boss claim after this is resolved.");
+        return false;
     }
     static ItemStack[] fit(ItemStack[] current, List<ItemStack> incoming, int inventoryLimit) {
         ItemStack[] plan = Arrays.stream(current).map(item -> item == null ? null : item.clone()).toArray(ItemStack[]::new);
