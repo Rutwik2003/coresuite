@@ -41,4 +41,28 @@ class BossSpawnSchedulerTest {
         assertFalse(BossSpawnScheduler.safeAt(world, 0, 65, 0));
         assertFalse(BossSpawnScheduler.safeAt(world, 0, 319, 0));
     }
+    @Test void passableGrassIsAllowedButHazardsAreRejectedWithReason() {
+        World world = ground(); Block grass = mock(Block.class);
+        Material grassType = material("SHORT_GRASS", false, false);
+        when(grass.getType()).thenReturn(grassType); when(grass.isPassable()).thenReturn(true);
+        when(world.getBlockAt(0, 65, 0)).thenReturn(grass);
+        assertTrue(BossSpawnScheduler.isSafeLocation(new Location(world, 0, 65, 0)));
+        Material fireType = material("FIRE", false, false); when(grass.getType()).thenReturn(fireType);
+        assertTrue(BossSpawnScheduler.locationProblem(new Location(world, 0, 65, 0)).contains("FIRE"));
+    }
+    @Test void nearbySearchFindsGroundAndNeverBypassesProtection() {
+        World world = ground(); Location origin = new Location(world, 0, 66, 0);
+        Location found = BossSpawnScheduler.findNearbyLocation(origin, location -> true);
+        assertNotNull(found); assertEquals(65, found.getBlockY());
+        assertNull(BossSpawnScheduler.findNearbyLocation(origin, location -> false));
+        when(world.isChunkLoaded(anyInt(), anyInt())).thenReturn(false);
+        assertNull(BossSpawnScheduler.findNearbyLocation(origin, location -> true));
+    }
+    @Test void failureReasonsCoverMissingWorldBorderAndSupport() {
+        assertEquals("Missing spawn world.", BossSpawnScheduler.locationProblem(null));
+        World world = ground();
+        assertTrue(BossSpawnScheduler.locationProblem(new Location(world, 0, 66, 0)).contains("ground"));
+        when(world.getWorldBorder().isInside(any())).thenReturn(false);
+        assertTrue(BossSpawnScheduler.locationProblem(new Location(world, 0, 65, 0)).contains("border"));
+    }
 }

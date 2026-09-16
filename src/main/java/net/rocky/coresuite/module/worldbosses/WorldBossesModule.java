@@ -253,13 +253,24 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         return activeBoss;
     }
 
+    private String lastSpawnFailure = "Unknown spawn failure.";
+    public String getLastSpawnFailure() { return lastSpawnFailure; }
+    private boolean rejectSpawn(BossType type, Location location, String reason) {
+        lastSpawnFailure = reason;
+        plugin.getLogger().warning("[WorldBosses] Spawn rejected for " + type + " at " + location + ": " + reason);
+        return false;
+    }
     public boolean spawnBoss(BossType type, Location loc) {
-        if (!Bukkit.isPrimaryThread() || !isEnabled() || type == null || isBossActive()) return false;
-        if (!BossSpawnScheduler.isSafeLocation(loc) || !net.rocky.coresuite.common.integration.BossProtectionGate.allows(loc)) return false;
+        if (!Bukkit.isPrimaryThread()) return rejectSpawn(type, loc, "Spawn must run on the server thread.");
+        if (!isEnabled()) return rejectSpawn(type, loc, "WorldBosses module is disabled.");
+        if (type == null) return rejectSpawn(type, loc, "Unknown boss type.");
+        if (isBossActive()) return rejectSpawn(type, loc, "Another boss is already active.");
+        String problem = BossSpawnScheduler.locationProblem(loc);
+        if (problem == null) problem = net.rocky.coresuite.common.integration.BossProtectionGate.denialReason(loc);
+        if (problem != null) return rejectSpawn(type, loc, problem);
         loc = new Location(loc.getWorld(), loc.getBlockX() + .5, loc.getBlockY(), loc.getBlockZ() + .5);
         if (loc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
-            plugin.getLogger().warning("[WorldBosses] Cannot spawn " + type.name() + ": world '" + loc.getWorld().getName() + "' is set to Peaceful difficulty.");
-            return false;
+            return rejectSpawn(type, loc, "World '" + loc.getWorld().getName() + "' is set to Peaceful difficulty.");
         }
 
         try {
@@ -273,11 +284,11 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             if (success) {
                 boss.setPartyManager(this.partyManager);
                 this.activeBoss = boss;
-            }
+            } else return rejectSpawn(type, loc, "Entity creation/initialization failed; a spawn event may have been cancelled. See the preceding exception if present.");
             return success;
         } catch (Throwable t) {
             plugin.getLogger().log(java.util.logging.Level.SEVERE, "[WorldBosses] Exception in spawnBoss", t);
-            return false;
+            return rejectSpawn(type, loc, "Initialization error: " + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
     }
 
@@ -780,7 +791,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 1.5f, 0.8f);
             TextUtil.sendMessage(player, "&aYou have successfully summoned &e" + totemBoss.getDefaultDisplayName() + "&a!");
         } else {
-            TextUtil.sendMessage(player, "&cNo safe summon spot. Use solid ground with 5×5 clear space and 5 blocks of headroom. Your totem was kept.");
+            TextUtil.sendMessage(player, "&cCannot summon: &f" + getLastSpawnFailure() + " &eYour totem was kept.");
         }
     }
 
@@ -1191,7 +1202,8 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                             return true;
                         }
                     } else if (sender instanceof Player p) {
-                        spawnLoc = p.getLocation();
+                        Location nearby = BossSpawnScheduler.findNearbyLocation(p.getLocation(), net.rocky.coresuite.common.integration.BossProtectionGate::allows);
+                        spawnLoc = nearby == null ? p.getLocation() : nearby;
                     } else {
                         TextUtil.sendMessage(sender, "&cConsole must specify [x y z world].");
                         return true;
@@ -1207,7 +1219,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                         if (spawned) {
                             TextUtil.sendMessage(sender, "&aSuccessfully spawned &e" + type.getDefaultDisplayName() + "&a!");
                         } else {
-                            TextUtil.sendMessage(sender, "&cFailed to spawn boss. Check console for details.");
+                            TextUtil.sendMessage(sender, "&cCannot spawn: &f" + getLastSpawnFailure());
                         }
                     } catch (Throwable t) {
                         plugin.getLogger().log(java.util.logging.Level.SEVERE, "[WorldBosses] Error in /bossadmin spawn", t);

@@ -1,5 +1,12 @@
 # CoreSuite changelog
 
+## Spawn diagnostics and nearby placement hotfix
+
+- Report every module spawn rejection in chat and console, including the blocking material/coordinates, missing support, unloaded terrain, border, claim, disabled provider, denied WorldGuard flag, or initialization error.
+- Replace the overly strict 5x5x5 air-only test with a 3x3 footprint and four blocks of headroom; permit harmless passable plants while rejecting liquids and hazardous blocks.
+- Search loaded terrain within six horizontal blocks and three vertical blocks for player-issued admin summons; preserve explicit-coordinate requests and protection checks.
+- Add terrain, nearby-search and diagnostic regressions. Extend the isolated server probe to exercise the production module entry point for all three bosses, including grass and an intentional obstruction.
+
 ## WorldGuard spawn hotfix
 
 - Supply an explicit non-member actor when querying WorldGuard BUILD/MOB_SPAWNING/MOB_DAMAGE. The previous null actor violates BUILD’s query contract and can block all boss spawns with InvocationTargetException.

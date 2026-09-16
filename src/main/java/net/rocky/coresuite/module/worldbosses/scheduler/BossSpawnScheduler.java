@@ -157,21 +157,46 @@ public class BossSpawnScheduler {
             sample(world, radius, minimum, biomes, cave, attempt + 1, fallback, result);
         }, result));
     }
-    public static boolean isSafeLocation(Location location) {
-        return location != null && location.getWorld() != null
-                && Double.isFinite(location.getX()) && Double.isFinite(location.getY()) && Double.isFinite(location.getZ())
-                && safeAt(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+    public static boolean isSafeLocation(Location location) { return locationProblem(location) == null; }
+    public static String locationProblem(Location location) {
+        if (location == null || location.getWorld() == null) return "Missing spawn world.";
+        if (!Double.isFinite(location.getX()) || !Double.isFinite(location.getY()) || !Double.isFinite(location.getZ())) return "Coordinates must be finite numbers.";
+        return terrainProblem(location.getWorld(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
     }
-    static boolean safeAt(World world, int x, int y, int z) {
-        if (y <= world.getMinHeight() || y + 5 >= world.getMaxHeight()) return false;
-        for (int dx = -2; dx <= 2; dx++) for (int dz = -2; dz <= 2; dz++) {
-            if (!world.isChunkLoaded((x + dx) >> 4, (z + dz) >> 4)) return false;
-            if (!world.getWorldBorder().isInside(new Location(world, x + dx + .5, y, z + dz + .5))) return false;
-            for (int dy = 0; dy < 5; dy++) if (!world.getBlockAt(x + dx, y + dy, z + dz).getType().isAir()) return false;
+    static boolean safeAt(World world, int x, int y, int z) { return terrainProblem(world, x, y, z) == null; }
+    private static String terrainProblem(World world, int x, int y, int z) {
+        if (y <= world.getMinHeight() || y + 3 >= world.getMaxHeight()) return "Outside the world height limit.";
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            if (!world.isChunkLoaded((x + dx) >> 4, (z + dz) >> 4)) return "Nearby terrain is not loaded.";
+            if (!world.getWorldBorder().isInside(new Location(world, x + dx + .5, y, z + dz + .5))) return "Too close to or outside the world border.";
+            for (int dy = 0; dy < 4; dy++) {
+                Block block = world.getBlockAt(x + dx, y + dy, z + dz);
+                String material = block.getType().name();
+                if (block.isLiquid() || material.contains("FIRE") || material.contains("BERRY_BUSH") || material.equals("WITHER_ROSE") || material.equals("POWDER_SNOW")
+                        || (!block.getType().isAir() && !block.isPassable()))
+                    return "Obstructed by " + material + " at " + (x + dx) + ", " + (y + dy) + ", " + (z + dz) + ". Need 3x3 space and 4 blocks of headroom.";
+            }
         }
         Block ground = world.getBlockAt(x, y - 1, z);
         String material = ground.getType().name();
-        return ground.getType().isSolid() && !ground.isLiquid() && !material.contains("LEAVES") && !material.contains("CACTUS") && !material.contains("MAGMA") && !material.contains("CAMPFIRE") && !material.contains("POWDER_SNOW");
+        if (!ground.getType().isSolid() || ground.isLiquid() || material.contains("LEAVES") || material.contains("CACTUS") || material.contains("MAGMA") || material.contains("CAMPFIRE") || material.contains("POWDER_SNOW"))
+            return "No safe solid ground beneath spawn (" + material + ").";
+        return null;
+    }
+    /** Bounded local search for player-issued summons; never loads new chunks. */
+    public static Location findNearbyLocation(Location origin, java.util.function.Predicate<Location> allowed) {
+        if (origin == null || origin.getWorld() == null || !Double.isFinite(origin.getX()) || !Double.isFinite(origin.getY()) || !Double.isFinite(origin.getZ())) return null;
+        int protectionChecks = 0;
+        for (int radius = 0; radius <= 6; radius++) for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
+            if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) continue;
+            for (int dy : new int[]{0, 1, -1, 2, -2, 3, -3}) {
+                Location candidate = new Location(origin.getWorld(), origin.getBlockX() + dx + .5, origin.getBlockY() + dy, origin.getBlockZ() + dz + .5);
+                if (!isSafeLocation(candidate)) continue;
+                if (++protectionChecks > 32) return null;
+                if (allowed.test(candidate)) return candidate;
+            }
+        }
+        return null;
     }
     private void next(Runnable action, CompletableFuture<Location> result) {
         if (stopped || result.isDone() || !plugin.isEnabled()) { result.complete(null); return; }

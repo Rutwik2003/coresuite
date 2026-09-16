@@ -29,7 +29,7 @@ All healing shares a lifetime budget of 15% of maximum health, normalized across
 
 Scheduled encounters can spawn with one online player. Failed attempts retry after five minutes. Bosses allow ten minutes for players to arrive, and three empty minutes after engagement before abandoning the encounter.
 
-Searches load chunks asynchronously, use the block above the surface as the feet position, check the world border and ground, and require a clear 5×5 area with five blocks of headroom. No unchecked fallback location is used. Cave searches stay underground. Reload/disable cancels pending searches; a pending attempt cannot create a second active encounter. Biome fallback, attempts, timeout, distances and allowed worlds remain configurable.
+Searches load chunks asynchronously, use the block above the surface as the feet position, check the world border and ground, and require a clear 3×3 area with four blocks of headroom (harmless passable plants are allowed). No unchecked fallback location is used. Cave searches stay underground. Reload/disable cancels pending searches; a pending attempt cannot create a second active encounter. Biome fallback, attempts, timeout, distances and allowed worlds remain configurable.
 
 Totems and administrator spawns use the same location check. Right-click a suitable ground block to summon. An unsafe spot retains the totem. Boss spawn chunks are held while the encounter is active, and cleanup only removes plugin-tagged bosses rather than ordinary named mobs.
 
@@ -37,4 +37,6 @@ On first upgrade, the exact former stock values (scheduled minimum 3, evasion 0.
 
 ## Validation
 
-Forty-three JUnit regressions and 238 existing checks pass. New tests cover scaling/progress, healing limits, invalid damage, participation, inventory capacity without partial mutation, durable reward reservation, and spawn clearance/borders/chunks. The isolated Paper probe exercises real boss entities on 1.21 and 26.2: spawning, bounded healing, defeat, capped overkill credit, and one reward callback per boss. It uses a simulated participant, not an authenticated gameplay client. Multiplayer difficulty and third-party protection/economy workflows still need staging playtests.
+Forty-nine JUnit regressions and 238 existing checks pass. New tests cover scaling/progress, healing limits, invalid damage, participation, inventory capacity without partial mutation, durable reward reservation, and spawn clearance/borders/chunks. The isolated Paper probe exercises real boss entities on 1.21 and 26.2: spawning, bounded healing, defeat, capped overkill credit, and one reward callback per boss. It uses a simulated participant, not an authenticated gameplay client. Multiplayer difficulty and third-party protection/economy workflows still need staging playtests.
+
+Player-issued `/bossadmin spawn <boss>` now searches a bounded nearby loaded area when the exact position is unsuitable. Explicit coordinates are kept exact. Rejections show the actual reason in chat and console; protection denials are not silently treated as terrain failure.

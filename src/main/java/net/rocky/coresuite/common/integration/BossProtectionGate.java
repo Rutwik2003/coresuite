@@ -11,19 +11,20 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class BossProtectionGate {
     private static final Set<String> warned = ConcurrentHashMap.newKeySet();
     private BossProtectionGate() {}
-    public static boolean allows(Location location) {
-        if (location == null || location.getWorld() == null) return false;
+    public static boolean allows(Location location) { return denialReason(location) == null; }
+    public static String denialReason(Location location) {
+        if (location == null || location.getWorld() == null) return "Missing protection-query world.";
         for (String name : new String[]{"GriefPrevention", "WorldGuard"}) {
             Plugin provider = Bukkit.getPluginManager().getPlugin(name);
             if (provider == null) continue;
-            if (!provider.isEnabled()) return false;
+            if (!provider.isEnabled()) return name + " is installed but disabled.";
             try {
                 ClassLoader loader = provider.getClass().getClassLoader();
                 if (name.equals("GriefPrevention")) {
                     Object store = provider.getClass().getField("dataStore").get(provider);
                     Class<?> claim = Class.forName("me.ryanhamshire.GriefPrevention.Claim", true, loader);
                     if (store.getClass().getMethod("getClaimAt", Location.class, boolean.class, claim)
-                            .invoke(store, location, true, null) != null) return false;
+                            .invoke(store, location, true, null) != null) return "GriefPrevention: this location is inside a claim.";
                 } else {
                     Class<?> worldGuard = Class.forName("com.sk89q.worldguard.WorldGuard", true, loader);
                     Object instance = worldGuard.getMethod("getInstance").invoke(null);
@@ -40,16 +41,24 @@ public final class BossProtectionGate {
                     Array.set(checks, 2, flags.getField("MOB_DAMAGE").get(null));
                     Class<?> locClass = Class.forName("com.sk89q.worldedit.util.Location", true, loader);
                     Class<?> subject = Class.forName("com.sk89q.worldguard.protection.association.RegionAssociable", true, loader);
-                    if (!testWorldGuardState(query, adapted, locClass, subject, checks)) return false;
+                    if (!testWorldGuardState(query, adapted, locClass, subject, checks)) {
+                        for (String flag : new String[]{"BUILD", "MOB_SPAWNING", "MOB_DAMAGE"}) {
+                            Object single = Array.newInstance(stateFlag, 1);
+                            Array.set(single, 0, flags.getField(flag).get(null));
+                            if (!testWorldGuardState(query, adapted, locClass, subject, single))
+                                return "WorldGuard blocks " + flag.toLowerCase(java.util.Locale.ROOT).replace('_', '-') + " for a non-member boss here.";
+                        }
+                        return "WorldGuard denies boss actions at this location.";
+                    }
                 }
             } catch (ReflectiveOperationException | LinkageError error) {
                 Throwable cause = invocationCause(error);
                 if (warned.add(name)) java.util.logging.Logger.getLogger("CoreSuite").log(java.util.logging.Level.WARNING,
                         "Cannot verify boss protection through " + name + "; boss spawning/block changes are paused: " + cause, cause);
-                return false;
+                return name + " query failed: " + cause.getClass().getSimpleName() + ": " + cause.getMessage();
             }
         }
-        return true;
+        return null;
     }
     /** BUILD requires an actor even for non-player actions; bosses never inherit player bypass or membership. */
     static boolean testWorldGuardState(Object query, Object location, Class<?> locationType,

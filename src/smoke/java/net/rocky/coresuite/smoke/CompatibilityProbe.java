@@ -61,6 +61,22 @@ public final class CompatibilityProbe extends JavaPlugin {
     }
     private void verifyBosses(CoreSuitePlugin core, World world) throws Exception {
         var module = (net.rocky.coresuite.module.worldbosses.WorldBossesModule)core.getModuleManager().getModule("world-bosses");
+        // Exercise the production module entry point, including clearance and protection checks.
+        Location platform = world.getSpawnLocation().add(12, 12, 0);
+        int px = platform.getBlockX(), py = platform.getBlockY(), pz = platform.getBlockZ();
+        for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+            world.getBlockAt(px + dx, py - 1, pz + dz).setType(Material.STONE);
+            for (int dy = 0; dy < 4; dy++) world.getBlockAt(px + dx, py + dy, pz + dz).setType(Material.AIR);
+        }
+        world.getBlockAt(px, py, pz).setType(Material.SHORT_GRASS);
+        for (var type : net.rocky.coresuite.module.worldbosses.boss.BossType.values()) {
+            if (!module.spawnBoss(type, platform)) throw new AssertionError("Module spawn failed: " + module.getLastSpawnFailure());
+            module.despawnActiveBoss();
+        }
+        world.getBlockAt(px, py + 1, pz).setType(Material.STONE);
+        if (module.spawnBoss(net.rocky.coresuite.module.worldbosses.boss.BossType.VALERIUS, platform)) throw new AssertionError("Obstructed spawn allowed");
+        if (!module.getLastSpawnFailure().contains("STONE")) throw new AssertionError("Missing obstruction diagnostic");
+        getLogger().info("CORESUITE_MODULE_SPAWN_PROBE_PASS: all three bosses through production spawn checks; obstruction rejected with reason");
         var config = new org.bukkit.configuration.file.YamlConfiguration();
         config.loadFromString(module.getConfig().saveToString());
         config.set("domain.awakening-seconds", 0);
