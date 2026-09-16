@@ -1,5 +1,12 @@
 # CoreSuite changelog
 
+## WorldGuard spawn hotfix
+
+- Supply an explicit non-member actor when querying WorldGuard BUILD/MOB_SPAWNING/MOB_DAMAGE. The previous null actor violates BUILD’s query contract and can block all boss spawns with InvocationTargetException.
+- Preserve region denials and the lack of player/admin bypass for boss actions.
+- Log the underlying provider exception and stack trace.
+- Add regression coverage for wilderness allowance, protected-location denial and exception unwrapping.
+
 ## 2026-09-16 — Compatibility, persistence and world boss overhaul
 
 This update builds on commit `58e15ce`. It targets Paper 1.21 onward with Java 21 plugin bytecode. It does not claim that every gameplay path, third-party combination, MySQL schema or translated client is fully verified.

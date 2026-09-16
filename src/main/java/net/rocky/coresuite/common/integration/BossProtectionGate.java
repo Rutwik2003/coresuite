@@ -40,15 +40,38 @@ public final class BossProtectionGate {
                     Array.set(checks, 2, flags.getField("MOB_DAMAGE").get(null));
                     Class<?> locClass = Class.forName("com.sk89q.worldedit.util.Location", true, loader);
                     Class<?> subject = Class.forName("com.sk89q.worldguard.protection.association.RegionAssociable", true, loader);
-                    if (!Boolean.TRUE.equals(query.getClass().getMethod("testState", locClass, subject, checks.getClass())
-                            .invoke(query, adapted, null, checks))) return false;
+                    if (!testWorldGuardState(query, adapted, locClass, subject, checks)) return false;
                 }
             } catch (ReflectiveOperationException | LinkageError error) {
-                if (warned.add(name)) java.util.logging.Logger.getLogger("CoreSuite").warning(
-                        "Cannot verify boss protection through " + name + "; boss spawning/block changes are paused: " + error);
+                Throwable cause = invocationCause(error);
+                if (warned.add(name)) java.util.logging.Logger.getLogger("CoreSuite").log(java.util.logging.Level.WARNING,
+                        "Cannot verify boss protection through " + name + "; boss spawning/block changes are paused: " + cause, cause);
                 return false;
             }
         }
         return true;
     }
+    /** BUILD requires an actor even for non-player actions; bosses never inherit player bypass or membership. */
+    static boolean testWorldGuardState(Object query, Object location, Class<?> locationType,
+                                      Class<?> subjectType, Object flags) throws ReflectiveOperationException {
+        Class<?> associationType = subjectType.getMethod("getAssociation", java.util.List.class).getReturnType();
+        Object nonMember = associationType.getField("NON_MEMBER").get(null);
+        Object actor = java.lang.reflect.Proxy.newProxyInstance(subjectType.getClassLoader(), new Class<?>[]{subjectType},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getAssociation" -> nonMember;
+                    case "toString" -> "CoreSuite boss (non-member)";
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.toString());
+                });
+        return Boolean.TRUE.equals(query.getClass().getMethod("testState", locationType, subjectType, flags.getClass())
+                .invoke(query, location, actor, flags));
+    }
+
+    static Throwable invocationCause(Throwable error) {
+        while (error instanceof java.lang.reflect.InvocationTargetException && error.getCause() != null)
+            error = error.getCause();
+        return error;
+    }
+
 }
