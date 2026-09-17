@@ -185,7 +185,10 @@ public class XolthosBoss extends WorldBoss {
         if (bossLoc == null || bossLoc.getWorld() == null || bossLoc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
             return;
         }
-        int count = config.getInt("xolthos.combat.broodlings.spawn-count", 3);
+        int maxActive = Math.max(1, config.getInt("xolthos.combat.broodlings.max-active", 6));
+        int requested = Math.max(1, config.getInt("xolthos.combat.broodlings.spawn-count", 3));
+        int count = Math.min(maxActive - liveMinionCount(), requested + Math.max(0, (getScaledPlayers() - 1) / 4));
+        if (count <= 0) return;
         double maxHp = config.getDouble("xolthos.combat.broodlings.max-health", 25.0);
         double speed = config.getDouble("xolthos.combat.broodlings.movement-speed", 0.34);
         double scale = config.getDouble("xolthos.combat.broodlings.scale", 0.75);

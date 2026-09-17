@@ -78,6 +78,11 @@ balance:
   activity-window-seconds: 60
   # Total healing across the entire encounter, including all phases.
   maximum-healing-fraction: 0.15
+  # Boss outgoing damage is intentionally threatening: survival requires armour, food,
+  # potions and reacting to telegraphs. It scales gently for larger active raid groups.
+  solo-damage-multiplier: 0.80
+  damage-per-extra-player: 0.04
+  maximum-damage-multiplier: 1.15
 
 # A player qualifies through damage or three useful combat actions: tanking boss/minion hits,
 # performing a counter (Water/Night Vision), or helping remove minions. These defaults also apply
@@ -376,6 +381,7 @@ aethelgard:
       movement-speed: 0.32
       spawn-interval-seconds: 25
       spawn-count: 2
+      max-active: 5
     strangling-brambles:
       cooldown-seconds: 14
       damage: 14.0
@@ -511,6 +517,7 @@ xolthos:
       movement-speed: 0.34
       spawn-interval-seconds: 18
       spawn-count: 3
+      max-active: 6
 
     weakness:
       base-evasion-percent: 0.0       # Legacy setting retained; evasion is now only during visible Shadow Phase.

@@ -1227,7 +1227,13 @@ public abstract class WorldBoss {
     }
     public double getOutgoingDamageMultiplier() {
         if (!config.getBoolean("balance.adaptive-scaling", true)) return 1;
-        return Math.min(1.0, .65 + .05 * (scaledPlayers - 1));
+        double solo = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("balance.solo-damage-multiplier", .80), .80, .25, 2.0);
+        double perPlayer = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("balance.damage-per-extra-player", .04), .04, 0, .25);
+        double cap = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("balance.maximum-damage-multiplier", 1.15), 1.15, solo, 3.0);
+        return Math.min(cap, solo + perPlayer * Math.max(0, scaledPlayers - 1));
     }
     private void releaseChunks() {
         for (org.bukkit.Chunk chunk : heldChunks) chunk.removePluginChunkTicket(plugin);
@@ -1244,6 +1250,11 @@ public abstract class WorldBoss {
         }
     }
     public double getMaxHealth() { return maxHealth; }
+    public int getScaledPlayers() { return scaledPlayers; }
+    protected int liveMinionCount() {
+        minions.removeIf(minion -> minion == null || minion.isDead() || !minion.isValid());
+        return minions.size();
+    }
     public boolean isActive() { return active; }
     public boolean isAwakened() { return isAwakened; }
     public int getAwakeningRemainingSeconds() { return awakeningRemainingSeconds; }

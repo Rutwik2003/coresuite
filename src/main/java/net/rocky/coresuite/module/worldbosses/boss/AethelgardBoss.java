@@ -284,7 +284,11 @@ public class AethelgardBoss extends WorldBoss {
         if (bossLoc == null || bossLoc.getWorld() == null || bossLoc.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) {
             return;
         }
-        int count = config.getInt("aethelgard.combat.rootling-ghouls.spawn-count", 2);
+        int maxActive = Math.max(1, config.getInt("aethelgard.combat.rootling-ghouls.max-active", 5));
+        int requested = Math.max(1, config.getInt("aethelgard.combat.rootling-ghouls.spawn-count", 2));
+        // Larger raids earn pressure through a few extra minions, never an unbounded pile.
+        int count = Math.min(maxActive - liveMinionCount(), requested + Math.max(0, (getScaledPlayers() - 1) / 3));
+        if (count <= 0) return;
         double maxHp = config.getDouble("aethelgard.combat.rootling-ghouls.max-health", 35.0);
         double speed = config.getDouble("aethelgard.combat.rootling-ghouls.movement-speed", 0.32);
 
