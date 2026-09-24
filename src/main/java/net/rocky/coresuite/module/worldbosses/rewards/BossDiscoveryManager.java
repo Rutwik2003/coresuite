@@ -28,8 +28,8 @@ public class BossDiscoveryManager {
     public void initTable() {
         plugin.getDatabaseManager().execute(
             "CREATE TABLE IF NOT EXISTS coresuite_boss_discoveries (" +
-            "uuid TEXT NOT NULL, " +
-            "boss_type TEXT NOT NULL, " +
+            "uuid VARCHAR(36) NOT NULL, " +
+            "boss_type VARCHAR(32) NOT NULL, " +
             "unlocked_at BIGINT NOT NULL, " +
             "kill_count INTEGER DEFAULT 1, " +
             "PRIMARY KEY (uuid, boss_type)" +
@@ -38,7 +38,7 @@ public class BossDiscoveryManager {
 
         // Seed / backfill historical MVP kills if available
         plugin.getDatabaseManager().execute(
-            "INSERT OR IGNORE INTO coresuite_boss_discoveries (uuid, boss_type, unlocked_at, kill_count) " +
+            (plugin.getDatabaseManager().isMySQL() ? "INSERT IGNORE" : "INSERT OR IGNORE") + " INTO coresuite_boss_discoveries (uuid, boss_type, unlocked_at, kill_count) " +
             "SELECT mvp_uuid, boss_type, kill_time, 1 FROM coresuite_boss_kills WHERE mvp_uuid IS NOT NULL;"
         );
     }
@@ -109,7 +109,8 @@ public class BossDiscoveryManager {
         plugin.getDatabaseManager().executeAsync(() -> {
             plugin.getDatabaseManager().execute(
                 "INSERT INTO coresuite_boss_discoveries (uuid, boss_type, unlocked_at, kill_count) VALUES (?, ?, ?, 1) " +
-                "ON CONFLICT(uuid, boss_type) DO UPDATE SET kill_count = kill_count + 1",
+                (plugin.getDatabaseManager().isMySQL() ? "ON DUPLICATE KEY UPDATE kill_count = kill_count + 1"
+                        : "ON CONFLICT(uuid, boss_type) DO UPDATE SET kill_count = kill_count + 1"),
                 uuid.toString(), type.name(), now
             );
         });

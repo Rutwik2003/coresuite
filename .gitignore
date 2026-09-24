@@ -37,3 +37,8 @@ TEST_READY.md
 !scripts/smoke_paper.py
 
 !scripts/build_legacy_fish_pack.py
+
+!pack-publisher/scripts/*.py
+
+# Separate GitHub resource-pack repository
+/meermc-resourcepack/

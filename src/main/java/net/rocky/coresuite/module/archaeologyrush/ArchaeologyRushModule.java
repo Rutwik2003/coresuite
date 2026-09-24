@@ -140,8 +140,7 @@ public class ArchaeologyRushModule extends Module implements CommandExecutor, Li
 
         if (args.length >= 1 && args[0].equalsIgnoreCase("admin") && player.hasPermission("coresuite.admin")) {
             if (args.length >= 2 && args[1].equalsIgnoreCase("reload")) {
-                loadConfig();
-                registry.load();
+                onReload();
                 TextUtil.sendMessage(player, "&aArchaeology Rush config reloaded.");
                 return true;
             }

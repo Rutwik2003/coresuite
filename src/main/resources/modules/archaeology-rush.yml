@@ -1,5 +1,6 @@
 enabled: true
 npc-id: -1
+# One roll per fully completed excavation, never per brush interaction.
 fragment-drop-chance: 0.20
 duplicate-protection: true
 

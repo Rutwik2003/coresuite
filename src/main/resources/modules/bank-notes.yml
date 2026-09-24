@@ -7,7 +7,9 @@ currency: "Coins"
 min-withdraw: 1
 max-withdraw: 1000000000000
 max-log-entries: 10000
-gui-title: '&6&lBank Menu'
+gui-title: '&6&lBank &7» &eWithdraw & Manage'
+min-withdraw-xp: 1
+max-withdraw-xp: 2000000000
 
 messages:
   withdraw-success: "&aWithdrew &f{amount} {currency}&a as a bank note!"
@@ -39,3 +41,19 @@ gui:
     - amount: "10000000"
       material: "GOLD_BLOCK"
       display-name: "&6&lWithdraw 10M"
+  xp-denominations:
+    - amount: "100"
+      material: "EXPERIENCE_BOTTLE"
+      display-name: "&a&lWithdraw 100 XP"
+    - amount: "500"
+      material: "EXPERIENCE_BOTTLE"
+      display-name: "&a&lWithdraw 500 XP"
+    - amount: "1000"
+      material: "EXPERIENCE_BOTTLE"
+      display-name: "&a&lWithdraw 1,000 XP"
+    - amount: "5000"
+      material: "EXPERIENCE_BOTTLE"
+      display-name: "&a&lWithdraw 5,000 XP"
+    - amount: "10000"
+      material: "EXPERIENCE_BOTTLE"
+      display-name: "&a&lWithdraw 10,000 XP"

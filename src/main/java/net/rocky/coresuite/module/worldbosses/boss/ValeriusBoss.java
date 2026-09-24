@@ -64,6 +64,7 @@ public class ValeriusBoss extends WorldBoss {
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.SCALE, config.getDouble("valerius.scale", 1.35));
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, config.getDouble("valerius.movement-speed", 0.28));
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, this.maxHealth);
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.ATTACK_DAMAGE, config.getDouble("valerius.melee-damage", 14));
     }
 
     @Override
@@ -71,6 +72,7 @@ public class ValeriusBoss extends WorldBoss {
         if (entity == null || !entity.isValid()) return;
 
         Location bossLoc = entity.getLocation();
+        entity.setAI(!isExposed());
         if (isExposed()) {
             bossLoc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bossLoc.clone().add(0, 1.2, 0), 18, .45, .7, .45, .03);
             for (Player player : barManager.getViewers()) sendCombatAlert(player, StatusBadge.QUENCHED,
@@ -83,19 +85,31 @@ public class ValeriusBoss extends WorldBoss {
             bossLoc.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, bossLoc.clone().add(0, 1.5, 0), 6, 0.3, 0.4, 0.3, 0.02);
         }
 
-        // Passive: Searing Siphon (triggers every 6 seconds, leaches health from withered hunters; quenched status suppresses it)
+        // Passive: Searing Siphon (triggers every 6 seconds, leaches health from hunters; quenched status suppresses it)
         int siphonInterval = Math.max(1, config.getInt("valerius.combat.searing-siphon.interval-seconds", 6));
         if (tickCount % siphonInterval == 0) {
             executeSearingSiphon(bossLoc);
         }
 
+        // Magma / Lava / Fire Attunement Regeneration (absorbs ambient heat every 2s unless quenched)
+        if (tickCount % 2 == 0 && !isQuenched()) {
+            Material underMat = bossLoc.getBlock().getType();
+            Material inMat = bossLoc.getBlock().getRelative(0, -1, 0).getType();
+            boolean inHeat = entity.getFireTicks() > 0 || underMat == Material.LAVA || inMat == Material.LAVA || inMat == Material.MAGMA_BLOCK;
+            if (inHeat) {
+                double heatHeal = config.getDouble("valerius.combat.heat-regen-hp", 15.0);
+                heal(heatHeal);
+                bossLoc.getWorld().spawnParticle(Particle.LAVA, bossLoc.clone().add(0, 1.0, 0), 3, 0.3, 0.3, 0.3, 0);
+            }
+        }
+
         // Melee: Ashen Slam (every 8 seconds when enemies within 5m)
-        if (tickCount % 8 == 0) {
+        if (abilityReady(tickCount, "ashen-slam", 8)) {
             executeAshenSlam(bossLoc);
         }
 
         // Ranged: Caldera Mortar (every 6 seconds when enemies > 7m)
-        if (tickCount % 6 == 0) {
+        if (abilityReady(tickCount, "caldera-mortar", 6)) {
             executeCalderaMortar(bossLoc);
         }
 
@@ -105,17 +119,17 @@ public class ValeriusBoss extends WorldBoss {
 
             // Phase 2 & 3: Volcanic Geysers (every 10s) and Magma Rush (every 12s)
             if (phaseNum >= 2) {
-                if (tickCount % 10 == 0) {
+                if (abilityReady(tickCount, "volcanic-geyser", 10)) {
                     executeVolcanicGeyser(bossLoc);
                 }
-                if (tickCount % 12 == 0) {
+                if (abilityReady(tickCount, "magma-rush", 12)) {
                     executeMagmaRush(bossLoc);
                 }
             }
 
             // Phase 3 Ultimate: Cataclysmic Supernova (every 24s)
             if (phaseNum == 3) {
-                if (tickCount % 24 == 0) {
+                if (abilityReady(tickCount, "cataclysmic-supernova", 24)) {
                     executeCataclysmicSupernova(bossLoc);
                 }
             }
@@ -123,9 +137,9 @@ public class ValeriusBoss extends WorldBoss {
             switch (phaseNum) {
                 case 1 -> { // The Forge
                     for (Player p : barManager.getViewers()) {
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, 60, 1, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.HUNGER, 60, 1, false, false, true));
                         if (tickCount % 20 == 0) { // Every 20s
-                            p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
+                            applyBossEffect(p, new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
                         }
                         handleAntiCheese(p);
                     }
@@ -142,23 +156,13 @@ public class ValeriusBoss extends WorldBoss {
                             }
                         }
 
-                        // Vaporize water in 6-block radius around boss
-                        for (int x = -5; x <= 5; x++) {
-                            for (int y = -2; y <= 3; y++) {
-                                for (int z = -5; z <= 5; z++) {
-                                    Block b = bossLoc.clone().add(x, y, z).getBlock();
-                                    if (b.getType() == Material.WATER) {
-                                        b.setType(Material.AIR);
-                                        b.getWorld().spawnParticle(Particle.CLOUD, b.getLocation().add(0.5, 0.5, 0.5), 4, 0.2, 0.2, 0.2, 0.05);
-                                    }
-                                }
-                            }
-                        }
+                        // Water remains available as a counter mechanic.
+
                     }
                 }
                 case 3 -> { // Ash Void
                     for (Player p : barManager.getViewers()) {
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 60, 0, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.DARKNESS, 60, 0, false, false, true));
                         handleAntiCheese(p);
                     }
                 }
@@ -185,7 +189,7 @@ public class ValeriusBoss extends WorldBoss {
 
             sendCombatAlert(p, StatusBadge.CALDERA_MORTAR, "&cMolten heat gathers beneath your feet! EVADE!", 2);
 
-            Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+            runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
                 int elapsed = 0;
                 @Override
                 public void accept(BukkitTask task) {
@@ -216,7 +220,7 @@ public class ValeriusBoss extends WorldBoss {
                                     fighter.damage(damage, entity);
                                     fighter.setFireTicks(100);
                                     Vector up = new Vector(0, knockup, 0);
-                                    fighter.setVelocity(up);
+                net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(fighter, up);
                                     sendCombatAlert(fighter, StatusBadge.CALDERA_MORTAR, "&cVolcanic eruption blasted you into the air!", 2);
                                 }
                             }
@@ -238,8 +242,9 @@ public class ValeriusBoss extends WorldBoss {
 
         entity.setVelocity(dir.multiply(speed));
 
-        Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+        runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
             int ticks = 0;
+            final java.util.Set<java.util.UUID> hitPlayers = new java.util.HashSet<>();
             @Override
             public void accept(BukkitTask task) {
                 if (!active || entity == null || !entity.isValid() || ++ticks > 10) {
@@ -251,10 +256,11 @@ public class ValeriusBoss extends WorldBoss {
                 curr.getWorld().spawnParticle(Particle.LAVA, curr, 3, 0.3, 0.3, 0.3, 0, null, true);
 
                 for (Player p : barManager.getViewers()) {
-                    if (p.getWorld() != null && p.getWorld().equals(curr.getWorld()) && p.getLocation().distanceSquared(curr) <= 4.0) {
+                    if (p.getWorld() != null && p.getWorld().equals(curr.getWorld()) && p.getLocation().distanceSquared(curr) <= 4.0
+                            && hitPlayers.add(p.getUniqueId())) {
                         p.damage(damage, entity);
                         Vector kb = p.getLocation().toVector().subtract(curr.toVector()).normalize().multiply(1.2).setY(0.4);
-                        p.setVelocity(kb);
+                        net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(p, kb);
                         p.setFireTicks(60);
                     }
                 }
@@ -270,13 +276,13 @@ public class ValeriusBoss extends WorldBoss {
         int telegraphTicks = config.getInt("valerius.combat.cataclysmic-supernova.telegraph-ticks", 40);
 
         for (Player p : barManager.getViewers()) {
-            TextUtil.sendTitle(p, "&4&l⚠ CATACLYSMIC SUPERNOVA ⚠", "&cRetreat outside 12m or face lethal devastation!", 5, 30, 10);
+            TextUtil.sendTitle(p, "&4&l⚠ CATACLYSMIC SUPERNOVA ⚠", "&cLeave the marked " + String.format("%.0f", radius) + "m blast radius!", 5, 30, 10);
             p.playSound(p.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 1.5f, 0.8f);
         }
 
         entity.setVelocity(new Vector(0, 0.25, 0));
 
-        Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+        runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
             int elapsed = 0;
             @Override
             public void accept(BukkitTask task) {
@@ -285,7 +291,7 @@ public class ValeriusBoss extends WorldBoss {
                     return;
                 }
                 elapsed += 4;
-                Location bLoc = entity.getLocation();
+                Location bLoc = bossLoc.clone();
 
                 for (int deg = 0; deg < 360; deg += 15) {
                     double rad = Math.toRadians(deg);
@@ -314,7 +320,7 @@ public class ValeriusBoss extends WorldBoss {
                                 p.damage(damage, entity);
                                 p.setFireTicks(160);
                                 Vector blast = p.getLocation().toVector().subtract(bLoc.toVector()).normalize().multiply(1.8).setY(0.6);
-                                p.setVelocity(blast);
+                net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(p, blast);
                                 sendCombatAlert(p, StatusBadge.ASHEN_SLAM, "&4Lethal Supernova detonation struck you!", 3);
                             }
                         }
@@ -331,30 +337,48 @@ public class ValeriusBoss extends WorldBoss {
         }
         addOverheat(6, "Searing Siphon");
 
-        double drainDmg = config.getDouble("valerius.combat.searing-siphon.drain-damage", 2.0);
-        double healAmt = config.getDouble("valerius.combat.searing-siphon.heal-per-player", 5.0);
-        double maxHealPerPulse = config.getDouble("valerius.combat.searing-siphon.max-heal-per-pulse", 15.0);
+        double drainDmg = config.getDouble("valerius.combat.searing-siphon.drain-damage", 4.0);
+        double baseHeal = config.getDouble("valerius.combat.searing-siphon.heal-per-player", 20.0);
+        double witheredBonus = config.getDouble("valerius.combat.searing-siphon.withered-bonus-heal", 20.0);
+        double maxHealPerPulse = config.getDouble("valerius.combat.searing-siphon.max-heal-per-pulse", 80.0);
+        double healingMultiplier = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("valerius.combat.searing-siphon.healing-multiplier", .75), .75, 0, 1);
+        maxHealPerPulse *= healingMultiplier;
         double totalHealed = 0.0;
 
         for (Player p : barManager.getViewers()) {
+            if (p == null || !p.isOnline() || p.isDead() || p.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
             if (p.getWorld() == null || !p.getWorld().equals(bossLoc.getWorld())) continue;
-            if (p.hasPotionEffect(PotionEffectType.WITHER)) {
-                if (totalHealed < maxHealPerPulse) {
-                    double actualHeal = Math.min(healAmt, maxHealPerPulse - totalHealed);
-                    heal(actualHeal);
-                    totalHealed += actualHeal;
-                }
-                p.damage(drainDmg, entity);
-                p.getWorld().playSound(p.getLocation(), Sound.ENTITY_WITHER_HURT, 0.9f, 0.7f);
-                sendCombatAlert(p, StatusBadge.SEARING_SIPHON, "&cValerius leaches &e" + String.format("%.0f", healAmt) + " HP &cfrom your Wither affliction!", 2);
+            if (domainManager != null && !domainManager.isInDomain(p.getLocation())) continue;
 
-                Location pLoc = p.getLocation().add(0, 1.0, 0);
-                Vector step = bossLoc.clone().add(0, 1.5, 0).toVector().subtract(pLoc.toVector()).multiply(0.2);
-                for (int i = 0; i < 5; i++) {
-                    p.getWorld().spawnParticle(Particle.WITCH, pLoc.clone().add(step.clone().multiply(i)), 2, 0.05, 0.05, 0.05, 0.01);
-                }
+            boolean hasWither = isSiphonAfflicted(p);
+            double healAmt = (hasWither ? (baseHeal + witheredBonus) : baseHeal) * healingMultiplier;
+            double actualHeal = 0;
+
+            if (totalHealed < maxHealPerPulse) {
+                actualHeal = heal(Math.min(healAmt, maxHealPerPulse - totalHealed));
+                totalHealed += actualHeal;
+            }
+            p.damage(drainDmg, entity);
+            p.getWorld().playSound(p.getLocation(), Sound.ENTITY_WITHER_HURT, 0.9f, 0.7f);
+
+            if (hasWither) {
+                sendCombatAlert(p, StatusBadge.SEARING_SIPHON, "&cValerius leeches &e" + String.format("%.0f", actualHeal) + " HP &cfrom your affliction!", 2);
+            } else {
+                sendCombatAlert(p, StatusBadge.SEARING_SIPHON, "&cValerius drains &e" + String.format("%.0f", actualHeal) + " HP &cfrom your vital heat!", 2);
+            }
+
+            Location pLoc = p.getLocation().add(0, 1.0, 0);
+            Vector step = bossLoc.clone().add(0, 1.5, 0).toVector().subtract(pLoc.toVector()).multiply(0.2);
+            for (int i = 0; i < 5; i++) {
+                p.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, pLoc.clone().add(step.clone().multiply(i)), 2, 0.05, 0.05, 0.05, 0.01);
+                p.getWorld().spawnParticle(Particle.FLAME, pLoc.clone().add(step.clone().multiply(i)), 1, 0.05, 0.05, 0.05, 0.01);
             }
         }
+    }
+
+    protected boolean isSiphonAfflicted(Player player) {
+        return player.hasPotionEffect(PotionEffectType.WITHER) || player.getFireTicks() > 0;
     }
 
     private void executeAshenSlam(Location bossLoc) {
@@ -373,7 +397,7 @@ public class ValeriusBoss extends WorldBoss {
                 p.setFireTicks(fireSec * 20);
                 Vector kb = p.getLocation().toVector().subtract(bossLoc.toVector()).normalize().multiply(kbForce);
                 kb.setY(0.45);
-                p.setVelocity(kb);
+                net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(p, kb);
                 sendCombatAlert(p, StatusBadge.ASHEN_SLAM, "&cValerius shatters the earth! Knocked back!", 2);
             }
         }
@@ -387,82 +411,60 @@ public class ValeriusBoss extends WorldBoss {
             bossLoc.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, bossLoc, 25, 1.5, 0.5, 1.5, 0.05);
         }
     }
-
-    private void executeCalderaMortar(Location bossLoc) {
-        double minRange = config.getDouble("valerius.combat.caldera-mortar.min-range", 7.0);
-        double minRangeSq = minRange * minRange;
-        Player target = null;
-        for (Player p : barManager.getViewers()) {
-            if (p.getWorld() == null || !p.getWorld().equals(bossLoc.getWorld())) continue;
-            if (p.getLocation().distanceSquared(bossLoc) >= minRangeSq) {
-                target = p;
-                break;
-            }
+    @Override public boolean testAbility(String ability) {
+        if (!active || !isAwakened || entity == null || !abilityCombatAllowed()) return false;
+        switch (ability.toLowerCase(java.util.Locale.ROOT)) {
+            case "mortar" -> executeCalderaMortar(entity.getLocation());
+            case "slam" -> executeAshenSlam(entity.getLocation());
+            case "geyser" -> executeVolcanicGeyser(entity.getLocation());
+            case "rush" -> executeMagmaRush(entity.getLocation());
+            case "supernova" -> executeCataclysmicSupernova(entity.getLocation());
+            default -> { return false; }
         }
-
-        if (target != null) {
-            addOverheat(10, "Caldera Mortar");
-            final Player finalTarget = target;
-            Location fireLoc = bossLoc.clone().add(0, 2.2, 0);
-            Vector toTarget = finalTarget.getEyeLocation().toVector().subtract(fireLoc.toVector());
-            Vector dir = toTarget.clone().normalize();
-
-            Fireball fb = bossLoc.getWorld().spawn(fireLoc.add(dir.clone().multiply(1.2)), Fireball.class);
-            fb.setShooter(entity);
-            fb.setYield(0.0f);
-            fb.setIsIncendiary(false);
-            fb.setDirection(dir.clone().multiply(0.95));
-            fb.setVelocity(dir.clone().multiply(0.95));
-
-            NamespacedKey mortarKey = new NamespacedKey(plugin, "boss_projectile");
-            fb.getPersistentDataContainer().set(mortarKey, PersistentDataType.STRING, "CALDERA_MORTAR");
-
-            bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_GHAST_SHOOT, 1.8f, 0.6f);
-            bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_BLAZE_SHOOT, 1.5f, 0.8f);
-            sendCombatAlert(finalTarget, StatusBadge.CALDERA_MORTAR, "&4Valerius launches molten mortar artillery tracking your position!", 3);
-
-            // Active Homing Task (runs every 2 ticks for up to 60 ticks / 3 seconds)
-            Bukkit.getScheduler().runTaskTimer(plugin, task -> {
-                if (!fb.isValid() || fb.isDead() || !finalTarget.isOnline() || finalTarget.isDead()) {
-                    task.cancel();
-                    return;
-                }
-
-                Location fbLoc = fb.getLocation();
-                Location targetLoc = finalTarget.getEyeLocation();
-                if (fbLoc.getWorld() == null || !fbLoc.getWorld().equals(targetLoc.getWorld())) {
-                    task.cancel();
-                    return;
-                }
-
-                double distSq = fbLoc.distanceSquared(targetLoc);
-                if (distSq <= 2.25) { // Proximity detonation within 1.5 blocks
-                    WorldBossesModule module = (WorldBossesModule) plugin.getModuleManager().getModule("world-bosses");
-                    if (module != null) {
-                        module.explodeCalderaMortar(fbLoc, fb);
-                    }
-                    fb.remove();
-                    task.cancel();
-                    return;
-                }
-
-                // Smooth steering towards the player
-                Vector desired = targetLoc.toVector().subtract(fbLoc.toVector()).normalize().multiply(0.90);
-                Vector current = fb.getDirection();
-                Vector steered = current.clone().multiply(0.65).add(desired.multiply(0.35)).normalize().multiply(0.90);
-                fb.setDirection(steered);
-                fb.setVelocity(steered);
-
-                // Trailing flame & smoke particles with force=true
-                fbLoc.getWorld().spawnParticle(Particle.FLAME, fbLoc, 4, 0.15, 0.15, 0.15, 0.02, null, true);
-                fbLoc.getWorld().spawnParticle(Particle.LAVA, fbLoc, 1, 0.05, 0.05, 0.05, 0.0, null, true);
-                fbLoc.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, fbLoc, 1, 0.05, 0.05, 0.05, 0.01, null, true);
-            }, 2L, 2L);
-        }
+        return true;
     }
 
-    public void applyQuenched(int seconds) {
+    private void executeCalderaMortar(Location bossLoc) {
+        if (isQuenched() || isExposed()) return;
+        Player target = barManager.getViewers().stream().filter(WorldBoss::eligibleFighter)
+                .filter(p -> p.getWorld().equals(bossLoc.getWorld()) && p.getLocation().distanceSquared(bossLoc) >= 49)
+                .findFirst().orElse(null);
+        if (target == null) return;
+        Location impact = target.getLocation().clone();
+        double radius = Math.max(1, Math.min(8, config.getDouble("valerius.combat.caldera-mortar.splash-radius", 4)));
+        int warningTicks = Math.max(25, Math.min(100, config.getInt("valerius.combat.caldera-mortar.telegraph-ticks", 40)));
+        sendCombatAlert(target, StatusBadge.CALDERA_MORTAR, "&cMortar incoming! Leave the marked circle! Water can interrupt the cast.", 3);
+        runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
+            int elapsed;
+            public void accept(BukkitTask task) {
+                if (isQuenched() || isExposed()) { task.cancel(); return; }
+                for (int angle = 0; angle < 360; angle += 30) {
+                    double rad = Math.toRadians(angle);
+                    impact.getWorld().spawnParticle(Particle.FLAME, impact.clone().add(Math.cos(rad) * radius, .15,
+                            Math.sin(rad) * radius), 1, 0, 0, 0, 0);
+                }
+                elapsed += 5;
+                if (elapsed < warningTicks) return;
+                task.cancel();
+                impact.getWorld().spawnParticle(Particle.EXPLOSION, impact, 1);
+                impact.getWorld().playSound(impact, Sound.ENTITY_GENERIC_EXPLODE, 1.5f, .8f);
+                for (Player fighter : barManager.getViewers()) {
+                    if (fighter.getWorld().equals(impact.getWorld()) && fighter.getLocation().distanceSquared(impact) <= radius * radius) {
+                        fighter.damage(config.getDouble("valerius.combat.caldera-mortar.damage", 12), entity);
+                        applyBossEffect(fighter, new PotionEffect(PotionEffectType.WITHER,
+                                Math.max(1, config.getInt("valerius.combat.caldera-mortar.wither-seconds", 5)) * 20, 0));
+                    }
+                }
+                addOverheat(10, "Caldera Mortar");
+            }
+        }, 1, 5);
+    }
+
+    public boolean applyQuenched(int seconds) {
+        if (isQuenched()) return false;
+        seconds = Math.max(1, Math.min(20, seconds));
         this.quenchedUntil = System.currentTimeMillis() + (seconds * 1000L);
+        interruptCasts();
         this.overheat = Math.max(0, overheat - Math.max(1, config.getDouble("valerius.combat.overheat.water-cooling", 35.0)));
         if (entity != null && entity.isValid()) {
             entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_ANVIL_LAND, 1.5f, 0.6f);
@@ -473,13 +475,19 @@ public class ValeriusBoss extends WorldBoss {
                 sendCombatAlert(p, StatusBadge.QUENCHED, "&bArmor Brittle! Pickaxes +150% DMG (" + seconds + "s)", seconds);
             }
         }
+        return true;
     }
 
     public boolean isQuenched() {
         return System.currentTimeMillis() < quenchedUntil;
     }
+    public double healFromAttack(double damage) {
+        if (isQuenched() || !Double.isFinite(damage) || damage <= 0) return 0;
+        return heal(Math.min(30.0, damage * 0.75));
+    }
     public double getOverheat() { return overheat; }
     public boolean isExposed() { return System.currentTimeMillis() < exposedUntil; }
+    @Override protected boolean abilityCombatAllowed() { return !isExposed(); }
     private void addOverheat(double amount, String source) {
         if (isExposed()) return;
         double threshold = Math.max(25, config.getDouble("valerius.combat.overheat.threshold", 100));
@@ -488,6 +496,7 @@ public class ValeriusBoss extends WorldBoss {
         overheat = 0;
         int seconds = Math.max(3, config.getInt("valerius.combat.overheat.exposed-seconds", 8));
         exposedUntil = System.currentTimeMillis() + seconds * 1000L;
+        interruptCasts();
         if (entity == null || !entity.isValid()) return;
         entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_BLASTFURNACE_FIRE_CRACKLE, 2f, .55f);
         entity.getWorld().spawnParticle(Particle.EXPLOSION, entity.getLocation().add(0, 1.2, 0), 3, .5, .6, .5, .05);
@@ -533,6 +542,7 @@ public class ValeriusBoss extends WorldBoss {
     @Override
     public void handleAntiCheese(Player player) {
         if (entity == null || !entity.isValid() || player == null || !player.isOnline()) return;
+        if (net.rocky.coresuite.module.worldbosses.combat.BossMovement.embedded(player)) return;
         if (player.getWorld() == null || !player.getWorld().equals(entity.getWorld())) return;
 
         Location bLoc = entity.getLocation();
@@ -540,11 +550,12 @@ public class ValeriusBoss extends WorldBoss {
 
         // 1. Anti-Pillaring (4+ blocks higher Y-level)
         if (pLoc.getY() - bLoc.getY() >= config.getDouble("valerius.anti-cheese.pillaring-y-threshold", 4.0)) {
+            if (!antiCheeseReady(player)) return;
             // Gravity Tether: Pull down to boss feet
-            player.teleport(bLoc.clone().add(bLoc.getDirection().multiply(1.5)));
-            player.setVelocity(new Vector(0, -1.0, 0));
+            if (domainManager == null || !net.rocky.coresuite.module.worldbosses.combat.BossMovement.teleport(
+                    player, bLoc.clone().add(bLoc.getDirection().multiply(2.5)), domainManager::isInDomain)) return;
             player.damage(4.0, entity);
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 2, false, false, true));
+            applyBossEffect(player, new PotionEffect(PotionEffectType.SLOWNESS, 80, 2, false, false, true));
             player.playSound(pLoc, Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 1.4f);
             TextUtil.sendActionBar(player, "&c&l[!] GRAVITY TETHER: &cValerius violently yanked you from your pillar!");
             return;
@@ -553,6 +564,7 @@ public class ValeriusBoss extends WorldBoss {
         // 2. Anti-Digging / Bunker Check
         Block head = pLoc.clone().add(0, 2, 0).getBlock();
         if (head.getType().isSolid() && pLoc.getBlock().getRelative(0, -1, 0).getType().isSolid()) {
+            if (!antiCheeseReady(player)) return;
             // Enclosed in a hole -> Seismic Stomp
             entity.getWorld().spawnParticle(Particle.EXPLOSION, pLoc, 2);
             player.damage(config.getDouble("valerius.anti-cheese.burrow-shockwave-damage", 12.0), entity);

@@ -57,6 +57,12 @@ public class BossItemRegistry {
                 lore.add("&e▶ Trade with &6Garrick the Hunter &eat spawn.");
                 lore.add("&8&m────────────────────");
             }
+            case "frost_core" -> {
+                mat = Material.PRISMARINE_CRYSTALS;
+                name = "&b&lFrost Core";
+                lore.add("&7A frozen heart fragment of Borealis.");
+                lore.add("&eTrade at /boss shop for any-shard rewards.");
+            }
             case "phantom_silk" -> {
                 mat = Material.COBWEB;
                 name = "&5&lPhantom Silk";
@@ -140,6 +146,9 @@ public class BossItemRegistry {
                 if (meta != null) {
                     meta.displayName(TextUtil.colorize("&c&lThe Vanguard's Cleaver"));
                     meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
+                    meta.addEnchant(Enchantment.SHARPNESS, 5, true);
+                    meta.addEnchant(Enchantment.FORTUNE, 3, true);
+                    meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 4, true);
                     meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
 
@@ -150,7 +159,7 @@ public class BossItemRegistry {
                     lore.add(TextUtil.colorize(""));
                     lore.add(TextUtil.colorize("&c&lSpecial Trait: &eIgnited Edge"));
                     lore.add(TextUtil.colorize("&7Strikes against burning targets deal"));
-                    lore.add(TextUtil.colorize("&a+20% bonus true damage &7and erupt"));
+                    lore.add(TextUtil.colorize("&a+20% bonus damage &7and erupt"));
                     lore.add(TextUtil.colorize("&7in scalding magma sparks."));
                     lore.add(TextUtil.colorize("&8&m────────────────────────────"));
                     meta.lore(lore);
@@ -165,6 +174,9 @@ public class BossItemRegistry {
                 if (meta != null) {
                     meta.displayName(TextUtil.colorize("&a&lCrown of the Forest"));
                     meta.addEnchant(Enchantment.PROTECTION, 4, true);
+                    meta.addEnchant(Enchantment.RESPIRATION, 3, true);
+                    meta.addEnchant(Enchantment.AQUA_AFFINITY, 1, true);
+                    meta.addEnchant(Enchantment.THORNS, 3, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 4, true);
                     meta.addEnchant(Enchantment.MENDING, 1, true);
 
@@ -183,6 +195,28 @@ public class BossItemRegistry {
                     item.setItemMeta(meta);
                 }
             }
+            case "frostbound_striders", "frostbound-striders" -> {
+                item = new ItemStack(Material.NETHERITE_BOOTS);
+                meta = item.getItemMeta();
+                if (meta != null) {
+                    meta.displayName(TextUtil.colorize("&b&lFrostbound Striders"));
+                    meta.addEnchant(Enchantment.PROTECTION, 4, true);
+                    meta.addEnchant(Enchantment.FEATHER_FALLING, 4, true);
+                    meta.addEnchant(Enchantment.DEPTH_STRIDER, 3, true);
+                    meta.addEnchant(Enchantment.SOUL_SPEED, 3, true);
+                    meta.addEnchant(Enchantment.THORNS, 3, true);
+                    meta.addEnchant(Enchantment.UNBREAKING, 4, true);
+                    meta.addEnchant(Enchantment.MENDING, 1, true);
+                    meta.lore(List.of(TextUtil.colorize("&6Rarity: &b&lMYTHIC WORLD BOSS RELIC"),
+                        TextUtil.colorize("&7Forged from the frozen heart of Borealis."),
+                        TextUtil.colorize("&b&lSpecial Trait: Glacial Guard"),
+                        TextUtil.colorize("&7While worn: immune to freezing damage."),
+                        TextUtil.colorize("&7Reduces incoming fall damage by 25%"),
+                        TextUtil.colorize("&7before normal armor/enchantment reductions.")));
+                    meta.getPersistentDataContainer().set(weaponKey, PersistentDataType.STRING, "frostbound_striders");
+                    item.setItemMeta(meta);
+                }
+            }
             case "widows_fang", "widows-fang" -> {
                 item = new ItemStack(Material.NETHERITE_SWORD);
                 meta = item.getItemMeta();
@@ -190,6 +224,10 @@ public class BossItemRegistry {
                     meta.displayName(TextUtil.colorize("&5&lThe Widow's Fang"));
                     meta.addEnchant(Enchantment.SHARPNESS, 6, true);
                     meta.addEnchant(Enchantment.LOOTING, 3, true);
+                    meta.addEnchant(Enchantment.SWEEPING_EDGE, 3, true);
+                    meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
+                    meta.addEnchant(Enchantment.KNOCKBACK, 2, true);
+                    meta.addEnchant(Enchantment.MENDING, 1, true);
                     meta.addEnchant(Enchantment.UNBREAKING, 4, true);
 
                     List<Component> lore = new ArrayList<>();
@@ -199,7 +237,7 @@ public class BossItemRegistry {
                     lore.add(TextUtil.colorize(""));
                     lore.add(TextUtil.colorize("&5&lSpecial Trait: &dEnvenom"));
                     lore.add(TextUtil.colorize("&7Attacks apply &5Poison II &7for 4s and"));
-                    lore.add(TextUtil.colorize("&7grant the wielder &b+15% Movement Speed &7for 3s."));
+                    lore.add(TextUtil.colorize("&7grant the wielder &bSpeed I &7for 3s."));
                     lore.add(TextUtil.colorize("&8&m────────────────────────────"));
                     meta.lore(lore);
 
@@ -216,15 +254,17 @@ public class BossItemRegistry {
 
     public ItemStack createSummonTotem(BossType type) {
         Material mat = switch (type) {
-            case VALERIUS -> Material.NETHER_STAR;
+            case VALERIUS -> Material.ECHO_SHARD;
             case AETHELGARD -> Material.TOTEM_OF_UNDYING;
-            case XOLTHOS -> Material.ENDER_EYE;
+            case XOLTHOS -> Material.FERMENTED_SPIDER_EYE;
+            case BOREALIS -> Material.AMETHYST_SHARD;
         };
 
         String name = switch (type) {
             case VALERIUS -> "&c&lSummon Totem: Valerius";
             case AETHELGARD -> "&a&lSummon Totem: Aethelgard";
             case XOLTHOS -> "&5&lSummon Totem: Xol'thos";
+            case BOREALIS -> "&b&lSummon Totem: Borealis";
         };
 
         List<String> lore = new ArrayList<>();
@@ -232,13 +272,14 @@ public class BossItemRegistry {
         lore.add("&7An ancient artifact bound to &f" + type.getDefaultDisplayName() + "&7.");
         lore.add("");
         lore.add("&e▶ Right-click on valid ground to awaken the World Boss!");
-        lore.add("&c⚠ Requires 3+ players online. Prepares a 35m combat domain.");
+        lore.add("&7Summoning requirements follow the server's boss settings.");
         lore.add("&8&m────────────────────────────");
 
         ItemStack item = TextUtil.createItem(mat, name, lore.toArray(new String[0]));
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.getPersistentDataContainer().set(totemKey, PersistentDataType.STRING, type.name());
+            meta.setEnchantmentGlintOverride(true);
             item.setItemMeta(meta);
         }
         return item;
@@ -253,13 +294,8 @@ public class BossItemRegistry {
             } catch (IllegalArgumentException ignored) {}
         }
 
-        // Robust fallback: If PDC was stripped or item has custom display name
-        if (item.getItemMeta().hasDisplayName()) {
-            String name = item.getItemMeta().getDisplayName().toLowerCase();
-            if (name.contains("valerius")) return BossType.VALERIUS;
-            if (name.contains("aethelgard")) return BossType.AETHELGARD;
-            if (name.contains("xolthos") || name.contains("xol'thos")) return BossType.XOLTHOS;
-        }
+        // Identity comes from our persistent tag, including older totem materials.
+        // An anvil-renamed vanilla item must never become a summon item.
         return null;
     }
 

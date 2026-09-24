@@ -5,17 +5,89 @@
 # Supports Paper 1.21+ Java & Bedrock Crossplay.
 
 enabled: true
+config-version: 2
+# Optional named arenas. With entries present, scheduled encounters use these locations.
+# Manage locations using /bossadmin arena add <name> and /bossadmin arena remove <name>.
+arenas: {}
 prefix: "&8[&4&lBoss&8] &r"
+
+# =========================================================================
+#  ARENA & PORTAL SYSTEM
+# =========================================================================
+arena:
+  # Fixed boss spawn location (boss always spawns here)
+  fixed-location:
+    enabled: true
+    world: "world"
+    x: 49662.0
+    y: 205.0
+    z: 49528.0
+
+  # Dedicated player spawn points inside the arena (randomly selected on entry)
+  player-spawns:
+    - x: 49610.5
+      y: 205.0
+      z: 49528.5
+    - x: 49718.5
+      y: 205.0
+      z: 49528.5
+
+  # Temporary godmode immunity upon teleporting into the arena (prevents TP-killing)
+  spawn-protection-seconds: 15
+
+  # Entrance portal settings
+  portals:
+    enabled: true
+    count: 3                          # Number of entrance portals to spawn
+    search-radius: 8000              # Max distance from world spawn for portal placement
+    min-portal-distance: 250         # Minimum distance between portals
+    # After opening: 15 minutes for first entry, then existing entrants only.
+    # Bosses retreat without rewards after 30 minutes without player combat.
+    forming-minutes: 8               # Minutes before portals become active
+    entry-fee: 50000.0               # Economy cost to enter (0 = free)
+    allow-free-reentry: true         # Players who paid can re-enter for free if they die
+    interact-radius: 3.5             # Step-in radius to enter portal
+    detect-radius: 6.0               # Actionbar notification radius
+    search-attempts: 50              # Max async location search attempts per portal
+    # RIFT_FORMING is a layered magical cue; custom pack keys such as coresuite:rift.forming also work.
+    forming-sound: "RIFT_FORMING"
+    # Nearby rift prompt: quiet beacon hum and amethyst chime, without Nether portal whooshes.
+    # Accepts a Bukkit sound name or custom resource-pack key; empty string disables it.
+    ambient-sound: "RIFT_AMBIENT"
+    start-sound: "UI_TOAST_CHALLENGE_COMPLETE"
+    entry-sound: "ENTITY_ENDERMAN_TELEPORT"
+    exit-sound: "ENTITY_ENDERMAN_TELEPORT"
+    deny-sound: "ENTITY_VILLAGER_NO"
+    forming-broadcast: "&5&l⚔ &d Dark rifts are tearing open across the world... Boss portals forming!"
+    active-broadcast: "&5&l⚔ &d The Arena Rifts have opened! Find a portal to enter the battle!"
+    portal-location-format: "&8 → &7Portal at &e{x}&7, &e{z} &8(&7{distance}m away&8)"
+    enter-prompt: "&d&l⚡ &fStep into the rift to enter the Boss Arena &8(&e${fee}&8)"
+    reentry-prompt: "&d&l⚡ &fStep into the rift to re-enter the Boss Arena &8(&aFREE&8)"
+    enter-success: "&a&l✦ &fYou have entered the arena! &8$50,000 charged."
+    reentry-message: "&a&l✦ &fWelcome back to the arena! &8(No charge — already paid)"
+    insufficient-funds: "&c&l✘ &fYou need &e${fee} &fto enter the Boss Arena! &8(Balance: &e${balance}&8)"
+    exit-prompt: "&a&l✦ &fStep into the light to return to where you came from!"
+    exit-success: "&a&l✦ &fYou have been returned to your entrance location."
+
+  # Exit portal settings (post-defeat)
+  exit-portal:
+    spawn-delay-seconds: 5           # Delay after boss death before exit appears
+    radius: 2.5                      # Interaction radius for exit
 
 # ------------------------------------------------------------------------------
 # Arena & Domain Boundaries
 # ------------------------------------------------------------------------------
 domain:
+  # Music and atmosphere extend this many blocks beyond the fixed arena.
+  # Existing listeners have a further 4-block exit buffer to prevent edge flicker.
+  spectator-distance: 16.0
   # The radius of the visual combat domain in blocks
   radius: 35.0
   # If boss is pulled beyond this distance from its spawn point, it leashes back
   leash-distance: 50.0
   # Protect blocks in the domain from breaking/placing during combat
+  # False also skips region spawn preflight at arena.fixed-location only.
+  # Terrain/world-border checks, wilderness spawns and temporary-block protection remain active.
   anti-grief-protection: true
   # Visual boundary particles (displayed along the ground perimeter)
   boundary-particle: "FLAME"
@@ -34,8 +106,7 @@ domain:
   storm-weather: true
   # Dormant preparation countdown in seconds before boss awakens and combat begins
   awakening-seconds: 45
-  arrival-timeout-seconds: 600
-  abandonment-seconds: 180
+  # Legacy arrival/abandonment settings are superseded by the 30-minute combat inactivity limit.
   # Ominous buildup BGM played during the dormant countdown before combat begins
   awakening-bgm: "coresuite:boss.awakening"
   awakening-bgm-duration-seconds: 45
@@ -71,13 +142,16 @@ domain:
 # Combat Engine Settings
 # ------------------------------------------------------------------------------
 balance:
+  # Rotate sustained boss focus in group fights so one player cannot absorb all the pressure.
+  target-focus-seconds: 12
   # Count nearby participants active within this window, not everyone online.
   adaptive-scaling: true
   solo-health-multiplier: 0.60
   health-per-extra-player: 0.50
   activity-window-seconds: 60
+  scaling-step-seconds: 5
   # Total healing across the entire encounter, including all phases.
-  maximum-healing-fraction: 0.15
+  maximum-healing-fraction: 1.0
   # Boss outgoing damage is intentionally threatening: survival requires armour, food,
   # potions and reacting to telegraphs. It scales gently for larger active raid groups.
   solo-damage-multiplier: 0.80
@@ -88,6 +162,11 @@ balance:
 # performing a counter (Water/Night Vision), or helping remove minions. These defaults also apply
 # to older world-bosses.yml files that do not yet contain this section.
 rewards:
+  # Combined shard payout is capped after bonuses: MVP 6, ranks 2–3 4, others 2.
+  dynamic:
+    # Up to +25% for peak encounter size and +25% for damage/support effort.
+    # Cash above the entry-fee allowance and shards scale; guaranteed keys do not multiply.
+    enabled: true
   participation:
     minimum-damage: 20.0
     minimum-contribution: 3
@@ -142,6 +221,14 @@ exchange:
   
   # Exchange trade options
   trades:
+    frostbound-striders:
+      required-specific-shard: "frost_core"
+      required-shards: 140
+      required-currency: 6000000.0
+    totem-borealis:
+      required-specific-shard: "any"
+      required-shards: 30
+      required-currency: 1200000.0
     totem-valerius:
       name: "&c&lValerius Summon Totem"
       icon: "TOTEM_OF_UNDYING"
@@ -191,20 +278,20 @@ exchange:
       name: "&c&lThe Vanguard's Cleaver"
       icon: "NETHERITE_AXE"
       required-specific-shard: "ashen"
-      required-shards: 90
-      required-currency: 2500000
+      required-shards: 120
+      required-currency: 4000000
     crown-of-forest:
       name: "&a&lCrown of the Forest"
       icon: "NETHERITE_HELMET"
       required-specific-shard: "royal_bark"
-      required-shards: 100
-      required-currency: 3500000
+      required-shards: 140
+      required-currency: 5500000
     widows-fang:
       name: "&5&lThe Widow's Fang"
       icon: "NETHERITE_SWORD"
       required-specific-shard: "phantom_silk"
-      required-shards: 110
-      required-currency: 5000000
+      required-shards: 160
+      required-currency: 7500000
 
 # ------------------------------------------------------------------------------
 # BOSS 1: VALERIUS, THE ASHEN VANGUARD
@@ -251,16 +338,21 @@ valerius:
       knockback: 1.2
       fire-seconds: 4
     caldera-mortar:
+      telegraph-ticks: 40
       cooldown-seconds: 6
       min-range: 7.0
       damage: 12.0
       splash-radius: 4.0
       wither-seconds: 5
     searing-siphon:
+      # Modest reduction to siphon healing and its total pulse cap; damage is unchanged.
+      healing-multiplier: 0.75
       interval-seconds: 6
-      heal-per-player: 5.0
-      drain-damage: 2.0
-      max-heal-per-pulse: 15.0
+      heal-per-player: 20.0
+      withered-bonus-heal: 20.0
+      drain-damage: 4.0
+      max-heal-per-pulse: 80.0
+    heat-regen-hp: 15.0
     volcanic-geyser:
       cooldown-seconds: 10
       damage: 16.0
@@ -318,19 +410,19 @@ valerius:
       currency: 25000
       shards: 4
       commands:
-        - "crates key give %player% Uncommon 1"
+        - "crates key give %player% enchanter 1"
     rank-2-3:
       currency: 15000
       shards: 2
       commands:
         - "crates key give %player% Common 1"
     participation:
-      currency: 5000
-      shards: 1
+      currency: 55000
+      shards: 2
+    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 8.0
+      crate-key-chance: 2.0
       crate-key-command: "crates key give %player% enchanter 1"
-      signature-weapon-chance: 4.0
 
 # ------------------------------------------------------------------------------
 # BOSS 2: AETHELGARD, THE ROOT-BOUND KING
@@ -364,6 +456,12 @@ aethelgard:
   bgm-p3-duration-seconds: 334
 
   combat:
+    # Roots persist until destroyed, Deadwood phase, or the shared healing reserve is spent.
+    # Fire suppresses both root and passive regeneration.
+    healing-roots:
+      interval-seconds: 25
+      count: 2
+      heal-amount: 35.0
     overgrowth-cleave:
       cooldown-seconds: 7
       radius: 5.0
@@ -394,7 +492,7 @@ aethelgard:
       telegraph-ticks: 35
 
   weakness:
-    soil-regen-hp: 6.0              # Also capped at 0.3% maximum health per pulse
+    soil-regen-hp: 15.0             # Extra regeneration every 3s while roots survive and fire is not suppressing them
     axe-damage-multiplier: 2.00     # Axes deal double damage
     fire-silence-seconds: 6         # Fire halts minion summon & soil regen
     arrow-damage-multiplier: 0.50   # Arrows deal reduced damage; never heal the boss
@@ -428,24 +526,27 @@ aethelgard:
       currency: 35000
       shards: 4
       commands:
-        - "crates key give %player% Rare 1"
+        - "crates key give %player% potions 1"
     rank-2-3:
       currency: 20000
       shards: 2
       commands:
         - "crates key give %player% Uncommon 1"
     participation:
-      currency: 7500
-      shards: 1
+      currency: 60000
+      shards: 3
+    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 8.0
+      crate-key-chance: 2.0
       crate-key-command: "crates key give %player% enchanter 1"
-      signature-weapon-chance: 4.0
 
 # ------------------------------------------------------------------------------
 # BOSS 3: XOL'THOS, THE WEEPING WIDOW
 # ------------------------------------------------------------------------------
 xolthos:
+  weakness:
+    # Failed attempts also lock out further potions for 10 seconds.
+    night-vision-resist-chance: 50.0
   display-name: "&5&lXol'thos, The Weeping Widow"
   base-entity: "CAVE_SPIDER"
   scale: 2.1
@@ -488,6 +589,7 @@ xolthos:
       radius: 7.0
       damage: 12.0
     neurotoxin-leap:
+      telegraph-ticks: 20
       cooldown-seconds: 8
       leap-speed: 1.5
       damage: 18.0
@@ -546,6 +648,7 @@ xolthos:
       bossbar-color: "RED"
       domain-effect: "FRENZY"
       slowness-level: 3
+      # Suppress natural food healing during Frenzy; food, golden apples and potions still work.
       necrosis: true
 
   loot:
@@ -553,18 +656,66 @@ xolthos:
       currency: 50000
       shards: 5
       commands:
-        - "crates key give %player% Rare 1"
         - "crates key give %player% potions 1"
-        - "crates key give %player% enchanter 1"
     rank-2-3:
       currency: 30000
       shards: 3
       commands:
         - "crates key give %player% Rare 1"
     participation:
-      currency: 10000
-      shards: 1
+      currency: 65000
+      shards: 4
+    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 6.0
+      crate-key-chance: 2.0
       crate-key-command: "crates key give %player% Elite 1"
-      signature-weapon-chance: 3.0
+      bonus-keys:
+        - chance: 2.0
+          command: "crates key give %player% enchanter 1"
+
+# BOSS 4: BOREALIS, THE FROSTBOUND WARDEN
+borealis:
+  display-name: "&b&lBorealis, The Permafrost Tyrant"
+  lore:
+    - "&7Borealis sealed his soldiers in the Glacial Vault, where True Ice claimed their hearts."
+    - "&7Blades slide from his shell and arrows shatter. Bring the alchemist's heat of the Nether:"
+    - "&6Splash Fire Resistance &7melts his armor for 6 seconds. Wield the gravedigger's tool:"
+    - "&bShovels deal 2.5x damage during Thermal Shock. &7The counter recovers every 20 seconds."
+    - "&7Slay his Frostguard before Cruel Siphon consumes them. Leather wards off Deep Freeze."
+    - "&7When his bow breaks, beware the axe: the tyrant's final winter has begun."
+  base-entity: "STRAY"
+  scale: 1.65
+  max-health: 2600.0
+  melee-damage: 20.0
+  movement-speed: 0.29
+  biomes: [SNOWY_PLAINS, ICE_SPIKES, FROZEN_PEAKS]
+  # Built-in music: no additional resource pack assets required.
+  bgm: "minecraft:music_disc.otherside"
+  bgm-duration-seconds: 195
+  awakening-bgm: "minecraft:ambient.basalt_deltas.loop"
+  combat:
+    frostguard:
+      cooldown-seconds: 24
+    glacial-volley:
+      cooldown-seconds: 12
+    frost-nova:
+      damage: 22.0
+    hail:
+      damage: 16.0
+  loot:
+    rank-1:
+      currency: 40000
+      shards: 4
+      commands:
+        - "crates key give %player% potions 1"
+    rank-2-3:
+      currency: 22000
+      shards: 2
+      commands:
+        - "crates key give %player% Rare 1"
+    participation:
+      currency: 60000
+      shards: 2
+    rare-drops:
+      crate-key-chance: 2.0
+      crate-key-command: "crates key give %player% Elite 1"

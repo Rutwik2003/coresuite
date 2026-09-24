@@ -11,12 +11,12 @@ public final class EncounterBalance {
                 * (1 + (Math.max(1, Math.min(20, players)) - 1) * finite(extraFactor, .5, 0, 2));
     }
     public static double rescale(double current, double previousMaximum, double nextMaximum) {
-        double fraction = previousMaximum > 0 ? finite(current / previousMaximum, 1, 0, 1) : 1;
-        return fraction * nextMaximum;
+        // Joining players increase capacity, never restore HP already removed by the raid.
+        return finite(current, 0, 0, finite(nextMaximum, previousMaximum, 1, 1000000000));
     }
     public static double healing(double current, double maximum, double requested, double spentFraction, double budgetFraction) {
         if (!Double.isFinite(requested) || requested <= 0 || current <= 0) return 0;
-        double remaining = Math.max(0, finite(budgetFraction, .15, 0, 1) - spentFraction) * maximum;
-        return Math.max(0, Math.min(requested, Math.min(maximum - current, remaining)));
+        double budget = Math.max(0, finite(budgetFraction, 1.0, 0, 10.0) - Math.max(0, spentFraction)) * maximum;
+        return Math.max(0, Math.min(requested, Math.min(maximum - current, budget)));
     }
 }

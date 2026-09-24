@@ -1,0 +1,35 @@
+name: Publish resource pack
+on:
+  push:
+    branches: [main]
+    paths: ['pack/**', 'scripts/**', '.github/workflows/publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: resource-pack-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test builder
+        run: python -m unittest discover -s scripts -p "test_*.py"
+      - name: Build and validate
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: pack-${{ github.run_number }}-${{ github.run_attempt }}
+        run: python scripts/build_pack.py --repository "$REPOSITORY" --version "$VERSION"
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: pack-${{ github.run_number }}-${{ github.run_attempt }}
+        run: |
+          gh release create "$VERSION" --target "$GITHUB_SHA" --draft --title "MeerMC pack $VERSION" --notes "Automatically built and validated resource pack."
+          gh release upload "$VERSION" dist/meermc-pack.zip dist/manifest.properties
+          gh release edit "$VERSION" --draft=false --latest

@@ -106,65 +106,9 @@ public abstract class Module {
      * If the file doesn't exist, it copies the default from jar resources modules/<configKey>.yml.
      */
     protected void loadConfig() {
-        if (!plugin.getDataFolder().exists()) {
-            plugin.getDataFolder().mkdirs();
-        }
-        File modulesFolder = new File(plugin.getDataFolder(), "modules");
-        if (!modulesFolder.exists()) {
-            modulesFolder.mkdirs();
-        }
-        
-        File configFile = new File(modulesFolder, configKey + ".yml");
-        
-        if (!configFile.exists()) {
-            // Try saving default from jar
-            String resourcePath = "modules/" + configKey + ".yml";
-            boolean resourceExists;
-            try (InputStream resource = plugin.getResource(resourcePath)) {
-                resourceExists = resource != null;
-            } catch (IOException e) {
-                throw new IllegalStateException("Could not inspect default configuration for " + name, e);
-            }
-            if (resourceExists) {
-                plugin.saveResource(resourcePath, false);
-            } else {
-                // If there's no default config in the jar, just create an empty one
-                try {
-                    configFile.createNewFile();
-                } catch (IOException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Could not create empty config file for module: " + name, e);
-                }
-            }
-        }
-
-        try (InputStreamReader reader = new InputStreamReader(new java.io.FileInputStream(configFile), StandardCharsets.UTF_8)) {
-            YamlConfiguration loadedConfig = new YamlConfiguration();
-            loadedConfig.load(reader);
-            config = loadedConfig;
-        } catch (IOException | org.bukkit.configuration.InvalidConfigurationException e) {
-            throw new IllegalStateException("Could not read configuration for " + name, e);
-        }
-
-        // Load defaults if present in JAR
-        try (InputStream defaultStream = plugin.getResource("modules/" + configKey + ".yml")) {
-            if (defaultStream != null) {
-                YamlConfiguration defaultConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
-                boolean changed = false;
-                for (String key : defaultConfig.getKeys(true)) {
-                    if (!config.contains(key)) {
-                        config.set(key, defaultConfig.get(key));
-                        changed = true;
-                    }
-                }
-                if (changed) {
-                    saveConfig();
-                }
-            }
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.WARNING, "Could not close default config stream for module: " + name, e);
-        }
+        config = net.rocky.coresuite.common.config.ConfigUpdater.load(plugin, "modules/" + configKey + ".yml");
     }
-    
+
     /**
      * Saves the current config memory state to the file.
      */

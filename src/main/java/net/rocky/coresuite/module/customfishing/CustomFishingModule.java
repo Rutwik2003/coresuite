@@ -161,14 +161,9 @@ TabCompleter {
     public void onEnable() {
         int configVersion = this.config.getInt("config-version", 1);
         if (configVersion < 2) {
-            this.plugin.getLogger().info("CoreSuite CustomFishing: Migrating config to version 2 (updating baits)...");
-            InputStream defStream = this.plugin.getResource("modules/custom-fishing.yml");
-            if (defStream != null) {
-                YamlConfiguration defConfig = YamlConfiguration.loadConfiguration((Reader)new InputStreamReader(defStream, StandardCharsets.UTF_8));
-                this.config.set("baits", defConfig.getConfigurationSection("baits"));
-                this.config.set("config-version", 2);
-                this.saveConfig();
-            }
+            // Missing bait keys were merged by the shared loader; keep configured bait values.
+            this.config.set("config-version", 2);
+            this.saveConfig();
         }
         boolean saved = false;
         if (!this.config.contains("fatigue.recovery-time-minutes")) {

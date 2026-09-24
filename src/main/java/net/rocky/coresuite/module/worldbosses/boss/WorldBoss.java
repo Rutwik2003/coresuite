@@ -53,7 +53,6 @@ public abstract class WorldBoss {
     private final double configuredHealth;
     private double healedFraction;
     private int scaledPlayers = 1;
-    private boolean hasBeenEngaged;
     private final java.util.Set<org.bukkit.Chunk> heldChunks = new java.util.HashSet<>();
     protected double maxHealth;
     protected double currentHealth;
@@ -73,12 +72,16 @@ public abstract class WorldBoss {
     private final java.util.Map<java.util.UUID, net.rocky.coresuite.module.worldbosses.combat.StatusBadge> alertBadge = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<java.util.UUID, String> alertMessage = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<Location, TemporaryBlock> temporaryBlocks = new java.util.concurrent.ConcurrentHashMap<>();
+    protected final java.util.List<BukkitTask> abilityTasks = new java.util.concurrent.CopyOnWriteArrayList<>();
+    protected final java.util.Set<Entity> abilityEntities = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private long nextScalingUpdate = 0L;
+    private final java.util.Map<String, Long> lastAbilityUse = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<UUID, Long> antiCheeseCooldown = new java.util.concurrent.ConcurrentHashMap<>();
     private record TemporaryBlock(BlockData original, BlockData placed) {}
 
     protected boolean isAwakened = false;
     protected int totalAwakeningSeconds;
     protected int awakeningRemainingSeconds;
-    private int emptyDomainSeconds = 0;
     protected BossPartyManager partyManager;
     private final UUID encounterId = UUID.randomUUID();
     private EncounterState encounterState = EncounterState.PREPARING;
@@ -240,18 +243,7 @@ public abstract class WorldBoss {
                     }
 
                     if (ticks[0] % 5 == 0) updateScaling();
-                    // 3. Abandonment Check (Deserted Domain Timer)
-                    if (domainViewers.isEmpty()) {
-                        emptyDomainSeconds++;
-                        int allowedWait = hasBeenEngaged ? Math.max(30, config.getInt("domain.abandonment-seconds", 180)) : Math.max(60, config.getInt("domain.arrival-timeout-seconds", 600));
-                        if (emptyDomainSeconds >= allowedWait) {
-                            Bukkit.broadcast(TextUtil.colorize("&8[&4&lBoss&8] &e" + getDisplayName() + " &7has dissipated back into the shadows due to lack of challengers."));
-                            despawn();
-                            return;
-                        }
-                    } else {
-                        emptyDomainSeconds = 0;
-                    }
+                    // Encounter inactivity and portal cleanup are coordinated by the module watchdog.
 
                     // 4. Anti-Cheese: Earth Shatter obstructing/placed blocks around boss
                     if (ticks[0] % 3 == 0) {
@@ -364,6 +356,7 @@ public abstract class WorldBoss {
         }
 
         recordParticipation(player);
+        lastPlayerCombatAt = System.currentTimeMillis();
         updateScaling();
         // Apply boss damage reductions/multipliers
         double modifiedDamage = calculateIncomingDamage(player, amount, weapon);
@@ -415,6 +408,7 @@ public abstract class WorldBoss {
         }
 
         switch (type) {
+            case BOREALIS -> w.spawnParticle(org.bukkit.Particle.SNOWFLAKE, bLoc.clone().add(0, 1, 0), 8, .7, 1, .7, .02);
             case VALERIUS -> w.spawnParticle(org.bukkit.Particle.FLAME, bLoc.clone().add(0, 1.0, 0), 4, 0.3, 0.5, 0.3, 0.02, null, true);
             case AETHELGARD -> w.spawnParticle(org.bukkit.Particle.SPORE_BLOSSOM_AIR, bLoc.clone().add(0, 1.0, 0), 6, 0.4, 0.6, 0.4, 0.01, null, true);
             case XOLTHOS -> w.spawnParticle(org.bukkit.Particle.DRAGON_BREATH, bLoc.clone().add(0, 0.5, 0), 4, 0.3, 0.3, 0.3, 0.01, 1.0f, true);
@@ -463,9 +457,8 @@ public abstract class WorldBoss {
             if (domainManager != null) {
                 domainManager.lockPlayer(p.getUniqueId());
             }
-            stopAllBgm(p);
-            startBgmForPlayer(p);
         }
+        for (Player listener : audiencePlayers()) startBgmForPlayer(listener);
     }
 
     public void sendPartyInvitationToViewers() {
@@ -497,63 +490,49 @@ public abstract class WorldBoss {
     }
 
     public void updateBossBarViewers() {
-        if (entity == null || !entity.isValid() || barManager == null) return;
-        Location loc = entity.getLocation();
-        World w = loc.getWorld();
-        if (w == null) return;
-
-        double radius = config.getDouble("domain.radius", 35.0);
-        double leash = config.getDouble("domain.leash-distance", 50.0);
-        double maxDistSq = leash * leash;
-        double locX = loc.getX();
-        double locZ = loc.getZ();
-
-        java.util.Set<UUID> currentInDomain = new java.util.HashSet<>();
-        for (Player p : w.getPlayers()) {
-            if (!p.isOnline() || p.isDead()) continue;
-            Location pLoc = p.getLocation();
-            if (Math.abs(pLoc.getX() - locX) > leash || Math.abs(pLoc.getZ() - locZ) > leash) {
-                continue;
-            }
-            if (pLoc.distanceSquared(loc) <= maxDistSq) {
-                currentInDomain.add(p.getUniqueId());
-                if (!domainViewers.contains(p.getUniqueId())) {
-                    domainViewers.add(p.getUniqueId());
-                    barManager.addViewer(p);
-                    applyAtmosphere(p);
-                    startBgmForPlayer(p);
-
-                    // Entry Warning / Danger Disclaimer
-                    p.sendMessage(TextUtil.colorize(""));
-                    p.sendMessage(TextUtil.colorize("&4&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-                    p.sendMessage(TextUtil.colorize("  &4&l⚠ BOSS DOMAIN WARNING: &r" + getDisplayName()));
-                    p.sendMessage(TextUtil.colorize("  &cYou are at your own risk here. We are not responsible for any damage to your armour, inventory, or anything. You can die here and lose stuff — don't blame us for it!"));
-                    if (type == BossType.XOLTHOS) {
-                        int stunSec = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
-                        p.sendMessage(TextUtil.colorize("  &d💡 &lTACTIC: &fHit Xol'thos with &e&lSplash Night Vision &fto prevent evasion and stun her for &a" + stunSec + "s&f!"));
-                    }
-                    if (!isAwakened) {
-                        sendPartyInviteMessage(p);
-                    }
-                    p.sendMessage(TextUtil.colorize("&4&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-                    p.sendMessage(TextUtil.colorize(""));
-                }
+        if (entity == null || !entity.isValid() || barManager == null || domainManager == null) return;
+        Location center = domainManager.getCenter();
+        World world = center.getWorld();
+        if (world == null) return;
+        double radius = domainManager.getDomainRadius();
+        double audienceRadius = radius + Math.max(0, Math.min(64,
+                config.getDouble("domain.spectator-distance", 16)));
+        java.util.Set<UUID> present = new java.util.HashSet<>();
+        for (Player player : world.getPlayers()) {
+            UUID id = player.getUniqueId();
+            // Keep combat targets separate from the audience, including survival spectators outside.
+            boolean fighter = eligibleFighter(player) && domainManager.isInDomain(player.getLocation());
+            if (fighter) barManager.addViewer(player);
+            else barManager.removeViewer(player);
+            double limit = audienceRadius + (domainViewers.contains(id) ? 4 : 0);
+            if (!player.isOnline() || player.isDead()
+                    || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)
+                    || player.getLocation().distanceSquared(center) > limit * limit) continue;
+            present.add(id);
+            if (domainViewers.add(id)) {
+                applyAtmosphere(player);
+                startBgmForPlayer(player);
+                TextUtil.sendMessage(player, "&6World Boss: &f" + getDisplayName()
+                        + " &7— entering the barrier means joining the fight.");
             }
         }
-
         java.util.Iterator<UUID> it = domainViewers.iterator();
         while (it.hasNext()) {
-            UUID uid = it.next();
-            if (!currentInDomain.contains(uid)) {
-                it.remove();
-                Player p = Bukkit.getPlayer(uid);
-                if (p != null && p.isOnline()) {
-                    barManager.removeViewer(p);
-                    clearAtmosphere(p);
-                    stopAllBgm(p);
-                }
+            UUID id = it.next();
+            if (present.contains(id)) continue;
+            it.remove();
+            Player player = Bukkit.getPlayer(id);
+            if (player != null) {
+                barManager.removeViewer(player);
+                clearAtmosphere(player);
+                stopAllBgm(player);
             }
         }
+    }
+
+    private java.util.List<Player> audiencePlayers() {
+        return domainViewers.stream().map(Bukkit::getPlayer)
+                .filter(java.util.Objects::nonNull).filter(Player::isOnline).toList();
     }
 
     public void evaluatePhase(boolean force) {
@@ -587,13 +566,13 @@ public abstract class WorldBoss {
                     }
                 }
 
-                for (Player p : barManager.getViewers()) {
+                for (Player p : audiencePlayers()) {
                     TextUtil.sendTitle(p, "&c&lPHASE " + newPhase.getPhaseNumber(), "&e" + newPhase.getName(), 10, 40, 10);
                     stopAllBgm(p);
                     startBgmForPlayer(p);
                 }
             } else if (force) {
-                for (Player p : barManager.getViewers()) {
+                for (Player p : audiencePlayers()) {
                     startBgmForPlayer(p);
                 }
             }
@@ -672,15 +651,16 @@ public abstract class WorldBoss {
     }
 
     public void startBgmForPlayer(Player p) {
-        if (p == null || !p.isOnline() || !active) return;
+        if (p == null || !p.isOnline() || !active || !domainViewers.contains(p.getUniqueId())) return;
         String bgm = getBgmKey();
         if (bgm == null || bgm.isBlank()) return;
         org.bukkit.SoundCategory category = getBgmSoundCategory();
 
         try {
             stopAllBgm(p);
-            // Global volume (1000.0f) ensures audio never attenuates or cuts out beyond 16 blocks across the 35m arena
-            p.playSound(p.getLocation(), bgm, category, 1000.0f, 1.0f);
+            // Attach the track to its listener so moving across the arena cannot attenuate it.
+            p.playSound(p, bgm, category, Math.max(0, Math.min(1, getBgmVolume()))
+                    * (net.rocky.coresuite.module.worldbosses.combat.BossPreferences.quiet(p) ? .2f : 1f), 1.0f);
             bgmPlaybackStartTimes.put(p.getUniqueId(), System.currentTimeMillis());
         } catch (Throwable ignored) {}
     }
@@ -712,6 +692,10 @@ public abstract class WorldBoss {
             } catch (Throwable ignored) {}
         }
     }
+
+    private UUID pressureTarget;
+    private long pressureTargetSince;
+    private final java.util.Map<UUID, Long> lastPressureTarget = new java.util.HashMap<>();
 
     public void updateAggroAndThreat(long tickCount) {
         if (entity == null || !entity.isValid() || !isAwakened) return;
@@ -780,6 +764,19 @@ public abstract class WorldBoss {
             selectedTarget = validFighters.get(new Random().nextInt(validFighters.size()));
         }
 
+        // A damage leader should not absorb every attack while the rest of the raid stands still.
+        int focusSeconds = Math.max(8, Math.min(60, config.getInt("balance.target-focus-seconds", 12)));
+        if (pressureTarget != null && tickCount - pressureTargetSince >= focusSeconds) {
+            selectedTarget = validFighters.stream().filter(p -> !p.getUniqueId().equals(pressureTarget))
+                    .min(java.util.Comparator.comparingLong(p -> lastPressureTarget.getOrDefault(p.getUniqueId(), Long.MIN_VALUE)))
+                    .orElse(selectedTarget);
+        }
+        if (selectedTarget != null && !selectedTarget.getUniqueId().equals(pressureTarget)) {
+            pressureTarget = selectedTarget.getUniqueId();
+            pressureTargetSince = tickCount;
+            TextUtil.sendActionBar(selectedTarget, "&c⚔ The boss turns its attention to you! Prepare to dodge!");
+        }
+        if (selectedTarget != null) lastPressureTarget.put(selectedTarget.getUniqueId(), tickCount);
         if (selectedTarget != null && !selectedTarget.equals(mob.getTarget())) {
             mob.setTarget(selectedTarget);
         }
@@ -878,6 +875,7 @@ public abstract class WorldBoss {
 
     public void registerMinion(LivingEntity minion) {
         if (minion != null) {
+            minion.setPersistent(false);
             minions.add(minion);
         }
     }
@@ -933,6 +931,9 @@ public abstract class WorldBoss {
             p.sendMessage(comp);
         }
     }
+
+    private Runnable defeatCallback;
+    public void setDefeatCallback(Runnable callback) { this.defeatCallback = callback; }
 
     public void die() {
         if (!active) return;
@@ -998,6 +999,7 @@ public abstract class WorldBoss {
         domainViewers.clear();
         bgmPlaybackStartTimes.clear();
         clearMinions();
+        interruptCasts();
         cleanupTemporaryBlocks();
         alertExpiry.clear();
         alertBadge.clear();
@@ -1027,7 +1029,11 @@ public abstract class WorldBoss {
         }
 
         // Distribute Loot
-        lootManager.distributeRewards(type, damageTracker, getDisplayName());
+        try {
+            lootManager.distributeRewards(type, damageTracker, getDisplayName());
+        } finally {
+            if (defeatCallback != null) defeatCallback.run();
+        }
     }
 
     public void despawn() {
@@ -1046,6 +1052,7 @@ public abstract class WorldBoss {
         domainViewers.clear();
         bgmPlaybackStartTimes.clear();
         clearMinions();
+        interruptCasts();
         cleanupTemporaryBlocks();
         alertExpiry.clear();
         alertBadge.clear();
@@ -1166,6 +1173,95 @@ public abstract class WorldBoss {
         }
     }
 
+    protected boolean abilityCombatAllowed() { return true; }
+
+    protected boolean abilityReady(long tickCount, String key, int defaultSeconds) {
+        if (!abilityCombatAllowed()) return false;
+        int cd = Math.max(1, Math.min(300, config.getInt(type.getConfigKey() + ".combat." + key + ".cooldown-seconds", defaultSeconds)));
+        long last = lastAbilityUse.getOrDefault(key, -1000L);
+        if (tickCount - last >= cd) {
+            lastAbilityUse.put(key, tickCount);
+            return true;
+        }
+        return false;
+    }
+
+    protected void applyBossEffect(Player player, PotionEffect effect) {
+        if (player == null || !player.isOnline() || effect == null) return;
+        player.addPotionEffect(effect);
+    }
+
+    protected void runAbilityLater(Runnable runnable, long delayTicks) {
+        if (!active) return;
+        BukkitTask[] taskRef = new BukkitTask[1];
+        taskRef[0] = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            try { if (active && abilityCombatAllowed() && runnable != null) runnable.run(); }
+            finally { abilityTasks.remove(taskRef[0]); }
+        }, Math.max(0, delayTicks));
+        abilityTasks.add(taskRef[0]);
+    }
+
+    protected void runAbilityTimer(java.util.function.Consumer<BukkitTask> consumer, long delayTicks, long periodTicks) {
+        if (!active) return;
+        BukkitTask[] taskRef = new BukkitTask[1];
+        taskRef[0] = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            BukkitTask task = taskRef[0];
+            if (!active || !abilityCombatAllowed()) { task.cancel(); abilityTasks.remove(task); return; }
+            try { consumer.accept(task); }
+            finally { if (task.isCancelled()) abilityTasks.remove(task); }
+        }, Math.max(0, delayTicks), Math.max(1, periodTicks));
+        abilityTasks.add(taskRef[0]);
+    }
+
+    protected <T extends Entity> T trackAbilityEntity(T entity) {
+        abilityEntities.removeIf(tracked -> !tracked.isValid());
+        if (entity != null) {
+            entity.setPersistent(false);
+            abilityEntities.add(entity);
+        }
+        return entity;
+    }
+
+    protected void interruptCasts() {
+        for (BukkitTask task : abilityTasks) {
+            try { task.cancel(); } catch (Throwable ignored) {}
+        }
+        abilityTasks.clear();
+        for (Entity ent : abilityEntities) {
+            try { if (ent != null && ent.isValid()) ent.remove(); } catch (Throwable ignored) {}
+        }
+        abilityEntities.clear();
+    }
+
+    protected boolean antiCheeseReady(Player player) {
+        if (player == null) return false;
+        long now = System.currentTimeMillis();
+        long last = antiCheeseCooldown.getOrDefault(player.getUniqueId(), 0L);
+        if (now - last < 5000L) return false;
+        antiCheeseCooldown.put(player.getUniqueId(), now);
+        return true;
+    }
+
+    public boolean testAbility(String ability) { return false; }
+
+    public boolean isEncounterWeb(Location location) {
+        TemporaryBlock temporary = temporaryBlocks.get(location);
+        return temporary != null && temporary.placed().getMaterial() == Material.COBWEB
+                && location.getBlock().getType() == Material.COBWEB;
+    }
+    public boolean isTemporaryBlock(Location location) { return temporaryBlocks.containsKey(location); }
+    public static boolean eligibleFighter(Player player) {
+        return player != null && !player.isDead() && player.getGameMode() != org.bukkit.GameMode.SPECTATOR
+                && player.getGameMode() != org.bukkit.GameMode.CREATIVE
+                && net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player);
+    }
+
+    public String diagnostics() {
+        return "encounter=" + encounterId + " state=" + encounterState + " scaledPlayers=" + scaledPlayers
+                + " tasks=" + abilityTasks.size() + " projectiles=" + abilityEntities.size()
+                + " minions=" + liveMinionCount() + " temporaryBlocks=" + temporaryBlocks.size();
+    }
+
     protected abstract void setupPhases();
 
     public String getDisplayName() {
@@ -1183,8 +1279,8 @@ public abstract class WorldBoss {
     }
     public void recordParticipation(Player player) {
         if (!active || !isAwakened || player == null || player.isDead()) return;
+        lastPlayerCombatAt = System.currentTimeMillis();
         damageTracker.recordParticipation(player);
-        hasBeenEngaged = true;
     }
     public void recordTankContribution(Player player) {
         if (!active || !isAwakened) return;
@@ -1192,36 +1288,54 @@ public abstract class WorldBoss {
     }
     public void recordMechanicContribution(Player player, String objective) {
         if (!active || !isAwakened) return;
+        if (player != null && !player.isDead()) lastPlayerCombatAt = System.currentTimeMillis();
         damageTracker.recordContribution(player, 3);
         sendCombatAlert(player, StatusBadge.DEFLECTED, "&aMechanic completed: &f" + objective, 2);
     }
     public void recordMinionContribution(Player player) {
         if (!active || !isAwakened) return;
+        if (player != null && !player.isDead()) lastPlayerCombatAt = System.currentTimeMillis();
         damageTracker.recordContribution(player, 1);
     }
     private void updateScaling() {
         if (entity == null || !entity.isValid() || !config.getBoolean("balance.adaptive-scaling", true)) return;
         long since = System.currentTimeMillis() - Math.max(10, config.getInt("balance.activity-window-seconds", 60)) * 1000L;
         int nearby = 0;
+        boolean untouched = damageTracker.getTotalDamage() <= 0 && currentHealth >= maxHealth;
         double range = config.getDouble("domain.leash-distance", 50);
         for (Player player : entity.getWorld().getPlayers()) {
             if (player.isDead() || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
-            if (damageTracker.wasRecentlyActive(player.getUniqueId(), since) && player.getLocation().distanceSquared(entity.getLocation()) <= range * range) nearby++;
+            boolean participating = damageTracker.wasRecentlyActive(player.getUniqueId(), since)
+                    || (untouched && barManager != null && barManager.getViewers().contains(player));
+            if (participating && player.getLocation().distanceSquared(entity.getLocation()) <= range * range) nearby++;
         }
         nearby = Math.max(1, Math.min(20, nearby));
-        if (nearby == scaledPlayers) return;
+        if (nearby <= scaledPlayers) return; // Encounter high-water mark: deaths/leaving never shrink health.
         double newMaximum = healthForPlayers(nearby);
-        currentHealth = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.rescale(currentHealth, maxHealth, newMaximum);
+        currentHealth = untouched ? newMaximum
+                : net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.rescale(currentHealth, maxHealth, newMaximum);
         maxHealth = newMaximum;
         scaledPlayers = nearby;
+        damageTracker.recordScaledPlayers(scaledPlayers);
         if (barManager != null) barManager.update(currentHealth, maxHealth, currentPhase, getDisplayName());
     }
+    public double getRemainingHealing() {
+        return Math.max(0, net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("balance.maximum-healing-fraction", 1), 1, 0, 10) - healedFraction) * maxHealth;
+    }
+
     public double heal(double amount) {
         double actual = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.healing(currentHealth, maxHealth, amount,
-                healedFraction, config.getDouble("balance.maximum-healing-fraction", .15));
+                healedFraction, config.getDouble("balance.maximum-healing-fraction", 1.0));
         if (actual > 0) {
             healedFraction += actual / maxHealth;
             setCurrentHealth(currentHealth + actual);
+            if (entity != null && entity.isValid()) {
+                World bw = entity.getWorld();
+                Location bLoc = entity.getLocation().add(0, 1.5, 0);
+                bw.spawnParticle(Particle.HEART, bLoc, 6, 0.4, 0.5, 0.4, 0.05);
+                bw.spawnParticle(Particle.HAPPY_VILLAGER, bLoc, 8, 0.5, 0.5, 0.5, 0.05);
+            }
         }
         return actual;
     }
@@ -1241,6 +1355,12 @@ public abstract class WorldBoss {
     }
 
     public Location getSpawnLocation() { return spawnLocation; }
+    private final long encounterCreatedAt = System.currentTimeMillis();
+    private long lastPlayerCombatAt;
+    public boolean isIdleExpired(long now) {
+        long last = Math.max(encounterCreatedAt, lastPlayerCombatAt);
+        return now - last >= 30 * 60_000L;
+    }
     public double getCurrentHealth() { return currentHealth; }
     public void setCurrentHealth(double currentHealth) {
         if (!Double.isFinite(currentHealth)) return;

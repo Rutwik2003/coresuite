@@ -14,7 +14,10 @@ final class ExcellentCratesRewardBridge {
             Pattern.CASE_INSENSITIVE);
 
     record KeyGrant(String key, int amount) {}
-    @FunctionalInterface interface Delivery { boolean deliver() throws ReflectiveOperationException; }
+    @FunctionalInterface interface Delivery {
+        boolean deliver() throws ReflectiveOperationException;
+        default boolean canDeliver() { return true; }
+    }
 
     static KeyGrant parse(String command, String playerName) {
         var match = GIVE.matcher(command.strip());
@@ -35,7 +38,10 @@ final class ExcellentCratesRewardBridge {
             if (item.getType().isAir()) throw new IllegalArgumentException("ExcellentCrates returned an empty key item");
             item.setAmount(grant.amount());
             ItemStack[] plan = BossRewardMailbox.fit(player.getInventory().getStorageContents(), List.of(item), player.getInventory().getMaxStackSize());
-            if (plan == null) return () -> false;
+            if (plan == null) return new Delivery() {
+                public boolean canDeliver() { return false; }
+                public boolean deliver() { return false; }
+            };
             return () -> {
                 player.getInventory().setStorageContents(plan);
                 player.saveData();

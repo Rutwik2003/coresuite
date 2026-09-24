@@ -37,6 +37,8 @@ public class XolthosBoss extends WorldBoss {
     private boolean stealthed = false;
     private long stealthEnd = 0;
     private long lastStealthTime = 0;
+    private final java.util.Map<java.util.UUID, Long> snareRecovery = new java.util.HashMap<>();
+    private long stunRecoveryUntil;
 
     public XolthosBoss(CoreSuitePlugin plugin, FileConfiguration config, BossLootManager lootManager) {
         super(plugin, BossType.XOLTHOS, config, lootManager);
@@ -63,6 +65,8 @@ public class XolthosBoss extends WorldBoss {
         if (entity == null || !entity.isValid()) return;
 
         Location bossLoc = entity.getLocation();
+        if (lastStealthTime == 0) lastStealthTime = System.currentTimeMillis();
+        entity.setAI(!isStunned());
 
         // Stunned glow particles
         if (isStunned()) {
@@ -96,7 +100,8 @@ public class XolthosBoss extends WorldBoss {
                     }
                 }
                 if (closest != null) {
-                    Vector stalkVec = closest.getLocation().toVector().subtract(bossLoc.toVector()).normalize().multiply(0.42);
+                    Vector stalkVec = closest.getLocation().toVector().subtract(bossLoc.toVector());
+                    if (stalkVec.lengthSquared() > 0.0001) stalkVec.normalize().multiply(0.42);
                     stalkVec.setY(entity.getVelocity().getY());
                     entity.setVelocity(stalkVec);
                 }
@@ -110,13 +115,15 @@ public class XolthosBoss extends WorldBoss {
             }
         }
 
+        if (isStealthed()) return;
+
         // Melee: Neurotoxin Leap (every 8 seconds when not stunned)
-        if (tickCount % 8 == 0) {
+        if (abilityReady(tickCount, "neurotoxin-leap", 8)) {
             executeNeurotoxinLeap(bossLoc);
         }
 
         // Ranged: Venomous Web Spit (every 6 seconds when enemies > 6m)
-        if (tickCount % 6 == 0) {
+        if (abilityReady(tickCount, "web-spit", 14)) {
             executeVenomousWebSpit(bossLoc);
         }
 
@@ -126,14 +133,14 @@ public class XolthosBoss extends WorldBoss {
 
             // Phase 2 & 3: Shadow Step (every 15s)
             if (phaseNum >= 2) {
-                if (tickCount % 15 == 0) {
+                if (abilityReady(tickCount, "shadow-step", 15)) {
                     executeShadowStep(bossLoc);
                 }
             }
 
             // Phase 3 Ultimate: Acid Rain Bombardment (every 22s)
             if (phaseNum == 3) {
-                if (tickCount % 22 == 0) {
+                if (abilityReady(tickCount, "acid-rain", 22)) {
                     executeAcidRain(bossLoc);
                 }
             }
@@ -142,16 +149,16 @@ public class XolthosBoss extends WorldBoss {
                 case 1 -> { // The Trap: Darkness & Ambush
                     for (Player p : barManager.getViewers()) {
                         handleAntiCheese(p);
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 80, 0, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.DARKNESS, 80, 0, false, false, true));
                         if (tickCount % 15 == 0) {
-                            p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
+                            applyBossEffect(p, new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
                         }
                     }
                 }
                 case 2 -> { // The Brood: Web Snare & Cave Spider Broodlings
                     for (Player p : barManager.getViewers()) {
                         handleAntiCheese(p);
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 60, 1, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.POISON, 60, 1, false, false, true));
 
                         // Cobweb trapping around fighters every 10 seconds
                         if (tickCount % 10 == 0 && random.nextDouble() < 0.4) {
@@ -168,17 +175,22 @@ public class XolthosBoss extends WorldBoss {
                 case 3 -> { // Frenzy: Slowness & Necrosis (Regen Disabled)
                     for (Player p : barManager.getViewers()) {
                         handleAntiCheese(p);
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false, true));
 
-                        // Necrosis: Drain food saturation to suppress natural regeneration
-                        p.setSaturation(0.0f);
-                        if (p.getFoodLevel() > 14) {
-                            p.setFoodLevel(14);
-                        }
+                        // Necrosis suppresses natural healing through the regain-health listener.
+                        // Never erase food/saturation restored by consumables.
                     }
                 }
             }
         }
+    }
+
+    public boolean suppressesNaturalHealing(Player player) {
+        return active && isAwakened && !isStunned() && !isStealthed()
+                && currentPhase != null && currentPhase.getPhaseNumber() == 3
+                && config.getBoolean("xolthos.phases.phase-3.necrosis", true)
+                && barManager != null && barManager.getViewers().contains(player)
+                && domainManager != null && domainManager.isInDomain(player.getLocation());
     }
 
     private void spawnCaveSpiderBroodlings(Location bossLoc) {
@@ -218,35 +230,42 @@ public class XolthosBoss extends WorldBoss {
         Player target = viewerList.get(random.nextInt(viewerList.size()));
         if (target == null || !target.isOnline()) return;
 
-        Vector leap = target.getLocation().toVector().subtract(bossLoc.toVector()).normalize().multiply(1.5);
-        leap.setY(0.42);
-        entity.setVelocity(leap);
-        bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_SPIDER_AMBIENT, 1.5f, 1.6f);
+        Location marked = target.getLocation().clone();
+        sendCombatAlert(target, StatusBadge.NEUROTOXIN_LEAP, "&dXol'thos prepares to leap! Move away!", 2);
+        marked.getWorld().spawnParticle(Particle.WITCH, marked, 24, .8, .1, .8, .01);
+        runAbilityLater(() -> {
+            if (entity == null || !entity.isValid() || isStunned() || isStealthed()) return;
+            Vector leap = marked.toVector().subtract(entity.getLocation().toVector());
+            if (leap.lengthSquared() > .01) leap.normalize().multiply(1.5);
+            leap.setY(0.42);
+            entity.setVelocity(leap);
+            bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_SPIDER_AMBIENT, 1.5f, 1.6f);
 
-        double damage = config.getDouble("xolthos.combat.neurotoxin-leap.damage", 18.0);
-        int nauseaSec = config.getInt("xolthos.combat.neurotoxin-leap.nausea-duration", 6);
-        int poisonSec = config.getInt("xolthos.combat.neurotoxin-leap.poison-duration", 6);
-        int slowSec = config.getInt("xolthos.combat.neurotoxin-leap.slowness-duration", 4);
+            double damage = config.getDouble("xolthos.combat.neurotoxin-leap.damage", 18.0);
+            int nauseaSec = config.getInt("xolthos.combat.neurotoxin-leap.nausea-duration", 6);
+            int poisonSec = config.getInt("xolthos.combat.neurotoxin-leap.poison-duration", 6);
+            int slowSec = config.getInt("xolthos.combat.neurotoxin-leap.slowness-duration", 4);
 
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!active || entity == null || !entity.isValid()) return;
-            Location landingLoc = entity.getLocation();
-            landingLoc.getWorld().playSound(landingLoc, Sound.ENTITY_SPIDER_HURT, 1.5f, 0.8f);
-            landingLoc.getWorld().playSound(landingLoc, Sound.BLOCK_SLIME_BLOCK_FALL, 1.5f, 0.6f);
-            landingLoc.getWorld().spawnParticle(Particle.SQUID_INK, landingLoc, 20, 0.5, 0.5, 0.5, 0.05);
-            landingLoc.getWorld().spawnParticle(Particle.ITEM_SLIME, landingLoc, 15, 0.5, 0.5, 0.5, 0.05);
+            runAbilityLater(() -> {
+                if (!active || entity == null || !entity.isValid()) return;
+                Location landingLoc = entity.getLocation();
+                landingLoc.getWorld().playSound(landingLoc, Sound.ENTITY_SPIDER_HURT, 1.5f, 0.8f);
+                landingLoc.getWorld().playSound(landingLoc, Sound.BLOCK_SLIME_BLOCK_FALL, 1.5f, 0.6f);
+                landingLoc.getWorld().spawnParticle(Particle.SQUID_INK, landingLoc, 20, 0.5, 0.5, 0.5, 0.05);
+                landingLoc.getWorld().spawnParticle(Particle.ITEM_SLIME, landingLoc, 15, 0.5, 0.5, 0.5, 0.05);
 
-            for (Player p : barManager.getViewers()) {
-                if (p.getWorld() == null || !p.getWorld().equals(landingLoc.getWorld())) continue;
-                if (p.getLocation().distanceSquared(landingLoc) <= 9.0) { // 3.0m radius
-                    p.damage(damage, entity);
-                    p.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, nauseaSec * 20, 0, false, false, true));
-                    p.addPotionEffect(new PotionEffect(PotionEffectType.POISON, poisonSec * 20, 1, false, false, true));
-                    p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, slowSec * 20, 2, false, false, true));
-                    sendCombatAlert(p, StatusBadge.NEUROTOXIN_LEAP, "&dParalyzing neurotoxin clouds your senses!", 3);
+                for (Player p : barManager.getViewers()) {
+                    if (p.getWorld() == null || !p.getWorld().equals(landingLoc.getWorld())) continue;
+                    if (p.getLocation().distanceSquared(landingLoc) <= 9.0) { // 3.0m radius
+                        p.damage(damage, entity);
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.NAUSEA, nauseaSec * 20, 0, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.POISON, poisonSec * 20, 1, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.SLOWNESS, slowSec * 20, 2, false, false, true));
+                        sendCombatAlert(p, StatusBadge.NEUROTOXIN_LEAP, "&dParalyzing neurotoxin clouds your senses!", 3);
+                    }
                 }
-            }
-        }, 15L);
+            }, 15L);
+        }, Math.max(10, Math.min(80, config.getInt("xolthos.combat.neurotoxin-leap.telegraph-ticks", 20))));
     }
 
     private void executeVenomousWebSpit(Location bossLoc) {
@@ -267,7 +286,7 @@ public class XolthosBoss extends WorldBoss {
             dir.setY(dir.getY() + 0.12);
             dir.normalize().multiply(2.1);
 
-            Snowball spit = bossLoc.getWorld().spawn(shootLoc, Snowball.class);
+            Snowball spit = trackAbilityEntity(bossLoc.getWorld().spawn(shootLoc, Snowball.class));
             spit.setShooter(entity);
             spit.setVelocity(dir);
 
@@ -340,8 +359,8 @@ public class XolthosBoss extends WorldBoss {
         double bonusDmg = baseDmg * (mult - 1.0);
 
         victim.damage(bonusDmg, entity);
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 60, 0, false, false, true));
-        victim.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 100, 2, false, false, true));
+        applyBossEffect(victim, new PotionEffect(PotionEffectType.BLINDNESS, 60, 0, false, false, true));
+        applyBossEffect(victim, new PotionEffect(PotionEffectType.POISON, 100, 2, false, false, true));
         victim.playSound(victim.getLocation(), Sound.ENTITY_PHANTOM_BITE, 1.5f, 0.7f);
 
         sendCombatAlert(victim, StatusBadge.EVADED, "&5✦ AMBUSH STRIKE! &cXol'thos struck from behind! (+75% DMG & Blindness)", 3);
@@ -360,15 +379,33 @@ public class XolthosBoss extends WorldBoss {
         bossLoc.getWorld().spawnParticle(Particle.PORTAL, bossLoc, 20, 0.3, 0.5, 0.3, 0.1, null, true);
         bossLoc.getWorld().playSound(bossLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1.4f, 1.2f);
 
-        entity.teleport(behind);
+        sendCombatAlert(target, StatusBadge.EVADED, "&5Shadow ambush behind you! Move away from the portal!", 2);
+        behind.getWorld().spawnParticle(Particle.PORTAL, behind, 35, .8, .2, .8, .04);
+        runAbilityLater(() -> {
+            Location landing = net.rocky.coresuite.module.worldbosses.scheduler.BossSpawnScheduler.findNearbyLocation(
+                    behind, loc -> domainManager.isInDomain(loc));
+            if (landing == null || !entity.isValid() || isStunned() || !entity.teleport(landing)) return;
+            landing.getWorld().playSound(landing, Sound.ENTITY_ENDERMAN_TELEPORT, 1.4f, 1.2f);
+            double damage = config.getDouble("xolthos.combat.shadow-step.damage", 16.0);
+            for (Player player : barManager.getViewers()) {
+                if (player.getWorld().equals(landing.getWorld()) && player.getLocation().distanceSquared(landing) <= 9) {
+                    player.damage(damage, entity);
+                    applyBossEffect(player, new PotionEffect(PotionEffectType.DARKNESS, 40, 0, false, false, true));
+                }
+            }
+        }, Math.max(20, config.getInt("xolthos.combat.shadow-step.telegraph-ticks", 30)));
 
-        behind.getWorld().spawnParticle(Particle.PORTAL, behind, 20, 0.3, 0.5, 0.3, 0.1, null, true);
-        behind.getWorld().playSound(behind, Sound.ENTITY_ENDERMAN_TELEPORT, 1.4f, 1.2f);
-
-        double damage = config.getDouble("xolthos.combat.shadow-step.damage", 16.0);
-        target.damage(damage, entity);
-        target.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 40, 0, false, false, true));
-        sendCombatAlert(target, StatusBadge.EVADED, "&5Xol'thos stepped through shadows behind you!", 2);
+    }
+    @Override public boolean testAbility(String ability) {
+        if (!active || !isAwakened || entity == null || !abilityCombatAllowed()) return false;
+        switch (ability.toLowerCase(java.util.Locale.ROOT)) {
+            case "shadowstep" -> executeShadowStep(entity.getLocation());
+            case "leap" -> executeNeurotoxinLeap(entity.getLocation());
+            case "acid" -> executeAcidRain(entity.getLocation());
+            case "web" -> executeVenomousWebSpit(entity.getLocation());
+            default -> { return false; }
+        }
+        return true;
     }
 
     private void executeAcidRain(Location bossLoc) {
@@ -387,7 +424,7 @@ public class XolthosBoss extends WorldBoss {
             bossLoc.getWorld().spawnParticle(Particle.DRAGON_BREATH, spitStart, 15, 0.3, 0.8, 0.3, 0.1, 1.0f, true);
         }
 
-        Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+        runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
             int elapsed = 0;
             @Override
             public void accept(BukkitTask task) {
@@ -418,8 +455,8 @@ public class XolthosBoss extends WorldBoss {
                         if (p.getWorld() != null && p.getWorld().equals(bLoc.getWorld())) {
                             if (p.getLocation().distance(bLoc) <= radius) {
                                 p.damage(damage, entity);
-                                p.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 100, 1, false, false, true));
-                                p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 80, 2, false, false, true));
+                                applyBossEffect(p, new PotionEffect(PotionEffectType.POISON, 100, 1, false, false, true));
+                                applyBossEffect(p, new PotionEffect(PotionEffectType.SLOWNESS, 80, 2, false, false, true));
                                 sendCombatAlert(p, StatusBadge.WEB_SPIT, "&2Acidic venom scorched your skin! Drink healing potions!", 3);
                             }
                         }
@@ -429,11 +466,23 @@ public class XolthosBoss extends WorldBoss {
         }, 0L, 3L);
     }
 
-    public void applyStun(int seconds) {
+    public boolean applyStun(int seconds) {
+        long now = System.currentTimeMillis();
+        if (now < stunRecoveryUntil) return false;
+        if (BorealisBoss.resistsCounter(config.getDouble("xolthos.weakness.night-vision-resist-chance", 50))) {
+            // Shared by all throwers: a second potion cannot immediately reroll a failed attempt.
+            stunRecoveryUntil = now + 10000L;
+            if (barManager != null) broadcastToDomain("&5NIGHT VISION DEFLECTED! &fXol'thos resists further attempts for 10 seconds!");
+            return false;
+        }
+        seconds = Math.max(1, Math.min(12, seconds));
         if (stealthed) {
             breakStealth(false);
         }
         this.stunnedUntil = System.currentTimeMillis() + (seconds * 1000L);
+        interruptCasts();
+        if (entity != null && entity.isValid()) entity.setAI(false);
+        this.stunRecoveryUntil = stunnedUntil + 10000L;
         if (entity != null && entity.isValid()) {
             Location loc = entity.getLocation();
             loc.getWorld().playSound(loc, Sound.ENTITY_SPIDER_DEATH, 1.8f, 0.6f);
@@ -447,11 +496,13 @@ public class XolthosBoss extends WorldBoss {
                 sendCombatAlert(p, StatusBadge.STUNNED, "&dBlinded by Sight! Vulnerable (+50% DMG) (" + seconds + "s)", seconds);
             }
         }
+        return true;
     }
 
     public boolean isStunned() {
         return System.currentTimeMillis() < stunnedUntil;
     }
+    @Override protected boolean abilityCombatAllowed() { return !isStunned(); }
 
     @Override
     public double calculateIncomingDamage(Player player, double originalDamage, ItemStack weapon) {
@@ -472,7 +523,7 @@ public class XolthosBoss extends WorldBoss {
             loc.getWorld().spawnParticle(Particle.PORTAL, loc.add(0, 0.5, 0), 20, 0.3, 0.3, 0.3, 0.1);
             loc.getWorld().playSound(loc, Sound.ENTITY_ENDERMAN_TELEPORT, 1.2f, 1.5f);
             TextUtil.sendActionBar(player, "&5&l✦ SHADOW PHASE &7— use Splash Night Vision to reveal Xol'thos!");
-            return 0.0;
+            return originalDamage * .35;
         }
 
         return originalDamage;
@@ -490,9 +541,11 @@ public class XolthosBoss extends WorldBoss {
         // 1. Anti-Runner: Fleeing beyond 25 blocks triggers Cocoon Snare
         double runnerThresh = config.getDouble("xolthos.anti-cheese.runner-distance-threshold", 25.0);
         if (dist >= runnerThresh) {
+            if (System.currentTimeMillis() < snareRecovery.getOrDefault(player.getUniqueId(), 0L)) return;
+            snareRecovery.put(player.getUniqueId(), System.currentTimeMillis() + 18000L);
             int cocoonSec = config.getInt("xolthos.anti-cheese.cocoon-duration-seconds", 6);
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, cocoonSec * 20, 4, false, false, true));
-            player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
+            applyBossEffect(player, new PotionEffect(PotionEffectType.SLOWNESS, cocoonSec * 20, 4, false, false, true));
+            applyBossEffect(player, new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, true));
             player.playSound(pLoc, Sound.BLOCK_COBWEB_PLACE, 1.5f, 0.7f);
             pLoc.getWorld().spawnParticle(Particle.ITEM_COBWEB, pLoc.add(0, 1, 0), 25, 0.4, 0.4, 0.4, 0.05);
             TextUtil.sendActionBar(player, "&5&l[!] COCOON SNARE: &dSticky silk binds you for attempting to flee!");
@@ -503,7 +556,9 @@ public class XolthosBoss extends WorldBoss {
         Block head = pLoc.clone().add(0, 2, 0).getBlock();
         Block feet = pLoc.getBlock();
         if (head.getType().isSolid() && feet.getRelative(0, -1, 0).getType().isSolid()) {
-            if (config.getBoolean("xolthos.anti-cheese.bunker-teleport", true) && pLoc.getWorld().getDifficulty() != org.bukkit.Difficulty.PEACEFUL) {
+            if (!antiCheeseReady(player)) return;
+            if (liveMinionCount() < Math.max(1, config.getInt("xolthos.combat.broodlings.max-active", 6))
+                    && config.getBoolean("xolthos.anti-cheese.bunker-teleport", true) && pLoc.getWorld().getDifficulty() != org.bukkit.Difficulty.PEACEFUL) {
                 CaveSpider cs = pLoc.getWorld().spawn(pLoc, CaveSpider.class);
                 cs.customName(TextUtil.colorize("&5&lCave Spider Broodling"));
                 cs.setCustomNameVisible(true);

@@ -10,13 +10,35 @@ public class BossDamageTracker {
     public static record DamageEntry(UUID uuid, String name, double damage, double percentage) {}
 
     private final double maxHealth;
+    private final UUID encounterId;
+    public UUID getEncounterId() { return encounterId; }
+    private int peakPlayers = 1;
+    public void recordScaledPlayers(int players) { peakPlayers = Math.max(peakPlayers, Math.min(20, players)); }
+    public int getPeakPlayers() { return peakPlayers; }
     private final Map<UUID, Long> lastActivity = new ConcurrentHashMap<>();
     private final Map<UUID, Double> playerDamage = new ConcurrentHashMap<>();
     private final Map<UUID, String> playerNames = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> contribution = new ConcurrentHashMap<>();
+    public enum Role { PROTECTOR, DISRUPTOR, MINION_SLAYER, SUPPORT }
+    private final Map<Role, Map<UUID, Integer>> roles = new java.util.EnumMap<>(Role.class);
+
+    public void recordContribution(Player player, int points, Role role) {
+        recordContribution(player, points);
+        if (player != null && points > 0) roles.computeIfAbsent(role, key -> new java.util.HashMap<>())
+                .merge(player.getUniqueId(), Math.min(20, points), Integer::sum);
+    }
+
+    public String roleLeader(Role role, java.util.Set<UUID> qualified) {
+        return roles.getOrDefault(role, Map.of()).entrySet().stream().filter(entry -> qualified.contains(entry.getKey()))
+                .max(Map.Entry.comparingByValue()).map(entry -> playerNames.getOrDefault(entry.getKey(), "Unknown")).orElse(null);
+    }
 
     public BossDamageTracker(double maxHealth) {
+        this(maxHealth, UUID.randomUUID());
+    }
+    public BossDamageTracker(double maxHealth, UUID encounterId) {
         this.maxHealth = maxHealth;
+        this.encounterId = encounterId;
     }
 
     public void addDamage(Player player, double amount) {
@@ -25,7 +47,6 @@ public class BossDamageTracker {
         UUID uuid = player.getUniqueId();
         playerDamage.merge(uuid, amount, Double::sum);
         playerNames.put(uuid, player.getName());
-        contribution.merge(uuid, 1, Integer::sum);
     }
 
     public void recordParticipation(Player player) {
@@ -107,5 +128,6 @@ public class BossDamageTracker {
         playerDamage.clear();
         playerNames.clear();
         contribution.clear();
+        roles.clear();
     }
 }

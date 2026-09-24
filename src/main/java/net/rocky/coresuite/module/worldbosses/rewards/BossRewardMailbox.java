@@ -24,6 +24,14 @@ public final class BossRewardMailbox {
     }
     private final CoreSuitePlugin plugin;
     private final Set<UUID> claiming = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> claimAfter = new ConcurrentHashMap<>();
+    public void deferForWorldChange(Player player) {
+        claimAfter.put(player.getUniqueId(), System.currentTimeMillis() + 2000L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) claim(player);
+            claimAfter.entrySet().removeIf(entry -> entry.getValue() <= System.currentTimeMillis());
+        }, 45L);
+    }
     public BossRewardMailbox(CoreSuitePlugin plugin) { this.plugin = plugin; }
     public void initialize() {
         plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_boss_rewards (reward_id VARCHAR(36) PRIMARY KEY, recipient VARCHAR(36) NOT NULL, kind VARCHAR(16) NOT NULL, payload TEXT NOT NULL, state INTEGER NOT NULL DEFAULT 0, created_at BIGINT NOT NULL)");
@@ -72,6 +80,41 @@ public final class BossRewardMailbox {
             stmt.setString(1, id); return stmt.executeUpdate() == 1;
         }
     }
+
+    public void openHistory(Player player) {
+        UUID recipient = player.getUniqueId();
+        plugin.getDatabaseManager().executeAsync(() -> {
+            List<String[]> receipts = new ArrayList<>();
+            try (Connection conn = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement query = conn.prepareStatement("SELECT reward_id, kind, state FROM coresuite_boss_rewards WHERE recipient = ? ORDER BY created_at DESC LIMIT 45")) {
+                query.setString(1, recipient.toString());
+                try (ResultSet rs = query.executeQuery()) {
+                    while (rs.next()) receipts.add(new String[]{rs.getString(1), rs.getString(2), rs.getString(3)});
+                }
+            } catch (SQLException error) {
+                plugin.getLogger().log(Level.WARNING, "Cannot load boss reward history", error);
+                return;
+            }
+            if (!plugin.isEnabled()) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline()) return;
+                net.rocky.coresuite.common.gui.Gui gui = new net.rocky.coresuite.common.gui.Gui("&8Boss Reward History", 6);
+                int slot = 0;
+                for (String[] receipt : receipts) {
+                    int state = Integer.parseInt(receipt[2]);
+                    String status = state == 1 ? "&aDelivered" : state == 2 ? "&cAdmin review needed" : "&eAwaiting claim";
+                    gui.setItem(slot++, net.rocky.coresuite.common.gui.GuiButton.of(
+                            state == 1 ? org.bukkit.Material.LIME_DYE : org.bukkit.Material.CHEST,
+                            status + " &7" + receipt[1], List.of("&7Receipt: " + receipt[0],
+                                    state == 2 ? "&7Ask an admin to review this receipt." : state == 1 ? "&7Already delivered." : "&7Make space, then claim below.",
+                                    "&7Missing providers or key IDs keep rewards pending."), event -> {}));
+                }
+                gui.setItem(49, net.rocky.coresuite.common.gui.GuiButton.of(org.bukkit.Material.HOPPER,
+                        "&aClaim pending rewards", List.of("&7Click once. Reopen to refresh status."), event -> claim(player)));
+                gui.open(player);
+            });
+        });
+    }
     static boolean reconcile(Connection conn, String id, boolean delivered) throws SQLException {
         try (PreparedStatement stmt = conn.prepareStatement("UPDATE coresuite_boss_rewards SET state = ? WHERE reward_id = ? AND state = 2")) {
             stmt.setInt(1, delivered ? 1 : 0); stmt.setString(2, id);
@@ -106,6 +149,8 @@ public final class BossRewardMailbox {
         });
     }
     public void claim(Player player) {
+        if (System.currentTimeMillis() < claimAfter.getOrDefault(player.getUniqueId(), 0L)) return;
+        UUID claimWorld = player.getWorld().getUID();
         if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
         UUID uuid = player.getUniqueId();
         if (!claiming.add(uuid)) return;
@@ -129,7 +174,9 @@ public final class BossRewardMailbox {
             }
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
-                    if (!player.isOnline() || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) { acquired.forEach(reward -> finish(reward, false)); return; }
+                    if (!player.isOnline() || !claimWorld.equals(player.getWorld().getUID())
+                            || System.currentTimeMillis() < claimAfter.getOrDefault(uuid, 0L)
+                            || !net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) { acquired.forEach(reward -> finish(reward, false)); return; }
                     for (Reward reward : acquired) {
                         try {
                             boolean delivered = deliver(player, reward);
@@ -154,19 +201,23 @@ public final class BossRewardMailbox {
                 List<ItemStack> items = Arrays.stream(data).map(value -> ItemStack.deserializeBytes(Base64.getDecoder().decode(value))).toList();
                 ItemStack[] plan = fit(player.getInventory().getStorageContents(), items, player.getInventory().getMaxStackSize());
                 if (plan == null) {
-                    TextUtil.sendMessage(player, "&eYour boss loot is saved. Make inventory space and use /boss claim.");
+                    TextUtil.sendMessage(player, "&eInventory full — these boss rewards are stored. Make space, then use &6/boss claim&e:");
+                    sendItemDetails(player, items);
                     return false;
                 }
                 player.getInventory().setStorageContents(plan);
                 player.saveData();
-                TextUtil.sendMessage(player, "&aYour boss participation loot has been delivered!");
+                if (!items.isEmpty()) {
+                    TextUtil.sendMessage(player, "&aBoss items received:");
+                    sendItemDetails(player, items);
+                }
                 return true;
             }
             case "CURRENCY" -> {
                 double amount = Double.parseDouble(reward.payload());
                 if (!Double.isFinite(amount) || amount <= 0) throw new IllegalArgumentException("Invalid currency reward");
                 if (!plugin.getEconomyManager().isAvailable() || !plugin.getEconomyManager().deposit(player, amount)) {
-                    TextUtil.sendMessage(player, "&eYour boss currency reward is pending. Retry with /boss claim when the economy is available.");
+                    TextUtil.sendMessage(player, "&eBoss money pending: &6$" + String.format("%,.0f", amount) + "&e. The economy is unavailable; your reward remains saved.");
                     return false;
                 }
                 TextUtil.sendMessage(player, "&a+ " + plugin.getEconomyManager().format(amount) + " &7boss reward!");
@@ -187,8 +238,12 @@ public final class BossRewardMailbox {
                 }
                 if (keyDelivery != null) {
                     // No catch/retry after a mutation: a delivery exception keeps the reserved receipt for review.
-                    if (!keyDelivery.deliver()) return deferCommand(player, reward, "Not enough inventory space for the crate key");
-                    TextUtil.sendMessage(player, "&aYour boss crate key reward has been delivered!");
+                    String description = keyDescription(command, player.getName());
+                    if (!keyDelivery.deliver()) {
+                        TextUtil.sendMessage(player, "&eInventory full — stored &f" + description + "&e. Make space, then use &6/boss claim&e.");
+                        return false;
+                    }
+                    TextUtil.sendMessage(player, "&aBoss reward received: &f" + description);
                     return true;
                 }
                 String root = command.split("\\s+")[0].toLowerCase(Locale.ROOT);
@@ -196,6 +251,7 @@ public final class BossRewardMailbox {
                         && !Bukkit.getPluginManager().isPluginEnabled("ExcellentCrates") && !Bukkit.getPluginManager().isPluginEnabled("CrazyCrates") && !Bukkit.getPluginManager().isPluginEnabled("GoldenCrates")) return deferCommand(player, reward, "No enabled crate provider");
                 if (Bukkit.getCommandMap().getCommand(root) == null) return deferCommand(player, reward, "Command is not registered: " + root);
                 if (!Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command)) throw new IllegalStateException("Reward command returned false: " + command);
+                TextUtil.sendMessage(player, "&aBoss bonus applied: &f" + keyDescription(command, player.getName()));
                 return true;
             }
             default -> throw new IllegalArgumentException("Unknown reward type");
@@ -203,8 +259,24 @@ public final class BossRewardMailbox {
     }
     private boolean deferCommand(Player player, Reward reward, String reason) {
         plugin.getLogger().warning("[WorldBosses] Reward kept pending: " + reward.id() + " recipient=" + player.getUniqueId() + " command=" + reward.payload() + " reason=" + reason);
-        TextUtil.sendMessage(player, "&eYour boss command reward is saved: " + reason + ". Use /boss claim after this is resolved.");
+        TextUtil.sendMessage(player, "&eA boss bonus is pending because its reward provider is unavailable or misconfigured. Your reward is saved; please contact an admin.");
         return false;
+    }
+    static String keyDescription(String command, String playerName) {
+        var grant = ExcellentCratesRewardBridge.parse(command, playerName);
+        return grant == null ? "Custom reward (" + command.split("\\s+")[0] + ")"
+                : grant.amount() + " × " + grant.key().replace('_', ' ') + " Crate Key" + (grant.amount() == 1 ? "" : "s");
+    }
+    private static void sendItemDetails(Player player, List<ItemStack> items) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (ItemStack item : items) {
+            var meta = item.getItemMeta();
+            String name = meta != null && meta.hasDisplayName()
+                    ? net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacyAmpersand().serialize(meta.displayName())
+                    : item.getType().name().toLowerCase(Locale.ROOT).replace('_', ' ');
+            counts.merge(name, item.getAmount(), Integer::sum);
+        }
+        counts.forEach((name, amount) -> TextUtil.sendMessage(player, "&7 • &f" + amount + " × " + name));
     }
     static ItemStack[] fit(ItemStack[] current, List<ItemStack> incoming, int inventoryLimit) {
         ItemStack[] plan = Arrays.stream(current).map(item -> item == null ? null : item.clone()).toArray(ItemStack[]::new);

@@ -43,3 +43,10 @@ store:
     rare: 49
     elite: 80
     insane: 120
+
+# Existing ajLeaderboards board IDs. Create these boards in ajLeaderboards first.
+# Playtime values must be raw ticks (20 ticks = 1 second).
+leaderboards:
+  kills: "statistic_player_kills"
+  netWorth: "vault_eco_balance"
+  playtime: "statistic_time_played"

@@ -1,0 +1,436 @@
+# ============================================================
+#  CoreSuite — Player Guide & Onboarding Module Configuration
+# ============================================================
+
+enabled: true
+prefix: '&8[&6&lGuide&8] &r'
+
+# ── Interactive Guide GUI ──────────────────────────────────
+gui:
+  title: '&8&lServer Guide &7&l» &eManual & Perks'
+  rows: 6
+  border-material: GRAY_STAINED_GLASS_PANE
+
+# ── First-Time Join Walkthrough ────────────────────────────
+first-join:
+  enabled: true
+  # Only trigger this walkthrough on a player's very first join to the server (prevents flashing on every join)
+  only-first-join: true
+  # Number of ticks to wait after player logs in via AuthMe before welcoming them (40 ticks = 2 seconds)
+  authme-delay-ticks: 40
+  # Plays sound to new player upon first login (leave empty '' to disable)
+  sound: 'UI_TOAST_CHALLENGE_COMPLETE'
+  # Title and subtitle shown on screen (set title-enabled: false to disable on-screen title flash)
+  title-enabled: true
+  title: '&6&lWELCOME TO THE SERVER!'
+  subtitle: '&eType &b/guide &eto explore features & claim rewards'
+  # Formatted chat greeting banner
+  welcome-message:
+    - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+    - '&6&l  WELCOME TO THE SERVER, %player%!'
+    - '&7  We have dozens of unique systems, custom economies,'
+    - '&7  and thrilling activities to explore.'
+    - ''
+    - '&e  ▶ Type &b/guide &eor click below to open your interactive manual:'
+    - '&a  [ ✦ CLICK HERE TO OPEN SERVER GUIDE ✦ ]'
+    - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+  # If true, automatically opens the /guide GUI 3 seconds after first login
+  auto-open-gui: false
+
+# ── One-Time Starter Gift ──────────────────────────────────
+starter-reward:
+  enabled: true
+  # Strictly one-time per player via atomic database lock
+  one-time-only: true
+  # Maximum number of claims allowed per IP address (anti-alt abuse)
+  max-claims-per-ip: 1
+  # If false, allows existing server players to claim this starter gift once in their lifetime
+  require-first-join: false
+  # Monetary reward deposited via Vault
+  economy-amount: 5000.0
+  # Console commands executed upon claim (%player% or {player} is replaced with player name)
+  reward-commands:
+    - 'crate key give %player% common 1'
+    - 'crate key give %player% uncommon 1'
+  # Minimum free inventory slots needed before delivering physical crate keys
+  required-free-slots: 2
+  # Claim button in GUI
+  claim-button:
+    slot: 49
+    unclaimed-material: CHEST
+    unclaimed-name: '&a&lClaim Starter Gift &7(One-Time)'
+    unclaimed-lore:
+      - '&7Click to claim your server starter welcome package:'
+      - '  &e• &6$5,000 &7Server Currency'
+      - '  &e• &f1x &7Common Crate Key'
+      - '  &e• &a1x &7Uncommon Crate Key'
+      - ''
+      - '&a▶ Click to claim now!'
+    claimed-material: MINECART
+    claimed-name: '&c&lStarter Gift Claimed'
+    claimed-lore:
+      - '&7You have already claimed your starter gift.'
+      - '&7This reward can only be claimed once per player.'
+
+# ── Guide Commands & Mechanics Directory ───────────────────
+entries:
+  # 1. /shop
+  shop:
+    name: '&6&l/shop &7- Server Item Shop'
+    command: 'shop'
+    material: CHEST
+    slot: 10
+    description:
+      - '&7Browse the EconomyShopGUI server item store.'
+      - '&7Buy & sell blocks, ores, food, gear, and items!'
+      - '&eCommand: &b/shop'
+      - ''
+      - '&aLeft-Click &7» Open Shop'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&6&lSERVER ITEM SHOP &7(/shop)'
+      - '&7Powered by EconomyShopGUI-Premium!'
+      - '&7Buy essential building blocks, minerals, mob drops,'
+      - '&7farming produce, and gear using your in-game balance.'
+      - '&7Sell your surplus items to earn quick cash!'
+      - '&e▶ Click to run: &b/shop'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 2. /market or /harvest
+  harvest:
+    name: '&a&l/market &7or &a&l/harvest &7- Crop Market'
+    command: 'market'
+    material: WHEAT
+    slot: 11
+    description:
+      - '&7Sell your farmed crops for boosted seasonal prices.'
+      - '&7Earn top dollar by tracking rotating season bonuses!'
+      - '&eCommand: &b/market &7or &b/harvest'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&a&lHARVEST MARKET &7(/market, /harvest)'
+      - '&7Sell wheat, carrots, potatoes, nether wart, and more!'
+      - '&7Each in-game season offers bonus multipliers on specific crops.'
+      - '&e▶ Click to run: &b/market'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 3. /uc menu
+  uc_menu:
+    name: '&d&l/uc menu &7- Ultra Cosmetics'
+    command: 'uc menu'
+    material: NETHER_STAR
+    slot: 12
+    description:
+      - '&7Open the cosmetics wardrobe: particle trails, pets,'
+      - '&7morphs, hats, suits, and fun gadgets.'
+      - '&eCommand: &b/uc menu'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&d&lULTRA COSMETICS &7(/uc menu)'
+      - '&7Customize your appearance with cosmetic particle trails,'
+      - '&7companion pets, player morphs, hats, and musical emotes!'
+      - '&e▶ Click to run: &b/uc menu'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 4. /vote
+  vote:
+    name: '&b&l/vote &7- Voting Links & Rewards'
+    command: 'vote'
+    material: SUNFLOWER
+    slot: 13
+    description:
+      - '&7Vote daily on server listing websites to earn'
+      - '&7free crate keys, money, and voting streak milestones.'
+      - '&eCommand: &b/vote'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&b&lSERVER VOTING &7(/vote)'
+      - '&7Voting supports the server and rewards you with free keys,'
+      - '&7money, and tokens every single day!'
+      - '&e▶ Click to run: &b/vote'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 5. /fish
+  fish:
+    name: '&3&l/fish &7- Custom MMO Fishing'
+    command: 'fish'
+    material: FISHING_ROD
+    slot: 14
+    description:
+      - '&7Catch 190+ unique custom fish, upgrade your rods,'
+      - '&7craft custom baits, store catches in your Fish Bag,'
+      - '&7and complete Garrick''s 10 Legendary Quests!'
+      - '&eCommand: &b/fish'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&3&lCUSTOM FISHING &7(/fish)'
+      - '&7Fish in different biomes, oceans, and legendary ponds.'
+      - '&7Level up your Angler skill, gut fish for scales, and'
+      - '&7participate in weekly fishing tournaments for prizes!'
+      - '&e▶ Click to run: &b/fish'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 6. /gamble
+  gamble:
+    name: '&e&l/gamble &7- Royal Casino'
+    command: 'gamble'
+    material: GOLD_BLOCK
+    slot: 15
+    description:
+      - '&7Test your luck at the Royal Casino:'
+      - '  &e• &fCoinflip &7(PVP duels)'
+      - '  &e• &fCrash &7(Multiplier curve)'
+      - '  &e• &fRoulette &7(Red / Black / Green)'
+      - '  &e• &fSlots &7(Slot machine)'
+      - '&eCommand: &b/gamble'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&e&lROYAL CASINO &7(/gamble)'
+      - '&7Fair and thrilling casino games with live animations.'
+      - '&7Challenge players to Coinflip (/cf) or ride the Crash multiplier!'
+      - '&e▶ Click to run: &b/gamble'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 7. /referral
+  referral:
+    name: '&9&l/referral &7- Invite Friends'
+    command: 'referral'
+    material: WRITABLE_BOOK
+    slot: 16
+    description:
+      - '&7Share your referral code with friends.'
+      - '&7Both of you receive bonus rewards when they join!'
+      - '&eCommand: &b/referral'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&9&lREFERRAL SYSTEM &7(/referral)'
+      - '&7Generate your personal referral code via &b/referral create&7.'
+      - '&7When friends redeem it via &b/referral use <code>&7, both earn rewards!'
+      - '&e▶ Click to run: &b/referral'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 8. /discord
+  discord:
+    name: '&9&l/discord &7- Community Discord'
+    command: 'discord'
+    material: AMETHYST_SHARD
+    slot: 19
+    description:
+      - '&7Join our Discord community for events, announcements,'
+      - '&7support tickets, and voice channels.'
+      - '&eCommand: &b/discord'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&9&lDISCORD BRIDGE &7(/discord)'
+      - '&7Connect with our community, get instant update alerts,'
+      - '&7and link your Minecraft account to receive Discord perks!'
+      - '&e▶ Click to run: &b/discord'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 9. /rank
+  rank:
+    name: '&6&l/rank &7- Server Ranks'
+    command: 'rank'
+    material: GOLDEN_HELMET
+    slot: 20
+    description:
+      - '&7View rank perks, kit privileges, and web store tiers.'
+      - '&eCommand: &b/rank'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&6&lSERVER RANKS &7(/rank)'
+      - '&7Unlock higher home limits, exclusive kits, prefixes,'
+      - '&7and cosmetic perks across all game modes.'
+      - '&e▶ Click to run: &b/rank'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 10. /rtp
+  rtp:
+    name: '&2&l/rtp &7- Random Wilderness Teleport'
+    command: 'rtp'
+    material: COMPASS
+    slot: 21
+    description:
+      - '&7Instantly teleport to a safe, unexplored location'
+      - '&7in the wilderness to start building your base.'
+      - '&eCommand: &b/rtp'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&2&lRANDOM TELEPORT &7(/rtp)'
+      - '&7Looking for a spot to settle? /rtp finds safe, dry land'
+      - '&7far away from spawn so you can start mining and building!'
+      - '&e▶ Click to run: &b/rtp'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 11. /withdraw
+  withdraw:
+    name: '&a&l/withdraw &7- Bank Notes'
+    command: 'bank'
+    material: PAPER
+    slot: 22
+    description:
+      - '&7Convert your account balance into physical signed currency'
+      - '&7notes to trade safely with other players.'
+      - '&eCommand: &b/withdraw <amount> &7or &b/bank'
+      - ''
+      - '&aLeft-Click &7» Open Bank'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&a&lBANK NOTES &7(/withdraw, /claimnote, /bank)'
+      - '&7Withdraw balance into signed bank notes for player trades.'
+      - '&7Right-click a note or type &b/claimnote &7to deposit notes instantly!'
+      - '&e▶ Click to run: &b/bank'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 12. /orders (Core Server Mechanic)
+  orders:
+    name: '&e&l/orders &7- Bounty & Orders Board'
+    command: 'orders'
+    material: WRITTEN_BOOK
+    slot: 23
+    description:
+      - '&7Post requests for items you need with reward payouts,'
+      - '&7or fulfill orders placed by other players for cash!'
+      - '&eCommand: &b/orders'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&e&lORDERS BOARD &7(/orders)'
+      - '&7A player-to-player market. Need materials? Place an order.'
+      - '&7Have extra items? Fulfill existing orders and get paid instantly!'
+      - '&e▶ Click to run: &b/orders'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 13. /well (Wishing Well)
+  well:
+    name: '&b&l/well &7- Community Wishing Well'
+    command: 'well'
+    material: CAULDRON
+    slot: 24
+    description:
+      - '&7Toss money into the community wishing well pot.'
+      - '&7Every ticket increases your chances of winning the jackpot!'
+      - '&eCommand: &b/well'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&b&lWISHING WELL &7(/well)'
+      - '&7Contribute coins into the shared pool. When the timer ends,'
+      - '&7one lucky player takes home the massive jackpot!'
+      - '&e▶ Click to run: &b/well'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 14. /artifacts (Archaeology Rush)
+  artifacts:
+    name: '&6&l/artifacts &7- Archaeology Relics'
+    command: 'artifacts'
+    material: BRUSH
+    slot: 25
+    description:
+      - '&7Dig and excavate ancient artifact fragments.'
+      - '&7Complete sets to turn in to the Curator for huge prizes!'
+      - '&eCommand: &b/artifacts'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&6&lARCHAEOLOGY RUSH &7(/artifacts)'
+      - '&7Excavate blocks to discover rare artifact fragments.'
+      - '&7Visit the Curator GUI to complete collections for rewards!'
+      - '&e▶ Click to run: &b/artifacts'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 15. /boss (World Bosses)
+  boss:
+    name: '&4&l/boss &7- MMORPG World Bosses'
+    command: 'boss'
+    material: DRAGON_HEAD
+    slot: 28
+    description:
+      - '&7Face multi-phase legendary bosses: Valerius, Aethelgard,'
+      - '&7and Xol''thos. Craft totems and unlock the Hunting Codex!'
+      - '&eCommand: &b/boss'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&4&lWORLD BOSSES &7(/boss)'
+      - '&7Epic encounters with custom BGM, dark fog, and multi-phase combat.'
+      - '&7Craft summon totems at crafting tables and earn crate keys!'
+      - '&e▶ Click to run: &b/boss'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 16. /playtime (Playtime Rewards)
+  playtime:
+    name: '&e&l/playtime &7- Playtime Milestones'
+    command: 'playtime'
+    material: CLOCK
+    slot: 29
+    description:
+      - '&7Track your active playtime and claim rewards at each milestone.'
+      - '&eCommand: &b/playtime'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&e&lPLAYTIME REWARDS &7(/playtime)'
+      - '&7The more you play, the more you earn! Climb milestone ladders'
+      - '&7to unlock currency, keys, and special cosmetic items.'
+      - '&e▶ Click to run: &b/playtime'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+  # 17. /hub or /spawn
+  hub:
+    name: '&f&l/hub &7- Lobby & Navigation'
+    command: 'hub'
+    material: BEACON
+    slot: 30
+    description:
+      - '&7Return to the main server spawn lobby anytime.'
+      - '&eCommand: &b/hub &7or &b/spawn'
+      - ''
+      - '&aLeft-Click &7» Run command'
+      - '&eRight-Click &7» Read details'
+    chat-explanation:
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+      - '&f&lSERVER LOBBY &7(/hub, /spawn)'
+      - '&7Teleport back to the central lobby to visit NPC vendors,'
+      - '&7crates, leaderboards, and portals.'
+      - '&e▶ Click to run: &b/hub'
+      - '&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'

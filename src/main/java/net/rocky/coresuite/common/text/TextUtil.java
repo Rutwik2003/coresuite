@@ -189,6 +189,18 @@ public final class TextUtil {
     }
 
     /**
+     * Sends an Adventure Component to a CommandSender.
+     *
+     * @param sender    The recipient of the message.
+     * @param component The Adventure component to send.
+     */
+    public static void sendMessage(CommandSender sender, Component component) {
+        if (sender != null && component != null) {
+            sender.sendMessage(component);
+        }
+    }
+
+    /**
      * Sends a colorized, prefixed message to a CommandSender.
      *
      * @param sender  The recipient of the message.

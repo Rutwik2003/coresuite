@@ -28,7 +28,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
+import net.kyori.adventure.text.Component;
+import java.util.List;
+import java.util.ArrayList;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -115,15 +119,38 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
         plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_banknote_deliveries (note_id VARCHAR(64) PRIMARY KEY, recipient VARCHAR(36) NOT NULL)");
         for (Player player : Bukkit.getOnlinePlayers()) net.rocky.coresuite.common.integration.AuthenticationGate.afterLogin(plugin, player, () -> { if (isEnabled()) deliverPending(player); });
         
-        String autoInc = plugin.getDatabaseManager().isMySQL() ? "AUTO_INCREMENT" : "AUTOINCREMENT";
-        plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_banknotes_logs (id INTEGER PRIMARY KEY " + autoInc + ", action TEXT, player TEXT, amount REAL, note_id TEXT, time INTEGER)");
+        boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+        String idCol = isMySQL ? "id INT NOT NULL AUTO_INCREMENT PRIMARY KEY" : "id INTEGER PRIMARY KEY AUTOINCREMENT";
+        plugin.getDatabaseManager().execute("CREATE TABLE IF NOT EXISTS coresuite_banknotes_logs (" + idCol + ", action VARCHAR(32), player VARCHAR(64), amount REAL, note_id VARCHAR(64), time BIGINT)");
+        
+        if (!isMySQL) {
+            plugin.getDatabaseManager().execute("CREATE INDEX IF NOT EXISTS idx_bn_logs_player ON coresuite_banknotes_logs (player, id DESC)");
+        } else {
+            plugin.getDatabaseManager().executeAsync(() -> {
+                try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                    boolean hasIndex = false;
+                    try (ResultSet rs = conn.getMetaData().getIndexInfo(null, null, "coresuite_banknotes_logs", false, false)) {
+                        while (rs.next()) {
+                            if ("idx_bn_logs_player".equalsIgnoreCase(rs.getString("INDEX_NAME"))) {
+                                hasIndex = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!hasIndex) {
+                        try (PreparedStatement ps = conn.prepareStatement("CREATE INDEX idx_bn_logs_player ON coresuite_banknotes_logs (player, id DESC)")) {
+                            ps.executeUpdate();
+                        }
+                    }
+                } catch (SQLException ignored) {}
+            });
+        }
         
         int maxEntries = config.getInt("max-log-entries", 10000);
-        plugin.getDatabaseManager().execute(
-            "DELETE FROM coresuite_banknotes_logs WHERE id NOT IN " +
-            "(SELECT id FROM coresuite_banknotes_logs ORDER BY id DESC LIMIT ?)", 
-            maxEntries
-        );
+        String deleteSql = isMySQL
+                ? "DELETE FROM coresuite_banknotes_logs WHERE id NOT IN (SELECT id FROM (SELECT id FROM coresuite_banknotes_logs ORDER BY id DESC LIMIT ?) AS tmp_logs)"
+                : "DELETE FROM coresuite_banknotes_logs WHERE id NOT IN (SELECT id FROM coresuite_banknotes_logs ORDER BY id DESC LIMIT ?)";
+        plugin.getDatabaseManager().execute(deleteSql, maxEntries);
     }
 
     private String generateNoteId(boolean isXp) {
@@ -441,93 +468,32 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
         
         String prefix = config.getString("prefix", "&8[&6&lBank&8] &r");
         
-        if (cmd.equals("bank")) {
-            if (!(sender instanceof Player)) return true;
-            if (!sender.hasPermission("coresuite.banknotes.withdraw")) {
-                TextUtil.sendMessage(sender, prefix + "&cNo permission.");
+        if (cmd.equals("bank") || cmd.equals("withdraw")) {
+            if (!(sender instanceof Player player)) return true;
+            if (!player.hasPermission("coresuite.banknotes.withdraw")) {
+                TextUtil.sendMessage(player, prefix + "&cYou don't have permission to use this command.");
                 return true;
             }
-            openBankGui((Player) sender);
-            return true;
+            return handleWithdrawOrBank(player, args, prefix);
         }
 
         if (cmd.equals("withdrawlog")) {
-            if (!(sender instanceof Player player)) return true;
-            if (!player.hasPermission("coresuite.banknotes.withdrawlog")) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cNo permission.");
+            if (!(sender instanceof Player player)) {
+                TextUtil.sendMessage(sender, prefix + "&cThis command can only be run by players in-game.");
+                return true;
+            }
+            if (!player.hasPermission("coresuite.banknotes.withdraw") && !player.hasPermission("coresuite.banknotes.withdrawlog") && !player.hasPermission("coresuite.banknotes.admin")) {
+                TextUtil.sendMessage(player, prefix + "&cNo permission.");
                 return true;
             }
             
-            String playerName = player.getName();
-            plugin.getDatabaseManager().executeAsync(() -> {
-                java.util.List<String> messages = new java.util.ArrayList<>();
-                messages.add("&8[&6&lBank&8] &r&7Recent Transactions:");
-                try (Connection conn = plugin.getDatabaseManager().getConnection();
-                     PreparedStatement stmt = conn.prepareStatement("SELECT action, amount, time FROM coresuite_banknotes_logs WHERE player = ? ORDER BY id DESC LIMIT 10")) {
-                    stmt.setString(1, playerName);
-                    try (ResultSet rs = stmt.executeQuery()) {
-                        while (rs.next()) {
-                            String time = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm").format(new java.util.Date(rs.getLong("time")));
-                            messages.add("&8 - &e" + time + " &7| &a" + rs.getString("action") + " &7| &f" + TextUtil.formatNumber(rs.getDouble("amount")));
-                        }
-                    }
-                    if (messages.size() == 1) messages.add("&7No recent transactions found.");
-                } catch (SQLException e) {
-                    plugin.getLogger().log(Level.SEVERE, "Failed to get bank logs", e);
-                    messages.add("&cTransaction history is temporarily unavailable.");
-                }
-                if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (isEnabled() && player.isOnline()) messages.forEach(message -> TextUtil.sendMessage(player, message));
-                });
-            });
-            return true;
-        }
-
-        if (cmd.equals("withdraw")) {
-            if (!(sender instanceof Player)) return true;
-            Player player = (Player) sender;
-            
-            if (!player.hasPermission("coresuite.banknotes.withdraw")) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cYou don't have permission to withdraw.");
-                return true;
+            int page = 1;
+            if (args.length > 0) {
+                try {
+                    page = Math.max(1, Integer.parseInt(args[0]));
+                } catch (NumberFormatException ignored) {}
             }
-
-            if (args.length == 0) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&eUsage: &f/withdraw <amount> &eor &f/withdraw xp <amount>");
-                return true;
-            }
-
-            boolean isXp = false;
-            String amountStr = args[0];
-            if (args[0].equalsIgnoreCase("xp") && args.length > 1) {
-                isXp = true;
-                amountStr = args[1];
-            }
-
-            double amount = parseAmount(amountStr);
-            if (amount <= 0) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cInvalid amount.");
-                return true;
-            }
-
-            amount = Math.floor(amount);
-            double min = config.getDouble(isXp ? "min-withdraw-xp" : "min-withdraw", 1);
-            double max = config.getDouble(isXp ? "max-withdraw-xp" : "max-withdraw", 1000000000000.0);
-
-            if (amount < min) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cMinimum withdrawal: &f" + TextUtil.formatNumber(min));
-                return true;
-            }
-            if (amount > max) {
-                TextUtil.sendMessage(player, "&8[&6&lBank&8] &r&cMaximum per note: &f" + TextUtil.formatNumber(max));
-                return true;
-            }
-
-            if (amount <= 0 || (isXp && amount > Integer.MAX_VALUE)) {
-                TextUtil.sendMessage(player, "&cInvalid note amount.");
-                return true;
-            }
-            issueNote(player, amount, isXp, false);
+            openTransactionLogGui(player, page);
             return true;
         }
 
@@ -597,83 +563,410 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
         return false;
     }
 
-    private void openBankGui(Player player) {
-        Gui gui = new Gui(config.getString("gui-title", "&6&lBank Menu"), 4);
-        
+    private boolean handleWithdrawOrBank(Player player, String[] args, String prefix) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("gui") || args[0].equalsIgnoreCase("menu")) {
+            openBankGui(player);
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("help")) {
+            TextUtil.sendMessage(player, prefix + "&eBank & Withdrawal Commands:");
+            TextUtil.sendMessage(player, "  &b/withdraw &7or &b/bank &7- Open the Bank & Withdrawal Menu");
+            TextUtil.sendMessage(player, "  &b/withdraw <amount> &7- Withdraw money as a physical note");
+            TextUtil.sendMessage(player, "  &b/withdraw xp <amount> &7- Withdraw experience into a bottle");
+            TextUtil.sendMessage(player, "  &b/claimnote &7- Redeem all notes in your inventory");
+            TextUtil.sendMessage(player, "  &b/withdrawlog &7- View transaction history ledger");
+            return true;
+        }
+
+        boolean isXp = false;
+        String amountStr = args[0];
+        if (args[0].equalsIgnoreCase("xp") && args.length > 1) {
+            isXp = true;
+            amountStr = args[1];
+        }
+
+        double amount = parseAmount(amountStr);
+        if (amount <= 0) {
+            TextUtil.sendMessage(player, prefix + "&cInvalid amount.");
+            return true;
+        }
+
+        amount = Math.floor(amount);
+        double min = config.getDouble(isXp ? "min-withdraw-xp" : "min-withdraw", 1);
+        double max = config.getDouble(isXp ? "max-withdraw-xp" : "max-withdraw", 1000000000000.0);
+
+        if (amount < min) {
+            TextUtil.sendMessage(player, prefix + "&cMinimum withdrawal: &f" + TextUtil.formatNumber(min));
+            return true;
+        }
+        if (amount > max) {
+            TextUtil.sendMessage(player, prefix + "&cMaximum per note: &f" + TextUtil.formatNumber(max));
+            return true;
+        }
+
+        if (amount <= 0 || (isXp && amount > Integer.MAX_VALUE)) {
+            TextUtil.sendMessage(player, prefix + "&cInvalid note amount.");
+            return true;
+        }
+        issueNote(player, amount, isXp, false);
+        return true;
+    }
+
+    public void openBankGui(Player player) {
+        String title = config.getString("gui-title", "&6&lBank &7» &eWithdraw & Manage");
+        Gui gui = new Gui(title, 5);
         gui.fillBorder(Material.GRAY_STAINED_GLASS_PANE);
 
-        java.util.List<java.util.Map<?, ?>> denominations = config.getMapList("gui.denominations");
+        double balance = plugin.getEconomyManager() != null ? plugin.getEconomyManager().getBalance(player) : 0.0;
+        int totalXp = getTotalExperience(player);
+        int level = player.getLevel();
+
+        // Slot 4: Player Profile & Financial Summary Head
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        if (meta != null) {
+            meta.setOwningPlayer(player);
+            meta.displayName(TextUtil.colorize("&6&lAccount Summary &8| &e" + player.getName()));
+            List<Component> lore = new ArrayList<>();
+            lore.add(TextUtil.colorize("&8─────────────────────────"));
+            lore.add(TextUtil.colorize("&7Economy Balance: &6$" + TextUtil.formatNumber(balance)));
+            lore.add(TextUtil.colorize("&7Experience Level: &aLevel " + level));
+            lore.add(TextUtil.colorize("&7Total XP Points: &a" + TextUtil.formatNumber(totalXp) + " XP"));
+            lore.add(TextUtil.colorize("&8─────────────────────────"));
+            lore.add(TextUtil.colorize("&e▶ Click to view transaction ledger"));
+            meta.lore(lore);
+            head.setItemMeta(meta);
+        }
+        gui.setItem(4, new GuiButton(head, e -> {
+            player.closeInventory();
+            openTransactionLogGui(player, 1);
+        }));
+
+        // Slot 9: Currency Category Label
+        gui.setItem(9, new GuiButton(
+            TextUtil.createItem(Material.GOLD_INGOT, "&6&lCurrency Withdrawal",
+                "&7Withdraw money from your balance",
+                "&7into signed physical banknotes.",
+                "",
+                "&7Your Balance: &6$" + TextUtil.formatNumber(balance)
+            ),
+            e -> {}
+        ));
+
+        // Slots 10-15: Currency Denominations
+        List<Map<?, ?>> denominations = config.getMapList("gui.denominations");
         int slot = 10;
-        for (java.util.Map<?, ?> denomMap : denominations) {
-            if (slot == 13) slot = 14;
-            if (slot > 16) break;
+        for (Map<?, ?> denomMap : denominations) {
+            if (slot > 15) break;
             
             String amountStr = String.valueOf(denomMap.get("amount"));
+            double amountVal = parseAmount(amountStr);
             String materialStr = (String) denomMap.get("material");
             String displayName = (String) denomMap.get("display-name");
             
             Material mat = Material.matchMaterial(materialStr != null ? materialStr : "SUNFLOWER");
             if (mat == null) mat = Material.SUNFLOWER;
+
+            boolean canAfford = balance >= amountVal;
+            List<String> lore = new ArrayList<>();
+            lore.add("&8─────────────────────────");
+            lore.add("&7Withdrawal: &6$" + TextUtil.formatNumber(amountVal));
+            lore.add("&7Your Balance: &f$" + TextUtil.formatNumber(balance));
+            lore.add("&8─────────────────────────");
+            lore.add(canAfford ? "&a✔ Click to withdraw note" : "&c✖ Insufficient balance");
             
             gui.setItem(slot, new GuiButton(
-                TextUtil.createItem(mat, displayName, "&7Click to withdraw " + amountStr),
+                TextUtil.createItem(mat, displayName, lore.toArray(String[]::new)),
                 e -> player.performCommand("withdraw " + amountStr)
             ));
             slot++;
         }
         
+        // Slot 16: Custom Amount
         gui.setItem(16, new GuiButton(
-            TextUtil.createItem(Material.WRITABLE_BOOK, "&e&lCustom Amount", "&7Click to enter a custom", "&7amount in chat."),
+            TextUtil.createItem(Material.WRITABLE_BOOK, "&e&lCustom Currency Amount",
+                "&8─────────────────────────",
+                "&7Click to type a custom amount",
+                "&7in chat to withdraw.",
+                "",
+                "&7Current Balance: &6$" + TextUtil.formatNumber(balance),
+                "&8─────────────────────────",
+                "&a▶ Click to enter amount"
+            ),
             e -> {
                 player.closeInventory();
                 pendingPrompts.put(player.getUniqueId(), "money");
                 TextUtil.sendMessage(player, "&6&lBank &8» &7Enter the amount of money to withdraw in chat (or type 'cancel').");
             }
         ));
+
+        // Slot 18: Experience Category Label
+        gui.setItem(18, new GuiButton(
+            TextUtil.createItem(Material.EXPERIENCE_BOTTLE, "&a&lExperience Withdrawal",
+                "&7Convert your XP points into",
+                "&7redeemable experience bottles.",
+                "",
+                "&7Current XP: &a" + TextUtil.formatNumber(totalXp) + " XP",
+                "&7Current Level: &aLevel " + level
+            ),
+            e -> {}
+        ));
         
-        java.util.List<java.util.Map<?, ?>> xpDenoms = config.getMapList("gui.xp-denominations");
+        // Slots 19-24: XP Denominations
+        List<Map<?, ?>> xpDenoms = config.getMapList("gui.xp-denominations");
         if (xpDenoms.isEmpty()) {
-            xpDenoms = java.util.List.of(
-                java.util.Map.of("amount", 100, "material", "EXPERIENCE_BOTTLE", "display-name", "&a100 XP"),
-                java.util.Map.of("amount", 1000, "material", "EXPERIENCE_BOTTLE", "display-name", "&a1000 XP"),
-                java.util.Map.of("amount", 5000, "material", "EXPERIENCE_BOTTLE", "display-name", "&a5000 XP")
+            xpDenoms = List.of(
+                Map.of("amount", 100, "material", "EXPERIENCE_BOTTLE", "display-name", "&a100 XP"),
+                Map.of("amount", 500, "material", "EXPERIENCE_BOTTLE", "display-name", "&a500 XP"),
+                Map.of("amount", 1000, "material", "EXPERIENCE_BOTTLE", "display-name", "&a1,000 XP"),
+                Map.of("amount", 5000, "material", "EXPERIENCE_BOTTLE", "display-name", "&a5,000 XP"),
+                Map.of("amount", 10000, "material", "EXPERIENCE_BOTTLE", "display-name", "&a10,000 XP")
             );
         }
         int xpSlot = 19;
-        for (java.util.Map<?, ?> denomMap : xpDenoms) {
-            if (xpSlot == 22) xpSlot = 23;
-            if (xpSlot > 25) break;
+        for (Map<?, ?> denomMap : xpDenoms) {
+            if (xpSlot > 24) break;
             
             String amountStr = String.valueOf(denomMap.get("amount"));
+            double amountVal = parseAmount(amountStr);
             String materialStr = (String) denomMap.get("material");
             String displayName = (String) denomMap.get("display-name");
             
             Material mat = Material.matchMaterial(materialStr != null ? materialStr : "EXPERIENCE_BOTTLE");
             if (mat == null) mat = Material.EXPERIENCE_BOTTLE;
+
+            boolean canAfford = totalXp >= amountVal;
+            List<String> lore = new ArrayList<>();
+            lore.add("&8─────────────────────────");
+            lore.add("&7Withdrawal: &a" + TextUtil.formatNumber(amountVal) + " XP");
+            lore.add("&7Your XP: &f" + TextUtil.formatNumber(totalXp) + " XP");
+            lore.add("&8─────────────────────────");
+            lore.add(canAfford ? "&a✔ Click to withdraw XP bottle" : "&c✖ Insufficient XP");
             
             gui.setItem(xpSlot, new GuiButton(
-                TextUtil.createItem(mat, displayName, "&7Click to withdraw " + amountStr + " XP"),
+                TextUtil.createItem(mat, displayName, lore.toArray(String[]::new)),
                 e -> player.performCommand("withdraw xp " + amountStr)
             ));
             xpSlot++;
         }
 
+        // Slot 25: Custom XP Amount
         gui.setItem(25, new GuiButton(
-            TextUtil.createItem(Material.WRITABLE_BOOK, "&a&lCustom XP Amount", "&7Click to enter a custom", "&7XP amount in chat."),
+            TextUtil.createItem(Material.WRITABLE_BOOK, "&a&lCustom XP Amount",
+                "&8─────────────────────────",
+                "&7Click to type a custom XP amount",
+                "&7in chat to withdraw.",
+                "",
+                "&7Current XP: &a" + TextUtil.formatNumber(totalXp) + " XP",
+                "&8─────────────────────────",
+                "&a▶ Click to enter XP"
+            ),
             e -> {
                 player.closeInventory();
                 pendingPrompts.put(player.getUniqueId(), "xp");
                 TextUtil.sendMessage(player, "&6&lBank &8» &7Enter the amount of XP to withdraw in chat (or type 'cancel').");
             }
         ));
-        
-        gui.setItem(31, new GuiButton(
-            TextUtil.createItem(Material.NAME_TAG, "&d&lClaim Notes", "&7Redeem all Bank Notes", "&7in your inventory", "", "&a✔ Works even if a note", "&awas renamed"),
+
+        // Bottom Controls (Row 5)
+        // Slot 38: Transaction History / Ledger
+        gui.setItem(38, new GuiButton(
+            TextUtil.createItem(Material.WRITTEN_BOOK, "&e&lTransaction History",
+                "&8─────────────────────────",
+                "&7View your full history of",
+                "&7deposits, withdrawals, and",
+                "&7note redemptions.",
+                "&8─────────────────────────",
+                "&e▶ Click to view ledger"
+            ),
+            e -> {
+                player.closeInventory();
+                openTransactionLogGui(player, 1);
+            }
+        ));
+
+        // Slot 40: Claim Notes
+        gui.setItem(40, new GuiButton(
+            TextUtil.createItem(Material.NAME_TAG, "&d&lClaim Notes",
+                "&8─────────────────────────",
+                "&7Redeem all Bank Notes and",
+                "&7XP Bottles in your inventory.",
+                "",
+                "&a✔ Works even if a note",
+                "&awas renamed in an anvil",
+                "&8─────────────────────────",
+                "&d▶ Click to claim all"
+            ),
             e -> player.performCommand("claimnote")
+        ));
+
+        // Slot 42: Close Menu
+        gui.setItem(42, new GuiButton(
+            TextUtil.createItem(Material.BARRIER, "&c&lClose Menu", "&7Click to exit."),
+            e -> {
+                player.closeInventory();
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            }
         ));
 
         gui.open(player);
     }
+
+    public void openTransactionLogGui(Player player, int page) {
+        int pageSize = 21;
+        int offset = Math.max(0, page - 1) * pageSize;
+        String playerName = player.getName();
+
+        plugin.getDatabaseManager().executeAsync(() -> {
+            List<TransactionLogEntry> entries = new ArrayList<>();
+            int totalCount = 0;
+            try (Connection conn = plugin.getDatabaseManager().getConnection()) {
+                try (PreparedStatement countStmt = conn.prepareStatement(
+                        "SELECT COUNT(*) FROM coresuite_banknotes_logs WHERE player = ?")) {
+                    countStmt.setString(1, playerName);
+                    try (ResultSet rs = countStmt.executeQuery()) {
+                        if (rs.next()) totalCount = rs.getInt(1);
+                    }
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT action, amount, note_id, time FROM coresuite_banknotes_logs WHERE player = ? ORDER BY id DESC LIMIT ? OFFSET ?")) {
+                    stmt.setString(1, playerName);
+                    stmt.setInt(2, pageSize);
+                    stmt.setInt(3, offset);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            entries.add(new TransactionLogEntry(
+                                    rs.getString("action"),
+                                    rs.getDouble("amount"),
+                                    rs.getString("note_id"),
+                                    rs.getLong("time")
+                            ));
+                        }
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to load transaction logs for " + playerName, e);
+            }
+
+            final int totalTransactions = totalCount;
+            final int totalPages = Math.max(1, (int) Math.ceil((double) totalCount / pageSize));
+            final int currentPage = Math.min(page, totalPages);
+
+            if (!plugin.isEnabled()) return;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (!player.isOnline() || !isEnabled()) return;
+                Gui gui = new Gui("&8Bank Ledger &7» &ePage " + currentPage + "/" + totalPages, 6);
+                gui.fillBorder(Material.GRAY_STAINED_GLASS_PANE);
+
+                double balance = plugin.getEconomyManager() != null ? plugin.getEconomyManager().getBalance(player) : 0.0;
+                int totalXp = getTotalExperience(player);
+                int level = player.getLevel();
+
+                // Slot 4: Player summary head
+                ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+                SkullMeta meta = (SkullMeta) head.getItemMeta();
+                if (meta != null) {
+                    meta.setOwningPlayer(player);
+                    meta.displayName(TextUtil.colorize("&6&l" + player.getName() + "'s Financial Records"));
+                    List<Component> lore = new ArrayList<>();
+                    lore.add(TextUtil.colorize("&8─────────────────────────"));
+                    lore.add(TextUtil.colorize("&7Current Balance: &6$" + TextUtil.formatNumber(balance)));
+                    lore.add(TextUtil.colorize("&7Current Level: &aLevel " + level));
+                    lore.add(TextUtil.colorize("&7Current XP: &a" + TextUtil.formatNumber(totalXp) + " XP"));
+                    lore.add(TextUtil.colorize("&7Recorded Transactions: &f" + totalTransactions));
+                    lore.add(TextUtil.colorize("&8─────────────────────────"));
+                    meta.lore(lore);
+                    head.setItemMeta(meta);
+                }
+                gui.setItem(4, new GuiButton(head, e -> {}));
+
+                int[] slots = {
+                        10, 11, 12, 13, 14, 15, 16,
+                        19, 20, 21, 22, 23, 24, 25,
+                        28, 29, 30, 31, 32, 33, 34
+                };
+
+                if (entries.isEmpty()) {
+                    ItemStack emptyItem = TextUtil.createItem(Material.MAP, "&7&lNo Transactions Recorded",
+                            "&7You have no recorded bank transactions yet.",
+                            "&7Withdraw or redeem notes to build your ledger!");
+                    gui.setItem(22, new GuiButton(emptyItem, e -> {}));
+                } else {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm");
+                    for (int i = 0; i < entries.size() && i < slots.length; i++) {
+                        TransactionLogEntry entry = entries.get(i);
+                        Material mat;
+                        String actionTitle;
+                        String actionColor;
+                        boolean isXp = entry.action().contains("XP");
+
+                        if (entry.action().contains("XP")) {
+                            if (entry.action().startsWith("WITHDRAW")) {
+                                mat = Material.EXPERIENCE_BOTTLE;
+                                actionTitle = "&e&lXP Withdrawal";
+                                actionColor = "&e";
+                            } else {
+                                mat = Material.ENCHANTED_BOOK;
+                                actionTitle = "&b&lXP Redeemed";
+                                actionColor = "&b";
+                            }
+                        } else if (entry.action().startsWith("ADMIN")) {
+                            mat = Material.NETHER_STAR;
+                            actionTitle = "&d&lAdmin Grant";
+                            actionColor = "&d";
+                        } else if (entry.action().startsWith("WITHDRAW")) {
+                            mat = Material.PAPER;
+                            actionTitle = "&c&lCash Withdrawal";
+                            actionColor = "&c";
+                        } else {
+                            mat = Material.EMERALD;
+                            actionTitle = "&a&lNote Redeemed";
+                            actionColor = "&a";
+                        }
+
+                        String amountStr = isXp ? TextUtil.formatNumber(entry.amount()) + " XP" : "$" + TextUtil.formatNumber(entry.amount());
+
+                        ItemStack item = TextUtil.createItem(mat, actionTitle,
+                                "&8─────────────────────────",
+                                "&7Type: " + actionColor + entry.action(),
+                                "&7Amount: &f" + amountStr,
+                                "&7Date: &f" + sdf.format(new java.util.Date(entry.time())),
+                                "&7Note ID: &8" + (entry.noteId() != null ? entry.noteId() : "N/A"),
+                                "&8─────────────────────────"
+                        );
+                        gui.setItem(slots[i], new GuiButton(item, e -> {}));
+                    }
+                }
+
+                // Page indicator (Slot 49)
+                ItemStack pageIndicator = TextUtil.createItem(Material.COMPASS, "&e&lPage " + currentPage + " / " + totalPages,
+                        "&7Total records: &f" + totalTransactions);
+                gui.setItem(49, new GuiButton(pageIndicator, e -> {}));
+
+                // Previous page
+                if (currentPage > 1) {
+                    ItemStack prev = TextUtil.createItem(Material.ARROW, "&a◀ Previous Page", "&7Go to page " + (currentPage - 1));
+                    gui.setItem(48, new GuiButton(prev, e -> openTransactionLogGui(player, currentPage - 1)));
+                }
+
+                // Next page
+                if (currentPage < totalPages) {
+                    ItemStack next = TextUtil.createItem(Material.ARROW, "&aNext Page ▶", "&7Go to page " + (currentPage + 1));
+                    gui.setItem(50, new GuiButton(next, e -> openTransactionLogGui(player, currentPage + 1)));
+                }
+
+                // Back to Bank button
+                ItemStack back = TextUtil.createItem(Material.BARRIER, "&c◀ Back to Bank", "&7Return to Bank Menu");
+                gui.setItem(45, new GuiButton(back, e -> openBankGui(player)));
+
+                gui.open(player);
+            });
+        });
+    }
+
+    private record TransactionLogEntry(String action, double amount, String noteId, long time) {}
 
     @Override
     public java.util.List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {

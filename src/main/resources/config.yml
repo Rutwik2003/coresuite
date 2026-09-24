@@ -6,6 +6,7 @@
 # Enable or disable individual modules.
 # Disabled modules are completely unloaded — zero CPU cost.
 modules:
+  resource-pack: false
   admin: true
   auto-messenger: true
   chat-mentions: true
@@ -34,6 +35,7 @@ modules:
   profile: true
   website: true
   world-bosses: true
+  guide: true
 
 # Storage settings
 storage:

@@ -56,8 +56,8 @@ commands:
     permission: coresuite.banknotes.withdraw
   withdrawlog:
     description: View bank note transaction logs
-    usage: /<command> [page|clear]
-    permission: coresuite.banknotes.admin
+    usage: /<command> [page]
+    permission: coresuite.banknotes.withdraw
   withdrawadmin:
     description: Admin bank note commands
     usage: /<command> give <player> <amount>
@@ -241,6 +241,19 @@ commands:
     permission: coresuite.boss.admin
     aliases: [wba, worldbossadmin]
 
+  # Player Guide & Walkthrough
+  guide:
+    description: Open the interactive Server Guide & Manual
+    usage: /<command> [topic|claim|help]
+    permission: coresuite.guide.use
+    aliases: [tutorial, serverguide, helpguide]
+
+  guideadmin:
+    description: Manage Player Guide (reload, reset, claim, info)
+    usage: /<command> <reload|reset|claim|info> [player]
+    permission: coresuite.guide.admin
+    aliases: [ga, guidea]
+
 permissions:
   coresuite.admin:
     description: Access to /coresuite admin commands
@@ -384,4 +397,11 @@ permissions:
     default: true
   coresuite.boss.admin:
     description: Manage World Bosses (spawn, killall, reload, summonitem, setnpc)
+    default: op
+  # Player Guide
+  coresuite.guide.use:
+    description: Open the player guide and claim starter rewards
+    default: true
+  coresuite.guide.admin:
+    description: Manage player guide and reload configurations
     default: op

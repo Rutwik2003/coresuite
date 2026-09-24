@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.logging.Level;
 
 public class BossLootManager {
+    public void openRewardHistory(Player player) { mailbox.openHistory(player); }
+    public void deferForWorldChange(Player player) { mailbox.deferForWorldChange(player); }
 
     private final CoreSuitePlugin plugin;
     private final BossItemRegistry itemRegistry;
@@ -83,29 +85,58 @@ public class BossLootManager {
                 Bukkit.broadcast(TextUtil.colorize("  &6&l🥉 3rd: &f" + rank3.name() + " &8- &c" + String.format("%,.0f", rank3.damage()) + " DMG &8(&e" + String.format("%.1f", rank3.percentage()) + "%&8)"));
             }
 
+            java.util.Set<java.util.UUID> qualified = sortedDamagers.stream().map(BossDamageTracker.DamageEntry::uuid).collect(java.util.stream.Collectors.toSet());
+            for (BossDamageTracker.Role role : BossDamageTracker.Role.values()) {
+                String leader = damageTracker.roleLeader(role, qualified);
+                if (leader != null) Bukkit.broadcast(TextUtil.colorize("  &b" + role.name().replace('_', ' ') + ": &f" + leader));
+            }
             for (int i = 0; i < sortedDamagers.size(); i++) {
                 BossDamageTracker.DamageEntry entry = sortedDamagers.get(i);
+                double multiplier = BossRewardBalance.dynamicMultiplier(config, damageTracker.getPeakPlayers(),
+                        sortedDamagers.size(), entry.percentage(), damageTracker.getContribution(entry.uuid()));
                 java.util.List<ItemStack> items = new java.util.ArrayList<>();
                 java.util.List<BossRewardMailbox.Reward> rewards = new java.util.ArrayList<>();
-                addTier(lootSec.getConfigurationSection("participation"), shardId, true, items, rewards);
+                addTier(lootSec.getConfigurationSection("participation"), shardId, true, items, rewards, multiplier);
                 if (i < 3) {
-                    addTier(lootSec.getConfigurationSection(i == 0 ? "rank-1" : "rank-2-3"), shardId, false, items, rewards);
-                    ConfigurationSection rare = lootSec.getConfigurationSection("rare-drops");
-                    if (rare != null) {
-                        if (random.nextDouble() * 100 < rare.getDouble("crate-key-chance", 0)) {
-                            String command = rare.getString("crate-key-command", "");
-                            if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
-                        }
-                        if (random.nextDouble() * 100 < rare.getDouble("signature-weapon-chance", 0)) {
-                            String weapon = switch (bossType) { case VALERIUS -> "vanguards_cleaver"; case AETHELGARD -> "crown_of_the_forest"; case XOLTHOS -> "widows_fang"; };
-                            items.add(itemRegistry.createSignatureWeapon(weapon));
-                        }
-                    }
+                    addTier(lootSec.getConfigurationSection(i == 0 ? "rank-1" : "rank-2-3"), shardId, false, items, rewards, multiplier);
                 }
+                int shardTotal = items.stream().mapToInt(ItemStack::getAmount).sum();
+                items.clear();
+                int cappedShards = BossRewardBalance.cappedShards(shardTotal, i);
+                if (cappedShards > 0) items.add(itemRegistry.createShard(shardId, cappedShards));
+                ConfigurationSection rare = lootSec.getConfigurationSection("rare-drops");
+                if (rare != null) {
+                    for (var bonus : i == 0 ? rare.getMapList("bonus-keys") : java.util.List.<java.util.Map<?, ?>>of()) {
+                        if (bonus.get("chance") instanceof Number chance && bonus.get("command") instanceof String command
+                                && !command.isBlank() && random.nextDouble() * 100 < BossRewardBalance.rareChance(chance.doubleValue(), 1))
+                            rewards.add(BossRewardMailbox.Reward.command(command));
+                    }
+                    if (i == 0 && random.nextDouble() * 100 < BossRewardBalance.rareChance(rare.getDouble("crate-key-chance", 0), 1)) {
+                        String command = rare.getString("crate-key-command", "");
+                        if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
+                    }
+                    // Mythic equipment is shop-only, including with legacy drop configs.
+                }
+                double currency = rewards.stream().filter(reward -> "CURRENCY".equals(reward.kind()))
+                        .mapToDouble(reward -> Double.parseDouble(reward.payload())).sum();
+                rewards.removeIf(reward -> "CURRENCY".equals(reward.kind()));
+                currency = BossRewardBalance.dynamicCurrency(currency, config.getDouble("arena.portals.entry-fee", 50000), multiplier);
+                if (currency > 0) rewards.add(BossRewardMailbox.Reward.currency(currency));
                 rewards.add(0, BossRewardMailbox.Reward.items(items));
-                mailbox.enqueue(entry.uuid(), rewards);
+                java.util.List<BossRewardMailbox.Reward> receipts = new java.util.ArrayList<>();
+                for (int component = 0; component < rewards.size(); component++) {
+                    BossRewardMailbox.Reward reward = rewards.get(component);
+                    String identity = damageTracker.getEncounterId() + ":" + entry.uuid() + ":" + component;
+                    receipts.add(new BossRewardMailbox.Reward(java.util.UUID.nameUUIDFromBytes(
+                            identity.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString(), reward.kind(), reward.payload()));
+                }
+                mailbox.enqueue(entry.uuid(), receipts);
+                Player recipient = Bukkit.getPlayer(entry.uuid());
+                if (recipient != null && multiplier > 1) TextUtil.sendMessage(recipient,
+                        "&6Boss reward bonus: &e+" + String.format("%.0f", (multiplier - 1) * 100)
+                                + "% &7to cash above the entry-fee allowance and shard amounts, based on encounter size and your damage/support contribution (shard caps: MVP 6, top 3 4, others 2).");
             }
-            Bukkit.broadcast(TextUtil.colorize("  &aAll " + sortedDamagers.size() + " qualified participants earned loot! &7Unclaimed rewards are saved: &e/boss claim"));
+            Bukkit.broadcast(TextUtil.colorize("  &aAll " + sortedDamagers.size() + " qualified participants earned loot! &7Check chat for your reward details."));
 
             Bukkit.broadcast(TextUtil.colorize("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -119,15 +150,19 @@ public class BossLootManager {
                     );
                     plugin.getDatabaseManager().execute(
                         "INSERT INTO coresuite_boss_stats (uuid, player_name, kills, mvps) VALUES (?, ?, 1, 1) " +
-                        "ON CONFLICT(uuid) DO UPDATE SET kills = kills + 1, mvps = mvps + 1, player_name = excluded.player_name",
-                        mvp.uuid().toString(), mvp.name()
+                        (plugin.getDatabaseManager().isMySQL()
+                                ? "ON DUPLICATE KEY UPDATE kills = kills + 1, mvps = mvps + 1, player_name = ?"
+                                : "ON CONFLICT(uuid) DO UPDATE SET kills = kills + 1, mvps = mvps + 1, player_name = ?"),
+                        mvp.uuid().toString(), mvp.name(), mvp.name()
                     );
                     for (int i = 1; i < sortedDamagers.size(); i++) {
                         BossDamageTracker.DamageEntry entry = sortedDamagers.get(i);
                         plugin.getDatabaseManager().execute(
                             "INSERT INTO coresuite_boss_stats (uuid, player_name, kills, mvps) VALUES (?, ?, 1, 0) " +
-                            "ON CONFLICT(uuid) DO UPDATE SET kills = kills + 1, player_name = excluded.player_name",
-                            entry.uuid().toString(), entry.name()
+                            (plugin.getDatabaseManager().isMySQL()
+                                    ? "ON DUPLICATE KEY UPDATE kills = kills + 1, player_name = ?"
+                                    : "ON CONFLICT(uuid) DO UPDATE SET kills = kills + 1, player_name = ?"),
+                            entry.uuid().toString(), entry.name(), entry.name()
                         );
                     }
                 } catch (Throwable t) {
@@ -153,9 +188,10 @@ public class BossLootManager {
                 config.getInt("rewards.participation.minimum-contribution", 3)));
     }
 
-    private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards) {
+    private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards, double multiplier) {
         int shards = tier == null ? 0 : tier.getInt("shards", 0);
         if (participation) shards = Math.max(1, shards);
+        shards = (int) Math.floor(Math.max(0, shards) * multiplier);
         for (int remaining = Math.min(2304, Math.max(0, shards)); remaining > 0; remaining -= 64)
             items.add(itemRegistry.createShard(shardId, Math.min(64, remaining)));
         if (tier == null) return;

@@ -277,10 +277,10 @@ public final class Tier1FeatureCoverageTests {
         results.add(runTest("T1-F7-04", "F7_Valerius_Combat_Kit", 1, "Valerius Searing Siphon heal and drain damage in world-bosses.yml", () -> {
             double heal = ctx.getConfigDouble("valerius.combat.searing-siphon.heal-per-player", 0.0);
             double drain = ctx.getConfigDouble("valerius.combat.searing-siphon.drain-damage", 0.0);
-            // The committed Valerius balance nerf uses 5 healing per player, capped at 15 per pulse.
-            TestAssertion.assertEquals(5.0, heal, 0.01, "Searing siphon heal");
-            TestAssertion.assertEquals(15.0, ctx.getConfigDouble("valerius.combat.searing-siphon.max-heal-per-pulse", 0.0), 0.01, "Searing siphon pulse cap");
-            TestAssertion.assertEquals(2.0, drain, 0.01, "Searing siphon drain");
+            // Match the configured harder encounter; lifetime healing remains separately capped.
+            TestAssertion.assertEquals(20.0, heal, 0.01, "Searing siphon heal");
+            TestAssertion.assertEquals(80.0, ctx.getConfigDouble("valerius.combat.searing-siphon.max-heal-per-pulse", 0.0), 0.01, "Searing siphon pulse cap");
+            TestAssertion.assertEquals(4.0, drain, 0.01, "Searing siphon drain");
         }));
 
         results.add(runTest("T1-F7-05", "F7_Valerius_Combat_Kit", 1, "Valerius StatusBadges: ASHEN_SLAM, CALDERA_MORTAR, SEARING_SIPHON, QUENCHED", () -> {

@@ -39,6 +39,7 @@ public class BossDomainManager implements Listener {
     private final int prepGraceSeconds;
     private final Random random = new Random();
     private BukkitTask visualTask;
+    private final Map<UUID, Location> safePositions = new ConcurrentHashMap<>();
 
     private final Set<UUID> lockedPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Long> graceTimestamps = new ConcurrentHashMap<>();
@@ -72,7 +73,7 @@ public class BossDomainManager implements Listener {
         cachedBoundaryLocations.clear();
         World world = center.getWorld();
         if (world == null) return;
-        int points = 72;
+        int points = Math.max(12, Math.min(72, boss.getConfig().getInt("domain.boundary-points", 36)));
         double[] verticalOffsets = {0.0, 1.2, 2.5, 4.4};
         for (int i = 0; i < points; i++) {
             double angle = 2 * Math.PI * i / points;
@@ -107,6 +108,7 @@ public class BossDomainManager implements Listener {
 
     public void lockPlayer(UUID uuid) {
         if (!lockdownEnabled || uuid == null) return;
+        if (!WorldBoss.eligibleFighter(Bukkit.getPlayer(uuid))) return;
         if (boss != null && !boss.isAwakened()) return;
         graceTimestamps.remove(uuid);
         if (lockedPlayers.add(uuid)) {
@@ -131,14 +133,18 @@ public class BossDomainManager implements Listener {
     public void startVisualTask() {
         stopVisualTask();
         precomputeBoundaryLocations();
+        int[] cycles = {0};
         this.visualTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (boss == null || !boss.isActive()) {
                 stopVisualTask();
                 return;
             }
-            renderBoundary();
-            handleLockdownCycle();
-        }, 15L, 15L);
+            recoverEmbeddedPlayers();
+            if (++cycles[0] % 3 == 0) {
+                renderBoundary();
+                handleLockdownCycle();
+            }
+        }, 5L, 5L);
     }
 
     public void stopVisualTask() {
@@ -147,6 +153,7 @@ public class BossDomainManager implements Listener {
             visualTask = null;
         }
         lockedPlayers.clear();
+        safePositions.clear();
         graceTimestamps.clear();
         lastWarningTime.clear();
         playerPlacedBlocks.clear();
@@ -161,7 +168,7 @@ public class BossDomainManager implements Listener {
         java.util.List<UUID> toUnlock = new java.util.ArrayList<>();
         for (UUID uuid : lockedPlayers) {
             Player p = Bukkit.getPlayer(uuid);
-            if (p == null || !p.isOnline() || p.isDead()) {
+            if (p == null || !p.isOnline() || !WorldBoss.eligibleFighter(p)) {
                 toUnlock.add(uuid);
                 continue;
             }
@@ -182,7 +189,18 @@ public class BossDomainManager implements Listener {
                 // Bounce player back inward towards domain center
                 org.bukkit.util.Vector push = center.toVector().subtract(p.getLocation().toVector()).normalize().multiply(1.35);
                 push.setY(0.42);
-                p.setVelocity(push);
+                BossMovement.push(p, push);
+                // A wall can block the swept push. Recover to verified footing instead
+                // of repeatedly pinning the player against protected terrain.
+                if (p.getVelocity().lengthSquared() < .01 || distSq > Math.pow(domainRadius + 3, 2)) {
+                    Location target = safePositions.get(uuid);
+                    if (target == null || !isInDomain(target) || !BossMovement.standing(target)) {
+                        org.bukkit.util.Vector inward = p.getLocation().toVector().subtract(center.toVector());
+                        if (inward.lengthSquared() > .01) inward.normalize().multiply(Math.max(1, domainRadius - 3));
+                        target = BossMovement.findLanding(center.clone().add(inward), this::isInDomain);
+                    }
+                    if (target != null) BossMovement.teleport(p, target, this::isInDomain);
+                }
 
                 p.playSound(p.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 0.8f);
                 p.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, p.getLocation().add(0, 1.0, 0), 20, 0.4, 0.4, 0.4, 0.1);
@@ -205,7 +223,7 @@ public class BossDomainManager implements Listener {
                     push.setY(0.35);
                     bossEntity.setVelocity(push);
                     if (bossDistSq > ((domainRadius + 4.0) * (domainRadius + 4.0))) {
-                        bossEntity.teleport(center.clone().add(0, 0.5, 0));
+                        returnEntityToArena(bossEntity);
                     }
                 } else {
                     // Boss is edging perimeter -> deflect back inward
@@ -225,7 +243,7 @@ public class BossDomainManager implements Listener {
                     push.setY(0.2);
                     minion.setVelocity(push);
                     if (mDistSq > ((domainRadius + 5.0) * (domainRadius + 5.0))) {
-                        minion.teleport(center.clone().add(0, 0.5, 0));
+                        returnEntityToArena(minion);
                     }
                 }
             }
@@ -251,32 +269,12 @@ public class BossDomainManager implements Listener {
                 precomputeBoundaryLocations();
             }
 
-            for (Location pLoc : cachedBoundaryLocations) {
-                world.spawnParticle(boundaryParticle, pLoc, 1, 0.05, 0.05, 0.05, 0.0, null, true);
-
-                double offY = pLoc.getY() - center.getY();
-                switch (boss.getType()) {
-                    case VALERIUS -> {
-                        if (offY <= 0.5) {
-                            world.spawnParticle(Particle.LAVA, pLoc, 1, 0, 0, 0, 0, null, true);
-                        } else if (offY >= 4.0) {
-                            world.spawnParticle(Particle.SOUL_FIRE_FLAME, pLoc, 1, 0.05, 0.05, 0.05, 0.01, null, true);
-                        }
-                    }
-                    case AETHELGARD -> {
-                        if (offY >= 3.0) {
-                            world.spawnParticle(Particle.TOTEM_OF_UNDYING, pLoc, 1, 0.05, 0.05, 0.05, 0.05, null, true);
-                        } else {
-                            world.spawnParticle(Particle.HAPPY_VILLAGER, pLoc, 1, 0.05, 0.05, 0.05, 0.0, null, true);
-                        }
-                    }
-                    case XOLTHOS -> {
-                        if (offY >= 3.0) {
-                            world.spawnParticle(Particle.DRAGON_BREATH, pLoc, 1, 0.05, 0.05, 0.05, 0.01, 1.0f, true);
-                        } else {
-                            world.spawnParticle(Particle.PORTAL, pLoc, 2, 0.05, 0.05, 0.05, 0.1, null, true);
-                        }
-                    }
+            Particle effect = boundaryParticle.getDataType() == Void.class ? boundaryParticle : Particle.END_ROD;
+            for (Player viewer : world.getPlayers()) {
+                if (viewer.getLocation().distanceSquared(center) > (domainRadius + 20) * (domainRadius + 20)) continue;
+                int stride = BossPreferences.reduced(viewer) ? 6 : 1;
+                for (int point = 0; point < cachedBoundaryLocations.size(); point += stride) {
+                    viewer.spawnParticle(effect, cachedBoundaryLocations.get(point), 1, .05, .05, .05, 0);
                 }
             }
 
@@ -294,25 +292,27 @@ public class BossDomainManager implements Listener {
             for (UUID uuid : lockedPlayers) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null || !p.isOnline() || p.getWorld() == null || !p.getWorld().equals(world)) continue;
+                if (BossPreferences.reduced(p) || !boss.getConfig().getBoolean("domain.ambient-particles", true)) continue;
                 Location pLoc = p.getLocation();
 
                 switch (boss.getType()) {
+                    case BOREALIS -> p.spawnParticle(Particle.SNOWFLAKE, pLoc.clone().add(0, 2, 0), 4, 3, 1, 3, .01);
                     case VALERIUS -> {
-                        world.spawnParticle(Particle.ASH, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.1, 0.1, 0.1, 0.02);
+                        p.spawnParticle(Particle.ASH, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.1, 0.1, 0.1, 0.02);
                         if (random.nextDouble() < 0.25) {
-                            world.spawnParticle(Particle.FLAME, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 0.5 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
+                            p.spawnParticle(Particle.FLAME, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 0.5 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
                         }
                     }
                     case AETHELGARD -> {
-                        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.1, 0.1, 0.1, 0.01);
+                        p.spawnParticle(Particle.SPORE_BLOSSOM_AIR, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.1, 0.1, 0.1, 0.01);
                         if (random.nextDouble() < 0.25) {
-                            world.spawnParticle(Particle.CHERRY_LEAVES, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 2.0 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
+                            p.spawnParticle(Particle.CHERRY_LEAVES, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 2.0 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
                         }
                     }
                     case XOLTHOS -> {
-                        world.spawnParticle(Particle.PORTAL, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.05, 0.05, 0.05, 0.05);
+                        p.spawnParticle(Particle.PORTAL, pLoc.clone().add((random.nextDouble() - 0.5) * 8, 1.5 + random.nextDouble() * 2, (random.nextDouble() - 0.5) * 8), 2, 0.05, 0.05, 0.05, 0.05);
                         if (random.nextDouble() < 0.25) {
-                            world.spawnParticle(Particle.DRAGON_BREATH, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 0.5 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
+                            p.spawnParticle(Particle.SMOKE, pLoc.clone().add((random.nextDouble() - 0.5) * 6, 0.5 + random.nextDouble(), (random.nextDouble() - 0.5) * 6), 1, 0.05, 0.05, 0.05, 0.01);
                         }
                     }
                 }
@@ -325,7 +325,7 @@ public class BossDomainManager implements Listener {
         if (entity == null || !entity.isValid() || center.getWorld() == null) return;
 
         if (entity.getLocation().distanceSquared(center) > (domainRadius * domainRadius)) {
-            entity.teleport(center.clone().add(0, 0.5, 0));
+            returnEntityToArena(entity);
             entity.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
             center.getWorld().playSound(center, Sound.ENTITY_ENDERMAN_TELEPORT, 1.5f, 0.8f);
             boss.broadcastToDomain("&c&l[!] " + boss.getDisplayName() + " &cwas dragged beyond the domain and rebounded to the center!");
@@ -349,6 +349,10 @@ public class BossDomainManager implements Listener {
         if (!antiGrief || !boss.isActive()) return;
         Location loc = event.getBlock().getLocation();
         if (isInDomain(loc)) {
+            if (boss.isEncounterWeb(loc)) {
+                event.setDropItems(false);
+                return;
+            }
             org.bukkit.Material mat = event.getBlock().getType();
             if (playerPlacedBlocks.remove(loc) || isUtilityBlock(mat)) {
                 return;
@@ -370,7 +374,7 @@ public class BossDomainManager implements Listener {
                     event.setCancelled(true);
                     TextUtil.sendActionBar(event.getPlayer(), "&c&l[!] PRIMORDIAL BARRIER: &7You cannot place blocks near the dormant Titan!");
                     event.getPlayer().playSound(event.getPlayer().getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 1.2f, 0.8f);
-                    event.getPlayer().getWorld().spawnParticle(Particle.DRAGON_BREATH, loc.clone().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3, 0.05);
+                    event.getPlayer().getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0.5, 0.5, 0.5), 10, 0.3, 0.3, 0.3, 0.05);
                     return;
                 }
             }
@@ -405,7 +409,52 @@ public class BossDomainManager implements Listener {
     }
 
     public Location getCenter() {
-        return center;
+        return center.clone();
+    }
+
+    private void returnEntityToArena(LivingEntity entity) {
+        Location landing = net.rocky.coresuite.module.worldbosses.scheduler.BossSpawnScheduler.findNearbyLocation(
+                center, this::isInDomain);
+        if (landing != null && entity.teleport(landing)) {
+            entity.setVelocity(new org.bukkit.util.Vector());
+            entity.setFallDistance(0);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onArenaBurn(org.bukkit.event.block.BlockBurnEvent event) {
+        if (antiGrief && boss.isActive() && isInDomain(event.getBlock().getLocation())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onArenaFireSpread(org.bukkit.event.block.BlockSpreadEvent event) {
+        if (boss.isActive() && event.getSource().getType() == org.bukkit.Material.FIRE
+                && boss.isTemporaryBlock(event.getSource().getLocation())) event.setCancelled(true);
+    }
+
+    private void recoverEmbeddedPlayers() {
+        if (center.getWorld() == null) return;
+        safePositions.keySet().removeIf(id -> {
+            Player p = Bukkit.getPlayer(id);
+            return p == null || p.isDead() || !isInDomain(p.getLocation());
+        });
+        for (Player player : center.getWorld().getPlayers()) {
+            if (!WorldBoss.eligibleFighter(player)
+                    || !isInDomain(player.getLocation())) continue;
+            Location current = player.getLocation();
+            if (BossMovement.standing(current)) {
+                safePositions.put(player.getUniqueId(), current.clone());
+            } else if (BossMovement.embedded(player)) {
+                Location previous = safePositions.get(player.getUniqueId());
+                Location target = previous != null && isInDomain(previous) && BossMovement.standing(previous)
+                        ? previous : BossMovement.findLanding(current, this::isInDomain);
+                if (target == null) target = BossMovement.findLanding(center, this::isInDomain);
+                if (target != null && BossMovement.teleport(player, target, this::isInDomain)) {
+                    safePositions.put(player.getUniqueId(), player.getLocation());
+                    TextUtil.sendActionBar(player, "&aMoved you out of blocked arena terrain.");
+                }
+            }
+        }
     }
 
     public double getDomainRadius() {

@@ -18,7 +18,7 @@ public class BossProtectionGateTest {
             actor = subject;
             assertEquals(Association.NON_MEMBER, subject.getAssociation(List.of()));
             assertEquals(Association.NON_MEMBER, subject.getAssociation(List.of(new Object())));
-            assertArrayEquals(new Flag[]{Flag.BUILD, Flag.MOB_SPAWNING, Flag.MOB_DAMAGE}, flags);
+            assertEquals(1, flags.length, "WorldGuard flags must be checked independently");
             return !denied;
         }
     }
@@ -36,5 +36,16 @@ public class BossProtectionGateTest {
         var cause = new IllegalArgumentException("BUILD requires a non-null associable");
         assertSame(cause, BossProtectionGate.invocationCause(new InvocationTargetException(new InvocationTargetException(cause))));
         assertSame(cause, BossProtectionGate.invocationCause(cause));
+    }
+
+    public static final class CombiningQuery {
+        public boolean testState(String location, Subject subject, Flag... flags) {
+            return java.util.Arrays.stream(flags).anyMatch(flag -> flag != Flag.BUILD);
+        }
+    }
+    @Test void allowedMobSpawningCannotMaskImplicitBuildDenial() throws Exception {
+        CombiningQuery query = new CombiningQuery();
+        assertTrue(query.testState("protected", regions -> Association.NON_MEMBER, Flag.values()));
+        assertFalse(BossProtectionGate.testWorldGuardState(query, "protected", String.class, Subject.class, Flag.values()));
     }
 }

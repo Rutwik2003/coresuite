@@ -5,7 +5,8 @@ import org.bukkit.entity.EntityType;
 public enum BossType {
     VALERIUS("valerius", "Valerius, The Ashen Vanguard", EntityType.WITHER_SKELETON, "ashen"),
     AETHELGARD("aethelgard", "Aethelgard, The Root-Bound King", EntityType.HUSK, "royal_bark"),
-    XOLTHOS("xolthos", "Xol'thos, The Weeping Widow", EntityType.CAVE_SPIDER, "phantom_silk");
+    XOLTHOS("xolthos", "Xol'thos, The Weeping Widow", EntityType.CAVE_SPIDER, "phantom_silk"),
+    BOREALIS("borealis", "Borealis, The Permafrost Tyrant", EntityType.STRAY, "frost_core");
 
     private final String configKey;
     private final String defaultDisplayName;

@@ -67,7 +67,7 @@ public class BossCodexGUI {
                 "  &6• Phase 2 (60%-20%): &7Meltdown",
                 "  &4• Phase 3 (20%-0%): &7Ash Void"
             ),
-            "&c&lThe Vanguard's Cleaver &7(+20% true dmg vs burning foes)"
+            "&c&lThe Vanguard's Cleaver &7(+20% damage vs burning foes)"
         );
 
         // ── Boss 2: Aethelgard, The Root-Bound King ──
@@ -109,6 +109,13 @@ public class BossCodexGUI {
             "&5&lThe Widow's Fang &7(Poison II + 15% Movement Speed)"
         );
 
+        renderBossSlot(gui, player, 22, BossType.BOREALIS, Material.BLUE_ICE,
+            "&b&lBorealis, The Permafrost Tyrant", "&8Type: &7Stray | &bAdaptive HP",
+            List.of("&7True Ice entombs the tyrant and his court.", "&7Normal swords, axes and bows deal half damage.",
+                "&6Splash Fire Resistance: &76s Thermal Shock.", "&bUse shovels during the opening: &72.5x damage.",
+                "&7Slay his guards before he consumes them.", "&7Leather protects against Deep Freeze."),
+            List.of("&b100%-60%: Permafrost", "&360%-20%: Whiteout", "&c20%-0%: Absolute Zero"),
+            "&bFrostbound Striders &7(Glacial Guard boots)");
         // Active Boss Status / Next Spawn Tracker
         WorldBoss active = module.getActiveBoss();
         List<String> statusLore = new ArrayList<>();
@@ -207,6 +214,12 @@ public class BossCodexGUI {
 
         player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1f, 1.2f);
         switch (type) {
+            case BOREALIS -> TextUtil.sendMessage(player,
+                "&bBorealis, The Permafrost Tyrant &7sealed his soldiers in the Glacial Vault. True Ice claimed their hearts but not their oath. "
+                + "Swords, axes and bows deal half damage until Splash Fire Resistance melts his armor for 6s. Shovels then deal 2.5x damage. "
+                + "Thermal Shock is reliable with a 20s shared cooldown; ordinary fire does not activate it. "
+                + "Destroy his four Frostguard before the warned Cruel Siphon; wear leather against Deep Freeze. "
+                + "Dodge novas and hail. His shattered bow signals faster melee attacks and brief Frostbite roots. Frostbound Striders are shop-only.");
             case VALERIUS -> {
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 TextUtil.sendMessage(player, "  &c&l⚔ VALERIUS, THE ASHEN VANGUARD &8- &6CHRONICLES");
@@ -246,6 +259,7 @@ public class BossCodexGUI {
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             }
             case XOLTHOS -> {
+                TextUtil.sendMessage(player, "&dNight Vision: 50% resist chance. A deflection blocks retries for 10s; successful stuns have a 10s recovery window afterward.");
                 TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 TextUtil.sendMessage(player, "  &5&l⚔ XOL'THOS, THE WEEPING WIDOW &8- &6CHRONICLES");
                 TextUtil.sendMessage(player, "  &7Entity: &fCave Spider &8| &5Health: Adaptive HP");

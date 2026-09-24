@@ -39,6 +39,12 @@ public final class ModuleManager {
         int count = 0;
         for (Map.Entry<String, Module> entry : modules.entrySet()) {
             Module module = entry.getValue();
+            // Disabled modules also receive missing settings, without starting their features.
+            if (!section.getBoolean(module.getConfigKey(), false)) {
+                try { module.loadConfig(); }
+                catch (IllegalStateException error) { plugin.getLogger().log(java.util.logging.Level.SEVERE,
+                        "Could not update disabled module " + module.getName(), error); }
+            }
             if (section.getBoolean(module.getConfigKey(), false)) {
                 module.enable();
                 if (module.isEnabled()) {

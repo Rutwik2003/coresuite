@@ -33,6 +33,7 @@ import org.bukkit.util.Vector;
 public class AethelgardBoss extends WorldBoss {
 
     private long fireSilenceUntil = 0;
+    private final java.util.Set<LivingEntity> healingRoots = new java.util.HashSet<>();
 
     public AethelgardBoss(CoreSuitePlugin plugin, FileConfiguration config, BossLootManager lootManager) {
         super(plugin, BossType.AETHELGARD, config, lootManager);
@@ -48,6 +49,8 @@ public class AethelgardBoss extends WorldBoss {
 
     @Override
     public void setupEntity(LivingEntity entity) {
+        // Husks can spawn as babies; scaling alone does not remove the baby variant.
+        if (entity instanceof Zombie zombie) zombie.setBaby(false);
         EntityEquipment eq = entity.getEquipment();
         if (eq != null) {
             eq.setHelmet(new ItemStack(Material.CARVED_PUMPKIN));
@@ -65,6 +68,7 @@ public class AethelgardBoss extends WorldBoss {
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.SCALE, config.getDouble("aethelgard.scale", 1.55));
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MOVEMENT_SPEED, config.getDouble("aethelgard.movement-speed", 0.24));
         applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, this.maxHealth);
+        applyAttributeSafely(entity, net.rocky.coresuite.common.compat.PaperCompat.ATTACK_DAMAGE, config.getDouble("aethelgard.melee-damage", 18));
     }
 
     @Override
@@ -74,23 +78,48 @@ public class AethelgardBoss extends WorldBoss {
         Location bossLoc = entity.getLocation();
         boolean isBurning = entity.getFireTicks() > 0 || System.currentTimeMillis() < fireSilenceUntil;
 
-        // Soil Regeneration every 2s (unless on fire)
-        if (tickCount % 2 == 0 && !isBurning && (currentPhase == null || currentPhase.getPhaseNumber() < 3)) {
-            Block under = bossLoc.getBlock().getRelative(0, -1, 0);
-            if (isNaturalSoil(under.getType())) {
-                double regenHp = config.getDouble("aethelgard.weakness.soil-regen-hp", 30.0);
-                heal(Math.min(regenHp, maxHealth * .003));
-                bossLoc.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, bossLoc.clone().add(0, 1.2, 0), 10, 0.5, 0.5, 0.5, 0.05);
+        healingRoots.removeIf(root -> !root.isValid() || root.isDead());
+        int phase = currentPhase == null ? 1 : currentPhase.getPhaseNumber();
+        if ((phase >= 3 || getRemainingHealing() <= 0) && !healingRoots.isEmpty()) {
+            for (LivingEntity root : healingRoots) { root.remove(); minions.remove(root); }
+            healingRoots.clear();
+            broadcastToDomain(phase >= 3 ? "&6Deadwood phase! &fAethelgard's roots withered; healing has ended."
+                    : "&6Roots exhausted! &fAethelgard has spent his healing reserve.");
+        }
+        if (tickCount % Math.max(15, config.getInt("aethelgard.combat.healing-roots.interval-seconds", 25)) == 0
+                && healingRoots.isEmpty() && !isBurning && phase < 3 && getRemainingHealing() > 0) spawnHealingRoots(bossLoc);
+
+        for (LivingEntity root : healingRoots) {
+            root.customName(TextUtil.colorize(isBurning ? "&6Healing Root — suppressed by fire"
+                    : "&aHealing Root — destroy to stop healing"));
+        }
+        // Both healing sources are controlled by the roots, fire counter, phase and reserve.
+        if (canChannelRoots(phase, healingRoots.size(), isBurning, getRemainingHealing())) {
+            double requested = 0;
+            if (tickCount % 2 == 0) requested += config.getDouble("aethelgard.combat.healing-roots.heal-amount", 35);
+            if (tickCount % 3 == 0) requested += config.getDouble("aethelgard.weakness.soil-regen-hp", 15);
+            if (heal(requested) > 0) {
+                World world = bossLoc.getWorld();
+                for (LivingEntity root : healingRoots) {
+                    Location from = root.getLocation().add(0, 1, 0);
+                    Vector direction = bossLoc.clone().add(0, 1.5, 0).toVector().subtract(from.toVector());
+                    double distance = direction.length();
+                    if (distance > .1) {
+                        direction.normalize();
+                        for (double step = .5; step < Math.min(distance, 64); step += 1.2)
+                            world.spawnParticle(Particle.COMPOSTER, from.clone().add(direction.clone().multiply(step)), 1, 0, 0, 0, 0);
+                    }
+                }
             }
         }
 
         // Melee: Overgrowth Cleave (every 7 seconds when enemies within 5m)
-        if (tickCount % 7 == 0) {
+        if (abilityReady(tickCount, "overgrowth-cleave", 7)) {
             executeOvergrowthCleave(bossLoc);
         }
 
         // Ranged: Briar Volley (every 7 seconds when enemies > 6m, offset by 3s)
-        if ((tickCount + 3) % 7 == 0) {
+        if (abilityReady(tickCount, "briar-volley", 7)) {
             executeBriarVolley(bossLoc);
         }
 
@@ -100,14 +129,14 @@ public class AethelgardBoss extends WorldBoss {
 
             // Phase 2 & 3: Strangling Brambles (every 14s)
             if (phaseNum >= 2) {
-                if (tickCount % 14 == 0) {
+                if (abilityReady(tickCount, "strangling-brambles", 14)) {
                     executeStranglingBrambles(bossLoc);
                 }
             }
 
             // Phase 3 Ultimate: Timber Stomp (every 20s)
             if (phaseNum == 3) {
-                if (tickCount % 20 == 0) {
+                if (abilityReady(tickCount, "timber-stomp", 20)) {
                     executeTimberStomp(bossLoc);
                 }
             }
@@ -124,9 +153,9 @@ public class AethelgardBoss extends WorldBoss {
                 case 2 -> { // The Harvest: Spores & Vortex Pull
                     for (Player p : barManager.getViewers()) {
                         handleAntiCheese(p);
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 60, 0, false, false, true));
+                        applyBossEffect(p, new PotionEffect(PotionEffectType.POISON, 60, 0, false, false, true));
                         if (tickCount % 10 == 0) {
-                            p.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, 100, 0, false, false, true));
+                            applyBossEffect(p, new PotionEffect(PotionEffectType.NAUSEA, 100, 0, false, false, true));
                         }
                     }
 
@@ -137,7 +166,7 @@ public class AethelgardBoss extends WorldBoss {
                             if (p.getWorld() == null || !p.getWorld().equals(bossLoc.getWorld())) continue;
                             Vector pull = bossLoc.toVector().subtract(p.getLocation().toVector()).normalize().multiply(1.4);
                             pull.setY(0.4);
-                            p.setVelocity(pull);
+                net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(p, pull);
                             sendCombatAlert(p, StatusBadge.VORTEX_ROOTS, "&2Vortex roots pulled you inward!", 2);
                         }
                     }
@@ -167,7 +196,7 @@ public class AethelgardBoss extends WorldBoss {
 
             sendCombatAlert(p, StatusBadge.ROOTED, "&2Writhing brambles surround your footing! ESCAPE!", 2);
 
-            Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+            runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
                 int elapsed = 0;
                 @Override
                 public void accept(BukkitTask task) {
@@ -198,8 +227,8 @@ public class AethelgardBoss extends WorldBoss {
                             if (fighter.getWorld() != null && fighter.getWorld().equals(targetGround.getWorld())) {
                                 if (fighter.getLocation().distanceSquared(targetGround) <= 4.0) {
                                     fighter.damage(damage, entity);
-                                    fighter.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, cageSec * 20, 3, false, false, true));
-                                    fighter.addPotionEffect(new PotionEffect(PotionEffectType.POISON, cageSec * 20, 1, false, false, true));
+                                    applyBossEffect(fighter, new PotionEffect(PotionEffectType.SLOWNESS, cageSec * 20, 3, false, false, true));
+                                    applyBossEffect(fighter, new PotionEffect(PotionEffectType.POISON, cageSec * 20, 1, false, false, true));
                                     sendCombatAlert(fighter, StatusBadge.ROOTED, "&2Strangling roots ensnared you! Movement bound!", cageSec);
                                 }
                             }
@@ -208,6 +237,49 @@ public class AethelgardBoss extends WorldBoss {
                 }
             }, 0L, 3L);
         }
+    }
+    @Override public boolean testAbility(String ability) {
+        if (!active || !isAwakened || entity == null) return false;
+        switch (ability.toLowerCase(java.util.Locale.ROOT)) {
+            case "roots" -> { if (healingRoots.isEmpty()) spawnHealingRoots(entity.getLocation()); }
+            case "cleave" -> executeOvergrowthCleave(entity.getLocation());
+            case "brambles" -> executeStranglingBrambles(entity.getLocation());
+            case "stomp" -> executeTimberStomp(entity.getLocation());
+            default -> { return false; }
+        }
+        return true;
+    }
+
+    static boolean canChannelRoots(int phase, int roots, boolean burning, double reserve) {
+        return phase < 3 && roots > 0 && !burning && reserve > 0;
+    }
+
+    public boolean isHealingRoot(LivingEntity target) { return healingRoots.contains(target); }
+
+    private void spawnHealingRoots(Location origin) {
+        int count = Math.max(1, Math.min(3, config.getInt("aethelgard.combat.healing-roots.count", 2)));
+        for (int i = 0; i < count && liveMinionCount() < 7; i++) {
+            double angle = Math.PI * 2 * i / count;
+            Location at = net.rocky.coresuite.module.worldbosses.combat.BossMovement.findLanding(
+                    origin.clone().add(Math.cos(angle) * 5, 0, Math.sin(angle) * 5), domainManager::isInDomain);
+            if (at == null) continue;
+            Zombie root = at.getWorld().spawn(at, Zombie.class);
+            root.setAI(false);
+            root.setSilent(true);
+            root.setGlowing(true);
+            root.setRemoveWhenFarAway(false);
+            root.customName(TextUtil.colorize("&aHealing Root &7— destroy to stop healing"));
+            root.setCustomNameVisible(true);
+            applyAttributeSafely(root, net.rocky.coresuite.common.compat.PaperCompat.MAX_HEALTH, 20);
+            root.setHealth(20);
+            root.getEquipment().setHelmet(new ItemStack(Material.OAK_LEAVES));
+            root.getEquipment().setHelmetDropChance(0);
+            root.getEquipment().setItemInMainHand(null);
+            registerMinion(root);
+            healingRoots.add(root);
+            // Roots persist until destroyed, the healing reserve is spent, or Deadwood begins.
+        }
+        if (!healingRoots.isEmpty()) broadcastToDomain("&aHealing roots appeared! &fDestroy the glowing roots to stop Aethelgard's healing.");
     }
 
     private void executeTimberStomp(Location bossLoc) {
@@ -220,7 +292,7 @@ public class AethelgardBoss extends WorldBoss {
             p.playSound(p.getLocation(), Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 1.5f, 0.6f);
         }
 
-        Bukkit.getScheduler().runTaskTimer(plugin, new java.util.function.Consumer<BukkitTask>() {
+        runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
             int elapsed = 0;
             @Override
             public void accept(BukkitTask task) {
@@ -229,7 +301,7 @@ public class AethelgardBoss extends WorldBoss {
                     return;
                 }
                 elapsed += 5;
-                Location bLoc = entity.getLocation();
+                Location bLoc = bossLoc.clone();
                 bLoc.getWorld().spawnParticle(Particle.CRIT, bLoc.clone().add(0, 1, 0), 10, 0.8, 0.5, 0.8, 0.1, null, true);
                 bLoc.getWorld().playSound(bLoc, Sound.BLOCK_WOOD_FALL, 1.2f, 0.7f);
 
@@ -243,9 +315,9 @@ public class AethelgardBoss extends WorldBoss {
                         double r = radii[wave];
                         long delay = delays[wave];
 
-                        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        runAbilityLater(() -> {
                             if (!active || entity == null || !entity.isValid()) return;
-                            Location centerLoc = entity.getLocation();
+                            Location centerLoc = bossLoc.clone();
                             World w = centerLoc.getWorld();
                             if (w == null) return;
 
@@ -259,7 +331,7 @@ public class AethelgardBoss extends WorldBoss {
                                 double fz = centerLoc.getZ() + (r * Math.sin(angle));
                                 int fy = w.getHighestBlockYAt((int) Math.floor(fx), (int) Math.floor(fz));
                                 Location fangLoc = new Location(w, fx, fy, fz);
-                                EvokerFangs fang = w.spawn(fangLoc, EvokerFangs.class);
+                                EvokerFangs fang = trackAbilityEntity(w.spawn(fangLoc, EvokerFangs.class));
                                 fang.setOwner(entity);
                             }
 
@@ -268,7 +340,7 @@ public class AethelgardBoss extends WorldBoss {
                                     double dist = p.getLocation().distance(centerLoc);
                                     if (Math.abs(dist - r) <= 2.2) {
                                         p.damage(damage, entity);
-                                        p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false, true));
+                                        applyBossEffect(p, new PotionEffect(PotionEffectType.SLOWNESS, 60, 2, false, false, true));
                                         sendCombatAlert(p, StatusBadge.OVERGROWTH_CLEAVE, "&aPrimeval Timber Stomp crushed you!", 2);
                                     }
                                 }
@@ -334,10 +406,10 @@ public class AethelgardBoss extends WorldBoss {
                 if (bossDir.dot(toPlayer) >= -0.2) {
                     hitAny = true;
                     p.damage(damage, entity);
-                    p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, slowSec * 20, slowAmp, false, false, true));
+                    applyBossEffect(p, new PotionEffect(PotionEffectType.SLOWNESS, slowSec * 20, slowAmp, false, false, true));
                     Vector kb = toPlayer.multiply(1.1);
                     kb.setY(0.35);
-                    p.setVelocity(kb);
+                net.rocky.coresuite.module.worldbosses.combat.BossMovement.push(p, kb);
                     sendCombatAlert(p, StatusBadge.OVERGROWTH_CLEAVE, "&2Aethelgard cleaved with massive oak branches!", 2);
                 }
             }
@@ -380,8 +452,10 @@ public class AethelgardBoss extends WorldBoss {
                 arrowDir.setY(arrowDir.getY() + 0.10); // Ballistic elevation
                 arrowDir.normalize().multiply(1.85);
 
-                Arrow arrow = bossLoc.getWorld().spawn(shootLoc, Arrow.class);
+                Arrow arrow = trackAbilityEntity(bossLoc.getWorld().spawn(shootLoc, Arrow.class));
                 arrow.setShooter(entity);
+                arrow.setDamage(0); // Damage is applied once by the encounter hit handler.
+                arrow.setPickupStatus(org.bukkit.entity.AbstractArrow.PickupStatus.DISALLOWED);
                 arrow.setVelocity(arrowDir);
                 arrow.getPersistentDataContainer().set(projectileKey, PersistentDataType.STRING, "BRIAR_VOLLEY");
             }
@@ -444,11 +518,13 @@ public class AethelgardBoss extends WorldBoss {
 
         // Anti-Pillar or Anti-Digging: Spawns a line of Evoker Fangs
         if (pLoc.getY() - bLoc.getY() >= 4.0 || bLoc.getY() - pLoc.getY() >= 3.0) {
+            if (!antiCheeseReady(player)) return;
             Vector dir = pLoc.toVector().subtract(bLoc.toVector()).normalize();
             for (int i = 1; i <= 6; i++) {
                 Location fangLoc = bLoc.clone().add(dir.clone().multiply(i * 1.5));
                 fangLoc.setY(pLoc.getY());
-                fangLoc.getWorld().spawn(fangLoc, EvokerFangs.class);
+                EvokerFangs fang = trackAbilityEntity(fangLoc.getWorld().spawn(fangLoc, EvokerFangs.class));
+                fang.setOwner(entity);
             }
             TextUtil.sendActionBar(player, "&2&l[!] GRASPING ROOTS: &2Living roots tear through your perch!");
         }

@@ -1,0 +1,8 @@
+# Enable modules.resource-pack in config.yml on your TEST server first.
+# Public repository: no GitHub token belongs on the Minecraft server.
+repository: "Rutwik2003/meermc-resourcepack"
+check-interval-seconds: 300
+required: false
+# False: existing players receive updates on reconnect (avoids reloads during boss fights).
+update-online-players: false
+prompt: "Download MeerMC's boss music and custom textures?"

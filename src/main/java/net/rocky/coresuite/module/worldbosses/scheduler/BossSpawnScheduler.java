@@ -44,7 +44,7 @@ public class BossSpawnScheduler {
         searches.clear();
     }
     private void onTick() {
-        if (stopped || !enabled || spawnPending || module.isBossActive()) return;
+        if (stopped || !enabled || spawnPending || module.isBossActive() || module.isEncounterPending()) return;
         if (--secondsRemaining > 0) {
             if (config.getIntegerList("scheduler.broadcast-warnings").contains(secondsRemaining)) broadcastWarning(secondsRemaining);
             return;
@@ -64,12 +64,12 @@ public class BossSpawnScheduler {
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         Location requested = target == null ? null : target.clone();
         onMain(() -> {
-            if (stopped || spawnPending || !module.isEnabled() || module.isBossActive() || type == null) { result.complete(false); return; }
+            if (stopped || spawnPending || !module.isEnabled() || module.isBossActive() || module.isEncounterPending() || type == null) { result.complete(false); return; }
             spawnPending = true;
             CompletableFuture<Location> search = requested == null ? findSafeSpawnLocationAsync(type) : CompletableFuture.completedFuture(requested);
             search.whenComplete((location, error) -> {
                 try {
-                    boolean success = error == null && location != null && !stopped && module.isEnabled() && !module.isBossActive() && module.spawnBoss(type, location);
+                    boolean success = error == null && location != null && !stopped && module.isEnabled() && !module.isBossActive() && module.initiateBossEncounter(type, location);
                     if (!success && !stopped) plugin.getLogger().warning("[WorldBosses] Spawn did not complete for " + type + "; no safe location or encounter unavailable.");
                     result.complete(success);
                 } catch (Exception | LinkageError failure) {
@@ -90,6 +90,31 @@ public class BossSpawnScheduler {
     public CompletableFuture<Location> findSafeSpawnLocationAsync(BossType type) {
         CompletableFuture<Location> result = new CompletableFuture<>();
         onMain(() -> {
+            if (config.getBoolean("arena.fixed-location.enabled", true)) {
+                String worldName = config.getString("arena.fixed-location.world", "world");
+                World world = Bukkit.getWorld(worldName);
+                if (world != null && world.getDifficulty() != Difficulty.PEACEFUL) {
+                    double x = config.getDouble("arena.fixed-location.x", 49662.0);
+                    double y = config.getDouble("arena.fixed-location.y", 205.0);
+                    double z = config.getDouble("arena.fixed-location.z", 49528.0);
+                    Location fixedLoc = new Location(world, x, y, z);
+                    world.getChunkAtAsync(fixedLoc).thenAccept(chunk -> {
+                        onMain(() -> result.complete(fixedLoc), () -> result.complete(null));
+                    }).exceptionally(ex -> {
+                        onMain(() -> result.complete(fixedLoc), () -> result.complete(null));
+                        return null;
+                    });
+                    return;
+                }
+            }
+
+            org.bukkit.configuration.ConfigurationSection arenas = config.getConfigurationSection("arenas");
+            if (arenas != null && !arenas.getKeys(false).isEmpty()) {
+                java.util.List<String> names = new ArrayList<>(arenas.getKeys(false));
+                Collections.shuffle(names, random);
+                searchConfiguredArena(names, 0, result);
+                return;
+            }
             List<World> worlds = config.getStringList("scheduler.allowed-worlds").stream().map(Bukkit::getWorld)
                     .filter(Objects::nonNull).filter(w -> w.getDifficulty() != Difficulty.PEACEFUL).toList();
             if (worlds.isEmpty() || type == null) { result.complete(null); return; }
@@ -98,6 +123,42 @@ public class BossSpawnScheduler {
         }, () -> result.complete(null));
         return result;
     }
+
+    private void searchConfiguredArena(List<String> names, int index, CompletableFuture<Location> result) {
+        if (result.isDone() || stopped || index >= names.size()) { result.complete(null); return; }
+        String key = "arenas." + names.get(index);
+        World world = Bukkit.getWorld(config.getString(key + ".world", ""));
+        if (world == null || world.getDifficulty() == Difficulty.PEACEFUL) {
+            searchConfiguredArena(names, index + 1, result); return;
+        }
+        Location center = new Location(world, config.getDouble(key + ".x"), config.getDouble(key + ".y"), config.getDouble(key + ".z"));
+        double radius = config.getDouble("domain.radius", 35);
+        if (!Double.isFinite(radius) || radius < 1 || radius > 64
+                || !Double.isFinite(center.getX()) || !Double.isFinite(center.getY()) || !Double.isFinite(center.getZ())) {
+            result.complete(null); return;
+        }
+        int reach = (int) Math.ceil(radius);
+        List<CompletableFuture<Chunk>> chunks = new ArrayList<>();
+        for (int x = (center.getBlockX() - reach) >> 4; x <= (center.getBlockX() + reach) >> 4; x++)
+            for (int z = (center.getBlockZ() - reach) >> 4; z <= (center.getBlockZ() + reach) >> 4; z++)
+                chunks.add(world.getChunkAtAsync(x, z));
+        searches.add(result);
+        BukkitTask timeout = Bukkit.getScheduler().runTaskLater(plugin, () -> result.complete(null), 900L);
+        result.whenComplete((location, error) -> { searches.remove(result); timeout.cancel(); });
+        CompletableFuture.allOf(chunks.toArray(CompletableFuture[]::new)).whenComplete((ignored, error) -> next(() -> {
+            String problem = error == null ? locationProblem(center) : "Chunk loading failed.";
+            boolean checkRegions = !bypassFixedArenaProtection(config, center);
+            if (problem == null && checkRegions) problem = net.rocky.coresuite.common.integration.BossProtectionGate.denialReason(center);
+            if (problem == null) problem = arenaProblem(center, radius, net.rocky.coresuite.common.integration.BossProtectionGate::denialReason, checkRegions);
+            if (problem == null) result.complete(center);
+            else {
+                plugin.getLogger().warning("[WorldBosses] Configured arena " + names.get(index) + " rejected: " + problem);
+                searchConfiguredArena(names, index + 1, result);
+            }
+        }, result));
+    }
+
+    public boolean isSearching() { return spawnPending || !searches.isEmpty(); }
     public CompletableFuture<Location> findSafeSurfaceBiomeSpawnLocationAsync(World world, int radius, List<String> biomes) { return search(world, radius, biomes, false); }
     public CompletableFuture<Location> findSafeCaveSpawnLocationAsync(World world, int radius, List<String> biomes) { return search(world, radius, biomes, true); }
     private CompletableFuture<Location> search(World world, int radius, List<String> biomes, boolean cave) {
@@ -121,6 +182,9 @@ public class BossSpawnScheduler {
             return;
         }
         Location origin = world.getSpawnLocation();
+        java.util.List<org.bukkit.entity.Player> hunters = world.getPlayers().stream()
+                .filter(net.rocky.coresuite.module.worldbosses.boss.WorldBoss::eligibleFighter).toList();
+        if (!hunters.isEmpty()) origin = hunters.get(random.nextInt(hunters.size())).getLocation();
         double angle = random.nextDouble() * Math.PI * 2;
         double distance = minimum + random.nextDouble() * (radius - minimum);
         int x = (int)Math.floor(origin.getX() + Math.cos(angle) * distance);
@@ -131,8 +195,9 @@ public class BossSpawnScheduler {
             return;
         }
         List<CompletableFuture<Chunk>> chunks = new ArrayList<>();
-        for (int cx = (x - 2) >> 4; cx <= (x + 2) >> 4; cx++) {
-            for (int cz = (z - 2) >> 4; cz <= (z + 2) >> 4; cz++) chunks.add(world.getChunkAtAsync(cx, cz));
+        int footprint = Math.max(2, Math.min(64, (int) Math.ceil(config.getDouble("domain.radius", 35))));
+        for (int cx = (x - footprint) >> 4; cx <= (x + footprint) >> 4; cx++) {
+            for (int cz = (z - footprint) >> 4; cz <= (z + footprint) >> 4; cz++) chunks.add(world.getChunkAtAsync(cx, cz));
         }
         CompletableFuture.allOf(chunks.toArray(CompletableFuture[]::new)).whenComplete((ignored, error) -> next(() -> {
             if (result.isDone() || stopped) return;
@@ -149,6 +214,8 @@ public class BossSpawnScheduler {
                 }
             }
             if (candidate != null && !net.rocky.coresuite.common.integration.BossProtectionGate.allows(candidate)) candidate = null;
+            if (candidate != null && arenaProblem(candidate, config.getDouble("domain.radius", 35),
+                    net.rocky.coresuite.common.integration.BossProtectionGate::denialReason) != null) candidate = null;
             if (candidate != null) {
                 String biome = ((Keyed)world.getBiome(candidate.getBlockX(), candidate.getBlockY(), candidate.getBlockZ())).getKey().getKey().toUpperCase(Locale.ROOT);
                 if (biomes.isEmpty() || biomes.stream().anyMatch(b -> biome.equals(b.toUpperCase(Locale.ROOT)) || biome.contains(b.toUpperCase(Locale.ROOT)))) { result.complete(candidate); return; }
@@ -203,21 +270,62 @@ public class BossSpawnScheduler {
      * the centre, cardinal points and diagonals, which catches claims/regions crossing the arena.
      */
     public static String arenaProblem(Location center, double radius, java.util.function.Function<Location, String> protectionProblem) {
+        return arenaProblem(center, radius, protectionProblem, true);
+    }
+
+    /** Only the explicitly configured fixed arena can opt out of spawn region preflight. */
+    public static boolean bypassFixedArenaProtection(FileConfiguration config, Location location) {
+        if (location == null || location.getWorld() == null
+                || config.getBoolean("domain.anti-grief-protection", true)
+                || !config.getBoolean("arena.fixed-location.enabled", true)) return false;
+        return location.getWorld().getName().equals(config.getString("arena.fixed-location.world", "world"))
+                && location.getBlockX() == (int) Math.floor(config.getDouble("arena.fixed-location.x", 49662.0))
+                && location.getBlockY() == (int) Math.floor(config.getDouble("arena.fixed-location.y", 205.0))
+                && location.getBlockZ() == (int) Math.floor(config.getDouble("arena.fixed-location.z", 49528.0));
+    }
+
+    public static String arenaProblem(Location center, double radius, java.util.function.Function<Location, String> protectionProblem, boolean checkRegions) {
         if (center == null || center.getWorld() == null) return "Missing arena world.";
         if (!Double.isFinite(radius) || radius < 1 || radius > 256) return "Arena radius must be between 1 and 256.";
         World world = center.getWorld();
+        String entireArena = checkRegions ? net.rocky.coresuite.common.integration.BossProtectionGate.arenaDenialReason(center, radius) : null;
+        if (entireArena != null) return entireArena;
         for (int angle = 0; angle < 360; angle += 45) {
             double radians = Math.toRadians(angle);
             Location sample = center.clone().add(Math.cos(radians) * radius, 0, Math.sin(radians) * radius);
             if (!world.isChunkLoaded(sample.getBlockX() >> 4, sample.getBlockZ() >> 4)) return "Arena terrain is not loaded near " + sample.getBlockX() + ", " + sample.getBlockZ() + ".";
             if (!world.getWorldBorder().isInside(sample)) return "Arena crosses the world border near " + sample.getBlockX() + ", " + sample.getBlockZ() + ".";
-            if (protectionProblem != null) {
+            if (checkRegions && protectionProblem != null) {
                 String problem = protectionProblem.apply(sample);
                 if (problem != null) return "Arena is unavailable near " + sample.getBlockX() + ", " + sample.getBlockZ() + ": " + problem;
             }
         }
-        return null;
+        return arenaAccessProblem(center);
     }
+
+    public static String arenaAccessProblem(Location center) {
+        java.util.ArrayDeque<Location> open = new java.util.ArrayDeque<>();
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        Location start = new Location(center.getWorld(), center.getBlockX() + .5, center.getY(), center.getBlockZ() + .5);
+        if (!net.rocky.coresuite.module.worldbosses.combat.BossMovement.standing(start)) return "Arena centre has no safe footing.";
+        open.add(start);
+        visited.add(start.getBlockX() + ":" + start.getY() + ":" + start.getBlockZ());
+        while (!open.isEmpty() && visited.size() < 16) {
+            Location from = open.removeFirst();
+            for (int[] direction : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                for (double dy : new double[]{0, .5, -.5, 1, -1}) {
+                    Location to = from.clone().add(direction[0], dy, direction[1]);
+                    if (Math.abs(to.getY() - start.getY()) > 3 || Math.abs(to.getX() - start.getX()) > 6 || Math.abs(to.getZ() - start.getZ()) > 6) continue;
+                    String key = to.getBlockX() + ":" + to.getY() + ":" + to.getBlockZ();
+                    if (visited.contains(key)) break;
+                    if (!net.rocky.coresuite.module.worldbosses.combat.BossMovement.standing(to)) continue;
+                    visited.add(key); open.add(to); break;
+                }
+            }
+        }
+        return visited.size() >= 16 ? null : "Arena is too cramped: need at least 16 connected walkable tiles near the boss.";
+    }
+
     private void next(Runnable action, CompletableFuture<Location> result) {
         if (stopped || result.isDone() || !plugin.isEnabled()) { result.complete(null); return; }
         Bukkit.getScheduler().runTask(plugin, () -> {
@@ -262,6 +370,24 @@ public class BossSpawnScheduler {
     }
 
     public int getSecondsRemaining() { return secondsRemaining; }
+    public int skipTime(int seconds) {
+        if (seconds <= 0) throw new IllegalArgumentException("Duration must be positive.");
+        secondsRemaining = Math.max(1, secondsRemaining - seconds);
+        return secondsRemaining;
+    }
+    public static int parseDuration(String input) {
+        var matcher = java.util.regex.Pattern.compile("(\\d+)\\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(input.trim());
+        long total = 0; int end = 0;
+        while (matcher.find()) {
+            if (!input.trim().substring(end, matcher.start()).isBlank()) throw new IllegalArgumentException("Use a duration such as 30m, 1hr or 1h30m.");
+            long amount = Long.parseLong(matcher.group(1));
+            char unit = Character.toLowerCase(matcher.group(2).charAt(0));
+            total = Math.addExact(total, Math.multiplyExact(amount, unit == 'h' ? 3600 : unit == 'm' ? 60 : 1));
+            end = matcher.end();
+        }
+        if (end != input.trim().length() || total < 1 || total > Integer.MAX_VALUE) throw new IllegalArgumentException("Use a positive duration such as 30m, 1hr or 1h30m.");
+        return (int) total;
+    }
     public void setSecondsRemaining(int seconds) { secondsRemaining = Math.max(0, seconds); }
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; if (!stopped) start(); }

@@ -75,6 +75,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
     private final Map<String, UUID> discordToUuidCache = new ConcurrentHashMap<>();
 
     // Thread-safe online players cache for instant /api/players responses
+    private volatile int cachedMaxPlayers;
     private final Set<String> cachedOnlinePlayers = ConcurrentHashMap.newKeySet();
 
     public WebsiteModule(CoreSuitePlugin plugin) {
@@ -88,6 +89,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
         loadCachedLinks();
 
         // Populate online players cache
+        cachedMaxPlayers = Bukkit.getMaxPlayers();
         cachedOnlinePlayers.clear();
         for (Player player : Bukkit.getOnlinePlayers()) {
             cachedOnlinePlayers.add(player.getName());
@@ -257,7 +259,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                     playersJson.append("\"").append(escapeJson(list.get(i))).append("\"");
                     if (i < list.size() - 1) playersJson.append(",");
                 }
-                playersJson.append("]}");
+                playersJson.append("],\"online\":true,\"maxPlayers\":").append(cachedMaxPlayers).append(",\"updatedAt\":").append(System.currentTimeMillis()).append("}");
                 sendResponse(exchange, 200, playersJson.toString());
             } catch (Throwable t) {
                 plugin.getLogger().log(Level.WARNING, "Error serving /api/players", t);
@@ -424,10 +426,16 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
             try {
                 if (!checkAuth(exchange, apiKey, "")) return;
 
+                String query = exchange.getRequestURI().getQuery();
+                String metric = "kills";
+                if ("sort=netWorth".equals(query)) metric = "netWorth";
+                else if ("sort=playtime".equals(query)) metric = "playtime";
+                final String board = config.getString("leaderboards." + metric,
+                        metric.equals("netWorth") ? "vault_eco_balance" : metric.equals("playtime") ? "statistic_time_played" : "statistic_player_kills");
                 boolean hasPapi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
 
                 if (!hasPapi) {
-                    sendResponse(exchange, 200, "[]");
+                    sendResponse(exchange, 503, "{\"error\":\"Leaderboard data unavailable; check PlaceholderAPI and ajLeaderboards setup\"}");
                     return;
                 }
 
@@ -437,37 +445,36 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                         boolean first = true;
 
                         for (int i = 1; i <= 10; i++) {
-                            String namePlaceholder = "%ajlb_lb_statistic_player_kills_" + i + "_alltime_name%";
-                            String valuePlaceholder = "%ajlb_lb_statistic_player_kills_" + i + "_alltime_value%";
+                            String namePlaceholder = "%ajlb_lb_" + board + "_" + i + "_alltime_name%";
+                            String valuePlaceholder = "%ajlb_lb_" + board + "_" + i + "_alltime_rawvalue%";
 
                             String name = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(null, namePlaceholder);
                             String valueStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(null, valuePlaceholder);
 
-                            if (name == null || name.isEmpty() || name.equals(namePlaceholder) || name.equalsIgnoreCase("N/A")) {
+                            if (namePlaceholder.equals(name)) throw new IllegalStateException("Unresolved leaderboard placeholder: " + board);
+                            if (name == null || name.isEmpty() || name.equalsIgnoreCase("N/A")) {
                                 continue;
                             }
 
-                            int kills = 0;
-                            try { kills = Integer.parseInt(valueStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
-
-                            OfflinePlayer op = Bukkit.getOfflinePlayer(name);
+                            OfflinePlayer op = Bukkit.getOfflinePlayerIfCached(name);
+                            int kills = (int) parseWebsiteNumber(me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(op, "%statistic_player_kills%"));
                             String deathsStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(op, "%statistic_deaths%");
                             int deaths = 0;
-                            try { deaths = Integer.parseInt(deathsStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
+                            try { deaths = (int) parseWebsiteNumber(deathsStr); } catch (Exception ignored) {}
 
                             String netWorthStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(op, "%vault_eco_balance%");
-                            long netWorth = 0;
-                            try {
-                                String cleanWorth = netWorthStr.split("\\.")[0].replaceAll("[^0-9]", "");
-                                if (!cleanWorth.isEmpty()) netWorth = Long.parseLong(cleanWorth);
-                            } catch (Exception ignored) {}
+                            long netWorth = (long) parseWebsiteNumber(netWorthStr);
 
-                            String playtimeStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(op, "%statistic_play_one_minute%");
+                            String playtimeStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(op, "%statistic_time_played%");
                             long playtimeSeconds = 0;
                             try {
-                                playtimeSeconds = Long.parseLong(playtimeStr.replaceAll("[^0-9]", "")) / 20;
+                                playtimeSeconds = (long) parseWebsiteNumber(playtimeStr) / 20;
                             } catch (Exception ignored) {}
 
+                            double score = parseWebsiteNumber(valueStr);
+                            if (board.equals(config.getString("leaderboards.kills", "statistic_player_kills"))) kills = (int) score;
+                            else if (board.equals(config.getString("leaderboards.netWorth", "vault_eco_balance"))) netWorth = (long) score;
+                            else if (board.equals(config.getString("leaderboards.playtime", "statistic_time_played"))) playtimeSeconds = (long) score / 20;
                             if (!first) json.append(",");
                             json.append("{")
                                     .append("\"username\":\"").append(escapeJson(name)).append("\",")
@@ -488,7 +495,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                     } catch (Throwable t) {
                         httpExecutor.submit(() -> {
                             try {
-                                sendResponse(exchange, 200, "[]");
+                                sendResponse(exchange, 503, "{\"error\":\"Leaderboard data unavailable; check PlaceholderAPI and ajLeaderboards setup\"}");
                             } catch (Exception ignored) {}
                         });
                     }
@@ -510,7 +517,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
 
                 boolean hasPapi = Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null;
                 if (!hasPapi) {
-                    sendResponse(exchange, 200, "[]");
+                    sendResponse(exchange, 503, "{\"error\":\"Vote data unavailable\"}");
                     return;
                 }
 
@@ -520,13 +527,14 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                         boolean first = true;
 
                         for (int i = 1; i <= 3; i++) {
-                            String namePlaceholder = "%VotingPlugin_Top_Month_" + i + "%";
-                            String valuePlaceholder = "%VotingPlugin_Top_MonthVotes_" + i + "%";
+                            String namePlaceholder = "%votingplugin_top_month_" + i + "%";
+                            String valuePlaceholder = "%votingplugin_top_monthvotes_" + i + "%";
 
                             String name = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(null, namePlaceholder);
                             String valueStr = me.clip.placeholderapi.PlaceholderAPI.setPlaceholders(null, valuePlaceholder);
 
-                            if (name == null || name.isEmpty() || name.equals(namePlaceholder)) continue;
+                            if (namePlaceholder.equals(name)) throw new IllegalStateException("Unresolved vote placeholder");
+                            if (name == null || name.isEmpty() || name.equalsIgnoreCase("N/A")) continue;
 
                             int votes = 0;
                             try { votes = Integer.parseInt(valueStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
@@ -542,7 +550,7 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
                         });
                     } catch (Throwable t) {
                         httpExecutor.submit(() -> {
-                            try { sendResponse(exchange, 200, "[]"); } catch (Exception ignored) {}
+                            try { sendResponse(exchange, 503, "{\"error\":\"Vote data unavailable\"}"); } catch (Exception ignored) {}
                         });
                     }
                 });
@@ -563,6 +571,14 @@ public class WebsiteModule extends Module implements Listener, CommandExecutor, 
             return null;
         }
         return new String(body, StandardCharsets.UTF_8);
+    }
+
+    static double parseWebsiteNumber(String value) {
+        if (value == null) return 0;
+        try {
+            double number = Double.parseDouble(value.replace(",", "").trim());
+            return Double.isFinite(number) ? Math.max(0, number) : 0;
+        } catch (NumberFormatException ignored) { return 0; }
     }
 
     private boolean checkAuth(HttpExchange exchange, String apiKey, String body) throws IOException {

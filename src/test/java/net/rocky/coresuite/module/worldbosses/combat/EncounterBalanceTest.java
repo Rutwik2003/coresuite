@@ -12,7 +12,7 @@ class EncounterBalanceTest {
     }
     @Test void joiningAndLeavingPreservesProgress() {
         double increased = EncounterBalance.rescale(360, 720, 3960);
-        assertEquals(1980, increased);
+        assertEquals(360, increased);
         assertEquals(360, EncounterBalance.rescale(increased, 3960, 720));
         assertEquals(0, EncounterBalance.rescale(0, 720, 3960));
     }

@@ -9,6 +9,13 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class BossDamageTrackerTest {
+    @Test void repeatedTrivialHitsDoNotManufactureSupportCredit() {
+        BossDamageTracker tracker = new BossDamageTracker(1000);
+        Player player = player("spam");
+        for (int i = 0; i < 10; i++) tracker.addDamage(player, .1);
+        assertFalse(tracker.qualifies(player.getUniqueId(), 20, 3));
+        assertEquals(0, tracker.getContribution(player.getUniqueId()));
+    }
     private static Player player(String name) {
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.nameUUIDFromBytes(name.getBytes()));

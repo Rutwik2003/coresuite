@@ -37,12 +37,17 @@ public final class CoreSuitePlugin extends JavaPlugin {
     private static final String LINE   = DGRAY + " ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" + RESET;
 
     @Override
+    public void reloadConfig() {
+        net.rocky.coresuite.common.config.ConfigUpdater.load(this, "config.yml");
+        super.reloadConfig();
+    }
+
+    @Override
     public void onEnable() {
         long startTime = System.currentTimeMillis();
         instance = this;
         saveDefaultConfig();
-        getConfig().options().copyDefaults(true);
-        saveConfig();
+        reloadConfig();
 
         // ── Banner start ──
         printBanner();
@@ -155,6 +160,7 @@ public final class CoreSuitePlugin extends JavaPlugin {
      * Modules are commented out until their classes are created in later phases.
      */
     private void registerModules() {
+        moduleManager.registerModule(new net.rocky.coresuite.module.resourcepack.ResourcePackModule(this));
         // Phase 1 — Low-risk standalone
         moduleManager.registerModule(new net.rocky.coresuite.module.automessage.AutoMessengerModule(this));
         moduleManager.registerModule(new net.rocky.coresuite.module.mentions.MentionModule(this));
@@ -209,6 +215,9 @@ public final class CoreSuitePlugin extends JavaPlugin {
 
         // Phase 14 — World Bosses (Shangri-La Frontier custom multi-phase bosses)
         moduleManager.registerModule(new net.rocky.coresuite.module.worldbosses.WorldBossesModule(this));
+
+        // Phase 15 — Onboarding & Player Guide
+        moduleManager.registerModule(new net.rocky.coresuite.module.guide.GuideModule(this));
     }
 
     // ── Static accessor ──

@@ -54,24 +54,27 @@ public class FragmentDropHandler implements Listener {
         }
     }
 
-    @EventHandler
-    public void onInteract(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (e.getClickedBlock() == null) return;
-        
-        Material blockType = e.getClickedBlock().getType();
-        if (blockType != Material.SUSPICIOUS_SAND && blockType != Material.SUSPICIOUS_GRAVEL) { // SUSPICIOUS_CLAY doesn't exist in vanilla 1.20, leaving out or we can assume it's custom. We'll check the name.
-            if (!blockType.name().contains("SUSPICIOUS")) {
-                return;
-            }
-        }
+    @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+    public void onExcavationComplete(org.bukkit.event.entity.EntityChangeBlockEvent event) {
+        if (event.isCancelled() || !(event.getEntity() instanceof Player player)) return;
+        Material source = event.getBlock().getType();
+        if (!isCompletedExcavation(source, event.getTo())) return;
+        if (player.getGameMode() != org.bukkit.GameMode.SURVIVAL
+                && player.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
+        if (!net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)) return;
+        // Intermediate dust stages keep the suspicious material. Only vanilla's final
+        // conversion consumes the excavation and permits one reward roll, even with no loot.
+        awardFragment(player);
+    }
 
-        Player player = e.getPlayer();
-        ItemStack item = e.getItem();
-        if (item == null || item.getType() != Material.BRUSH) return;
+    static boolean isCompletedExcavation(Material before, Material after) {
+        return before == Material.SUSPICIOUS_SAND && after == Material.SAND
+                || before == Material.SUSPICIOUS_GRAVEL && after == Material.GRAVEL;
+    }
 
+    private void awardFragment(Player player) {
         double chance = config.getDouble("fragment-drop-chance", 0.20);
-        if (random.nextDouble() > chance) {
+        if (!Double.isFinite(chance) || random.nextDouble() >= Math.max(0, Math.min(1, chance))) {
             return;
         }
 
