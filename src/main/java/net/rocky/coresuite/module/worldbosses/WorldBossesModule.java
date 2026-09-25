@@ -246,6 +246,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
     }
 
     private void upgradeEncounterDefaults() {
+        if (net.rocky.coresuite.module.worldbosses.combat.BossMusicDefaults.upgrade(config)) saveConfig();
         if (!config.getBoolean("balance.borealis-thermal-upgraded", false)) {
             config.set("borealis.weakness.fire-resist-chance", null);
             if ("&b&lBorealis, The Frostbound Warden".equals(config.getString("borealis.display-name")))

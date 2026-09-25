@@ -317,13 +317,13 @@ valerius:
     - "&7Only the &e&nblunt tools of the deep earth&7 can shatter what remains."
   
   bgm: "coresuite:boss.valerius"
-  bgm-duration-seconds: 375
+  bgm-duration-seconds: 376
   bgm-p1: "coresuite:boss.valerius.p1"
-  bgm-p1-duration-seconds: 200
+  bgm-p1-duration-seconds: 201
   bgm-p2: "coresuite:boss.valerius.p2"
-  bgm-p2-duration-seconds: 375
+  bgm-p2-duration-seconds: 376
   bgm-p3: "coresuite:boss.valerius.p3"
-  bgm-p3-duration-seconds: 165
+  bgm-p3-duration-seconds: 166
 
   combat:
     overheat:
@@ -447,13 +447,13 @@ aethelgard:
     - "&7by the &e&nlumberjack's bite&7, and the &c&ncleansing spark of fire&7."
 
   bgm: "coresuite:boss.aethelgard"
-  bgm-duration-seconds: 155
+  bgm-duration-seconds: 156
   bgm-p1: "coresuite:boss.aethelgard.p1"
-  bgm-p1-duration-seconds: 259
+  bgm-p1-duration-seconds: 260
   bgm-p2: "coresuite:boss.aethelgard.p2"
-  bgm-p2-duration-seconds: 155
+  bgm-p2-duration-seconds: 156
   bgm-p3: "coresuite:boss.aethelgard.p3"
-  bgm-p3-duration-seconds: 334
+  bgm-p3-duration-seconds: 335
 
   combat:
     # Roots persist until destroyed, Deadwood phase, or the shared healing reserve is spent.
@@ -566,13 +566,13 @@ xolthos:
     - "&d&lSplash Potion of Night Vision &7shatters her evasion and stuns her for 20s!"
 
   bgm: "coresuite:boss.xolthos"
-  bgm-duration-seconds: 169
+  bgm-duration-seconds: 170
   bgm-p1: "coresuite:boss.xolthos.p1"
-  bgm-p1-duration-seconds: 169
+  bgm-p1-duration-seconds: 170
   bgm-p2: "coresuite:boss.xolthos.p2"
-  bgm-p2-duration-seconds: 169
+  bgm-p2-duration-seconds: 170
   bgm-p3: "coresuite:boss.xolthos.p3"
-  bgm-p3-duration-seconds: 423
+  bgm-p3-duration-seconds: 424
 
   combat:
     stealth:
@@ -689,10 +689,16 @@ borealis:
   melee-damage: 20.0
   movement-speed: 0.29
   biomes: [SNOWY_PLAINS, ICE_SPIKES, FROZEN_PEAKS]
-  # Built-in music: no additional resource pack assets required.
-  bgm: "minecraft:music_disc.otherside"
-  bgm-duration-seconds: 195
-  awakening-bgm: "minecraft:ambient.basalt_deltas.loop"
+  # Custom phase score delivered by the MeerMC resource pack.
+  bgm: "coresuite:boss.borealis"
+  bgm-duration-seconds: 64
+  bgm-p1: "coresuite:boss.borealis.p1"
+  bgm-p1-duration-seconds: 80
+  bgm-p2: "coresuite:boss.borealis.p2"
+  bgm-p2-duration-seconds: 64
+  bgm-p3: "coresuite:boss.borealis.p3"
+  bgm-p3-duration-seconds: 48
+  awakening-bgm: "coresuite:boss.awakening"
   combat:
     frostguard:
       cooldown-seconds: 24
