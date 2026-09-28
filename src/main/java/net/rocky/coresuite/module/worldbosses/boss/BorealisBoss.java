@@ -15,15 +15,19 @@ import java.util.ArrayList;
 
 /** Terrain-safe ice encounter. Cast locations are fixed when the warning appears. */
 public final class BorealisBoss extends WorldBoss {
+    private final java.util.Set<java.util.UUID> domainFrost = new java.util.HashSet<>();
+    private final java.util.Set<java.util.UUID> observedWarmth = new java.util.HashSet<>();
+    private final java.util.Map<java.util.UUID, Long> warmthUntil = new java.util.HashMap<>();
     private long exposedUntil;
     private long fireReadyAt;
     private long nextCastTick;
     private long siphonAt = Long.MAX_VALUE;
+    private double sustainSpent;
     private boolean bowBroken;
+    private Boolean bowStance;
     private boolean dealingSpellDamage;
     private final java.util.Map<java.util.UUID, Long> hiddenSince = new java.util.HashMap<>();
     private final java.util.Map<java.util.UUID, Long> pressureReady = new java.util.HashMap<>();
-    private final java.util.Map<java.util.UUID, Long> frozenUntil = new java.util.HashMap<>();
     private final java.util.Map<java.util.UUID, Long> freezeRecovery = new java.util.HashMap<>();
 
     public BorealisBoss(CoreSuitePlugin plugin, FileConfiguration config, BossLootManager loot) {
@@ -44,9 +48,9 @@ public final class BorealisBoss extends WorldBoss {
             equipment.setChestplate(new ItemStack(Material.IRON_CHESTPLATE));
             ItemStack axe = new ItemStack(Material.DIAMOND_AXE);
             axe.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.UNBREAKING, 1);
-            equipment.setItemInMainHand(axe);
+            equipment.setItemInOffHand(axe);
             ItemStack bow = net.rocky.coresuite.common.text.TextUtil.createItem(Material.BOW, "&bFrost-Tipped Bow", "&7The string sings of winter.");
-            equipment.setItemInOffHand(bow);
+            equipment.setItemInMainHand(bow);
             equipment.setItemInOffHandDropChance(0);
             equipment.setHelmetDropChance(0);
             equipment.setChestplateDropChance(0);
@@ -65,31 +69,33 @@ public final class BorealisBoss extends WorldBoss {
     @Override public void onCombatTick(long tick) {
         if (entity == null || !entity.isValid()) return;
 
-        if (!abilityCombatAllowed()) return;
         int phase = currentPhase == null ? 1 : currentPhase.getPhaseNumber();
-        frozenUntil.entrySet().removeIf(entry -> entry.getValue() <= System.currentTimeMillis());
+        updateStance(phase, tick);
+        updateDomainFrost();
+        if (!abilityCombatAllowed()) return;
         freezeRecovery.entrySet().removeIf(entry -> entry.getValue() <= System.currentTimeMillis());
         if (barManager.getViewers().stream().noneMatch(this::targetable)) return;
         phasePressure(tick, phase);
-        if (phase == 2 && abilityReady(tick, "frostguard", 24)) {
+        if (phase >= 2 && abilityReady(tick, "frostguard", 45)) {
             summonFrostguard(phase);
-            if (siphonAt == Long.MAX_VALUE && liveMinionCount() > 0) siphonAt = tick + 15;
+            if (phase == 2 && siphonAt == Long.MAX_VALUE && liveMinionCount() > 0) siphonAt = tick + Math.max(10, config.getInt("borealis.combat.siphon.delay-seconds", 20));
         }
         if (phase == 2 && tick >= siphonAt) {
             siphonAt = Long.MAX_VALUE;
-            broadcastToDomain("&bCRUEL SIPHON! &fKill the sentinels within 3 seconds to deny his healing!");
+            broadcastToDomain("&bCRUEL SIPHON! &fKill the sentinels within 5 seconds to deny his healing!");
             runAbilityLater(() -> {
                 if (currentPhase == null || currentPhase.getPhaseNumber() != 2) return;
                 int surviving = liveMinionCount();
                 clearMinions();
-                double restored = heal(Math.min(240, surviving * 60));
+                double perMinion = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                        config.getDouble("borealis.combat.siphon.heal-per-minion", 20), 20, 0, 60);
+                double restored = heal(Math.min(80, surviving * perMinion));
                 broadcastToDomain("&bCruel Siphon consumed " + surviving + " sentinels and restored " + (int) restored + " HP.");
-            }, 60);
+            }, 100);
         }
         // Space casts apart so the nova freeze cannot overlap an unavoidable hail impact.
         if (tick < nextCastTick) return;
-        if (phase < 3 && barManager.getViewers().stream().anyMatch(p -> targetable(p)
-                && p.getLocation().distanceSquared(entity.getLocation()) > 64) && abilityReady(tick, "glacial-volley", 12)) {
+        if (Boolean.TRUE.equals(bowStance) && abilityReady(tick, "glacial-volley", 12)) {
             volley(); nextCastTick = tick + 4; return;
         }
         if (tick % 2 == 0 && abilityReady(tick, "frost-nova", phase == 3 ? 12 : 18)) {
@@ -101,6 +107,22 @@ public final class BorealisBoss extends WorldBoss {
         }
     }
 
+    @Override public double getRemainingHealing() {
+        double budget = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                config.getDouble("borealis.combat.maximum-healing-fraction", .15), .15, 0, .30);
+        return Math.min(super.getRemainingHealing(), Math.max(0, budget - sustainSpent) * maxHealth);
+    }
+
+    @Override public double heal(double amount) {
+        if (!Double.isFinite(amount) || amount <= 0 || maxHealth <= 0 || !abilityCombatAllowed()) return 0;
+        int phase = currentPhase == null ? 1 : currentPhase.getPhaseNumber();
+        double ceiling = maxHealth * (phase >= 3 ? .20 : phase == 2 ? .60 : 1);
+        double allowed = Math.min(amount, Math.min(getRemainingHealing(), Math.max(0, ceiling - currentHealth)));
+        double restored = super.heal(allowed);
+        sustainSpent += restored / maxHealth;
+        return restored;
+    }
+
     public boolean applyThermalShock() {
         long now = System.currentTimeMillis();
         if (!active || !isAwakened || now < fireReadyAt) return false;
@@ -108,7 +130,7 @@ public final class BorealisBoss extends WorldBoss {
         exposedUntil = now + 6000;
         interruptCasts();
         siphonAt = Long.MAX_VALUE;
-        broadcastToDomain("&6THERMAL SHOCK! &fTrue Ice melts for 6 seconds. Switch to SHOVELS for 2.5x damage! (20s counter cooldown)");
+        broadcastToDomain("&6THERMAL SHOCK! &fSteam rises as cracks spread through the tyrant's icy shell!");
         return true;
     }
 
@@ -159,7 +181,7 @@ public final class BorealisBoss extends WorldBoss {
 
     private void nova(double radius) {
         Location origin = entity.getLocation().clone();
-        broadcastToDomain("&bFROST NOVA! &fLeave the marked circle within 3 seconds or be frozen for 2 seconds!");
+        broadcastToDomain("&bFROST NOVA! &fLeave the marked circle within 3 seconds or suffer Deep Chill for 2 seconds!");
         ring(origin, radius);
         runAbilityLater(() -> ring(origin, radius), 20);
         runAbilityLater(() -> ring(origin, radius), 40);
@@ -195,58 +217,72 @@ public final class BorealisBoss extends WorldBoss {
     private void freeze(Player player, int duration, int recovery) {
         long now = System.currentTimeMillis();
         if (now < freezeRecovery.getOrDefault(player.getUniqueId(), 0L)) return;
-        frozenUntil.put(player.getUniqueId(), now + duration);
+        // Vanilla Slowness is communicated to the client; never rewind movement packets.
+        applyBossEffect(player, new PotionEffect(PotionEffectType.SLOWNESS, Math.max(1, duration / 50), 5));
         freezeRecovery.put(player.getUniqueId(), now + recovery);
-        net.rocky.coresuite.common.text.TextUtil.sendActionBar(player, "&bFROZEN! &f" + (duration / 1000.0) + "s — you can still attack, eat and use potions!");
+        net.rocky.coresuite.common.text.TextUtil.sendActionBar(player, "&bDEEP CHILL! &f" + (duration / 1000.0) + "s — movement slowed; attacks, food and potions still work!");
         player.getWorld().spawnParticle(Particle.SNOWFLAKE, player.getLocation().add(0, 1, 0), 25, .4, .7, .4, .02);
     }
 
-    public void restrainFrozenMovement(org.bukkit.event.player.PlayerMoveEvent event) {
-        Player player = event.getPlayer();
-        if (event instanceof org.bukkit.event.player.PlayerTeleportEvent) {
-            frozenUntil.remove(player.getUniqueId());
-            return;
-        }
-        if (!active || !targetable(player) || event.getTo() == null
-                || System.currentTimeMillis() >= frozenUntil.getOrDefault(player.getUniqueId(), 0L)) return;
-        Location from = event.getFrom(), to = event.getTo().clone();
-        if (from.getWorld() != to.getWorld()) return;
-        to.setX(from.getX()); to.setZ(from.getZ());
-        // Allow gravity and camera movement; never enclose a player in placed blocks.
-        to.setY(Math.min(from.getY(), to.getY()));
-        if (net.rocky.coresuite.module.worldbosses.combat.BossMovement.clear(to)) event.setTo(to);
-        else frozenUntil.remove(player.getUniqueId());
+    static boolean usesBow(int phase, long tick) {
+        return phase == 1 || (phase == 2 && (tick / 12) % 2 == 0);
+    }
+
+    static int minionCap(int phase) { return phase == 2 ? 4 : phase == 3 ? 2 : 0; }
+
+    private void updateStance(int phase, long tick) {
+        boolean bow = usesBow(phase, tick);
+        if (bowStance != null && bowStance == bow) return;
+        bowStance = bow;
+        var gear = entity.getEquipment();
+        if (gear == null) return;
+        ItemStack axe = new ItemStack(Material.DIAMOND_AXE);
+        axe.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.UNBREAKING, 1);
+        // A skeleton with a bow in EITHER hand chooses ranged AI. Remove the offhand bow in axe stance.
+        gear.setItemInMainHand(bow ? net.rocky.coresuite.common.text.TextUtil.createItem(Material.BOW,
+                "&bFrost-Tipped Bow", "&7The string sings of winter.") : axe);
+        gear.setItemInOffHand(bow ? axe : null);
+        if (phase == 2) broadcastToDomain(bow ? "&bBOW STANCE! &fStrafe the Glacial Volley!"
+                : "&cAXE STANCE! &fBorealis closes in for melee!");
     }
 
     private void summonFrostguard(int phase) {
         var fighters = barManager.getViewers().stream().filter(this::targetable).toList();
         if (fighters.isEmpty()) return;
-        int cap = 4;
+        int cap = minionCap(phase);
         int count = cap - liveMinionCount();
+        int archers = (int) minions.stream().filter(mob -> mob != null && mob.isValid() && !mob.isDead()
+                && mob.getEquipment() != null && mob.getEquipment().getItemInMainHand().getType() == Material.BOW).count();
         for (int i = 0; i < count; i++) {
             double angle = Math.PI * 2 * i / Math.max(1, count);
             Location desired = entity.getLocation().add(Math.cos(angle) * 3, 0, Math.sin(angle) * 3);
             Location spawn = net.rocky.coresuite.module.worldbosses.combat.BossMovement.findLanding(desired, domainManager::isInDomain);
             if (spawn == null) continue;
-            var guard = spawn.getWorld().spawn(spawn, org.bukkit.entity.Stray.class, this::setupFrostguard);
+            boolean archer = archers < cap / 2;
+            var guard = spawn.getWorld().spawn(spawn, org.bukkit.entity.Stray.class, mob -> setupFrostguard(mob, archer));
+            if (archer) archers++;
             guard.setTarget(fighters.get(i % fighters.size()));
         }
         if (count > 0) broadcastToDomain("&bTHE FROSTGUARD RISE! &fDefeat Borealis's sentinels before the next nova!");
     }
 
-    private void setupFrostguard(org.bukkit.entity.Stray mob) {
+    private void setupFrostguard(org.bukkit.entity.Stray mob, boolean archer) {
                 mob.getPersistentDataContainer().set(new NamespacedKey(plugin, "boss_minion"),
                     org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
                 registerMinion(mob);
-                mob.customName(net.rocky.coresuite.common.text.TextUtil.colorize("&bFrostguard Sentinel"));
+                mob.customName(net.rocky.coresuite.common.text.TextUtil.colorize(archer ? "&bFrostguard Archer" : "&bFrostguard Sentinel"));
                 mob.setCustomNameVisible(true);
                 mob.setCanPickupItems(false);
                 var gear = mob.getEquipment();
                 gear.setHelmet(new ItemStack(Material.BLUE_ICE));
-                gear.setItemInMainHand(new ItemStack(Material.STONE_SWORD));
+                gear.setItemInMainHand(new ItemStack(archer ? Material.BOW : Material.STONE_SWORD));
+                gear.setItemInOffHand(null);
+                gear.setItemInOffHandDropChance(0);
                 gear.setHelmetDropChance(0); gear.setItemInMainHandDropChance(0);
-                applyAttributeSafely(mob, PaperCompat.MAX_HEALTH, 45);
-                mob.setHealth(45);
+                double health = net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                        config.getDouble("borealis.combat.frostguard.health", 30), 30, 10, 100);
+                applyAttributeSafely(mob, PaperCompat.MAX_HEALTH, health);
+                mob.setHealth(health);
                 applyAttributeSafely(mob, PaperCompat.ATTACK_DAMAGE, 7);
                 applyAttributeSafely(mob, PaperCompat.MOVEMENT_SPEED, .30);
     }
@@ -255,6 +291,7 @@ public final class BorealisBoss extends WorldBoss {
         if (phase == 3 && !bowBroken) {
             bowBroken = true;
             clearMinions();
+            summonFrostguard(3);
             siphonAt = Long.MAX_VALUE;
             entity.getEquipment().setItemInOffHand(null);
             applyAttributeSafely(entity, PaperCompat.MOVEMENT_SPEED, .36);
@@ -264,12 +301,13 @@ public final class BorealisBoss extends WorldBoss {
         for (Player player : new ArrayList<>(barManager.getViewers())) {
             if (!targetable(player)) continue;
             handleAntiCheese(player);
-            if (phase == 1) applyBossEffect(player, new PotionEffect(PotionEffectType.SLOWNESS, 30, 0));
-            if (phase == 2 && tick % 3 == 0 && !wearsLeather(player) && !wearsStriders(player)) {
+            if (phase == 1 && !hasFrostRespite(player)) applyBossEffect(player, new PotionEffect(PotionEffectType.SLOWNESS, 30, 0));
+            if (phase == 2 && tick % 3 == 0 && !hasFrostRespite(player) && !wearsLeather(player) && !wearsStriders(player)) {
                 var previous = player.getLastDamageCause();
                 spellDamage(player, 3);
                 var hit = player.getLastDamageCause();
-                if (hit != null && hit != previous && !hit.isCancelled() && hit.getFinalDamage() > 0) freezeHealing += 2;
+                if (hit != null && hit != previous && !hit.isCancelled() && hit.getFinalDamage() > 0) freezeHealing += net.rocky.coresuite.module.worldbosses.combat.EncounterBalance.finite(
+                        config.getDouble("borealis.combat.freeze-heal-per-hit", 0), 0, 0, 2);
                 player.spawnParticle(Particle.SNOWFLAKE, player.getLocation().add(0, 1, 0), 6, .4, .6, .4, .01);
             }
         }
@@ -285,6 +323,59 @@ public final class BorealisBoss extends WorldBoss {
             }, 40);
         }
     }
+
+    /** Powder-snow overlay without a second, untracked vanilla damage pulse. */
+    private void updateDomainFrost() {
+        java.util.Set<java.util.UUID> affected = new java.util.HashSet<>();
+        for (Player player : new ArrayList<>(barManager.getViewers())) {
+            if (!targetable(player)) continue;
+            if (observedWarmth.add(player.getUniqueId()) && hasFireResistance(player))
+                grantFrostRespite(player);
+            if (hasFrostRespite(player) || wearsLeather(player) || wearsStriders(player)) continue;
+            affected.add(player.getUniqueId());
+            // Below vanilla's fully-frozen threshold; phasePressure owns damage and healing.
+            int visualTicks = Math.max(0, (int) (player.getMaxFreezeTicks() * .35));
+            if (player.getFreezeTicks() < visualTicks) player.setFreezeTicks(visualTicks);
+        }
+        for (var uuid : new java.util.HashSet<>(domainFrost)) if (!affected.contains(uuid)) clearDomainFrost(uuid);
+        domainFrost.addAll(affected);
+    }
+
+    /** One fixed window per fresh potion application; ongoing effects never renew it. */
+    public void grantFrostRespite(Player player) {
+        if (!active || !targetable(player)) return;
+        observedWarmth.add(player.getUniqueId());
+        long now = System.currentTimeMillis();
+        if (warmthUntil.getOrDefault(player.getUniqueId(), 0L) > now) return;
+        warmthUntil.put(player.getUniqueId(), now + 30_000);
+        if (domainFrost.contains(player.getUniqueId())) clearDomainFrost(player.getUniqueId());
+    }
+
+    boolean hasFireResistance(Player player) {
+        return player.hasPotionEffect(PotionEffectType.FIRE_RESISTANCE);
+    }
+
+    private boolean hasFrostRespite(Player player) {
+        return hasFireResistance(player)
+                && warmthUntil.getOrDefault(player.getUniqueId(), 0L) > System.currentTimeMillis();
+    }
+
+    private void clearDomainFrost(java.util.UUID uuid) {
+        Player player = Bukkit.getPlayer(uuid);
+        // Preserve natural freezing when the player is actually standing in powder snow.
+        if (player != null && player.getLocation().getBlock().getType() != Material.POWDER_SNOW
+                && player.getFreezeTicks() < player.getMaxFreezeTicks()) player.setFreezeTicks(0);
+        domainFrost.remove(uuid);
+    }
+
+    private void clearDomainFrost() {
+        for (var uuid : new java.util.HashSet<>(domainFrost)) clearDomainFrost(uuid);
+        warmthUntil.clear();
+        observedWarmth.clear();
+    }
+
+    @Override public void die() { clearDomainFrost(); super.die(); }
+    @Override public void despawn() { clearDomainFrost(); super.despawn(); }
 
     private boolean wearsLeather(Player player) {
         for (ItemStack item : player.getInventory().getArmorContents())

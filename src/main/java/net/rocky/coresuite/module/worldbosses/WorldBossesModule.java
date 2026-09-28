@@ -185,6 +185,8 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
     @Override
     public void onDisable() {
+        cancelTerrainPreparation();
+        if (discoveryManager != null) discoveryManager.clearCache();
         if (hunterExchangeGUI != null) hunterExchangeGUI.invalidate();
         unregisterRecipes();
 
@@ -213,11 +215,12 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
     @Override
     public void onReload() {
+        cancelTerrainPreparation();
         if (hunterExchangeGUI != null) hunterExchangeGUI.invalidate();
         unregisterRecipes();
         if (portalManager != null) {
             portalManager.cleanup();
-            org.bukkit.event.HandlerList.unregisterAll(portalManager);
+            unregisterListener(portalManager);
         }
 
         if (activeBoss != null && activeBoss.isActive()) {
@@ -253,14 +256,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 config.set("borealis.display-name", "&b&lBorealis, The Permafrost Tyrant");
             var oldLore = config.getStringList("borealis.lore");
             if (oldLore.stream().anyMatch(line -> line.contains("half of all attempts are resisted")))
-                config.set("borealis.lore", java.util.List.of(
-                    "&7Borealis sealed his soldiers in the Glacial Vault, where True Ice claimed their hearts.",
-                    "&7Blades slide from his shell and arrows shatter. Bring the alchemist's heat of the Nether:",
-                    "&6Splash Fire Resistance &7melts his armor for 6 seconds. Then wield the gravedigger's tool:",
-                    "&bShovels deal 2.5x damage during Thermal Shock. &7The counter recovers every 20 seconds.",
-                    "&7Slay his Frostguard before Cruel Siphon consumes them. Leather wards off Deep Freeze.",
-                    "&7When his bow breaks, beware the axe: the tyrant's final winter has begun."));
+                config.set("borealis.lore", net.rocky.coresuite.module.worldbosses.rewards.BossLore.lines(BossType.BOREALIS));
             config.set("balance.borealis-thermal-upgraded", true);
+            saveConfig();
+        }
+        if (!config.getBoolean("balance.borealis-sustain-v1", false)) {
+            String cooldown = "borealis.combat.frostguard.cooldown-seconds";
+            if (config.getInt(cooldown, 45) == 24) config.set(cooldown, 45);
+            config.set("balance.borealis-sustain-v1", true);
             saveConfig();
         }
         boolean removedEquipmentDrops = false;
@@ -287,6 +290,12 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             config.set("balance.crate-alias-upgraded", true);
             saveConfig();
         }
+        if (!config.getBoolean("balance.cryptic-lore-v1", false)) {
+            for (BossType type : BossType.values()) config.set(type.getConfigKey() + ".lore",
+                    net.rocky.coresuite.module.worldbosses.rewards.BossLore.lines(type));
+            config.set("balance.cryptic-lore-v1", true);
+            saveConfig();
+        }
         if (config.getBoolean("balance.defaults-upgraded", false)) return;
         // Migrate only exact former stock values; retain deliberately customized settings.
         if (config.getInt("scheduler.min-players", 1) == 3) config.set("scheduler.min-players", 1);
@@ -297,7 +306,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         java.util.List<String> lore = config.getStringList("aethelgard.lore");
         if (!lore.isEmpty()) config.set("aethelgard.lore", lore.stream().map(line -> line.replace(
                 "His wooden armor swallows arrows whole, turning them into vitality.",
-                "His wooden armor resists arrows, but axes expose his weakness.")).toList());
+                "The hollow crown listens to whispers beneath the forest floor.")).toList());
         config.set("balance.defaults-upgraded", true);
         saveConfig();
     }
@@ -332,6 +341,11 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         return activeBoss;
     }
 
+    private long terrainGeneration;
+    private java.util.concurrent.CompletableFuture<Boolean> terrainPreparation;
+    private org.bukkit.scheduler.BukkitTask terrainTimeout;
+    private final java.util.Set<org.bukkit.Chunk> terrainChunks = new java.util.HashSet<>();
+
     private String lastSpawnFailure = "Unknown spawn failure.";
     public String getLastSpawnFailure() { return lastSpawnFailure; }
     private boolean rejectSpawn(BossType type, Location location, String reason) {
@@ -345,17 +359,12 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (type == null) return rejectSpawn(type, loc, "Unknown boss type.");
         if (isBossActive()) return rejectSpawn(type, loc, "Another boss is already active.");
         if (loc == null || loc.getWorld() == null) return rejectSpawn(type, loc, "No arena world/location is available.");
-        // Ensure the arena terrain chunks are loaded before inspecting terrain safety
-        if (loc.getWorld() != null) {
-            int cx = loc.getBlockX() >> 4;
-            int cz = loc.getBlockZ() >> 4;
-            int reachChunks = (int) Math.ceil(config.getDouble("domain.radius", 35.0) / 16.0) + 1;
-            for (int dx = -reachChunks; dx <= reachChunks; dx++) {
-                for (int dz = -reachChunks; dz <= reachChunks; dz++) {
-                    if (!loc.getWorld().isChunkLoaded(cx + dx, cz + dz)) {
-                        loc.getWorld().getChunkAt(cx + dx, cz + dz);
-                    }
-                }
+        // Terrain must be prepared asynchronously before this server-thread validation.
+        int reach = (int) Math.ceil(Math.max(8, Math.min(256, config.getDouble("domain.radius", 35))));
+        for (int x = (loc.getBlockX() - reach) >> 4; x <= (loc.getBlockX() + reach) >> 4; x++) {
+            for (int z = (loc.getBlockZ() - reach) >> 4; z <= (loc.getBlockZ() + reach) >> 4; z++) {
+                if (!loc.getWorld().isChunkLoaded(x, z)) return rejectSpawn(type, loc,
+                        "Arena chunk " + x + ", " + z + " is unavailable during spawn validation.");
             }
         }
 
@@ -395,7 +404,93 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         }
     }
 
+    private void cancelTerrainPreparation() {
+        terrainGeneration++;
+        if (terrainTimeout != null) { terrainTimeout.cancel(); terrainTimeout = null; }
+        var pending = terrainPreparation;
+        terrainPreparation = null;
+        releaseTerrainChunks();
+        if (pending != null) pending.complete(false);
+    }
+
+    private void releaseTerrainChunks() {
+        for (org.bukkit.Chunk chunk : terrainChunks) chunk.removePluginChunkTicket(plugin);
+        terrainChunks.clear();
+    }
+
+    /** The only asynchronous part is Paper's chunk loading; all encounter mutations stay on main. */
+    public java.util.concurrent.CompletableFuture<Boolean> spawnBossAsync(BossType type, Location location) {
+        var result = new java.util.concurrent.CompletableFuture<Boolean>();
+        if (!Bukkit.isPrimaryThread() || !isEnabled() || isBossActive() || terrainPreparation != null
+                || type == null || location == null || location.getWorld() == null) {
+            result.complete(false);
+            return result;
+        }
+        Location target = location.clone();
+        double radius = config.getDouble("domain.radius", 35);
+        if (!Double.isFinite(radius) || radius < 1 || radius > 256 || !Double.isFinite(target.getX())
+                || !Double.isFinite(target.getY()) || !Double.isFinite(target.getZ())) {
+            rejectSpawn(type, target, "Arena radius/coordinates are invalid."); result.complete(false); return result;
+        }
+        long epoch = ++terrainGeneration;
+        terrainPreparation = result;
+        terrainTimeout = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (epoch != terrainGeneration) return;
+            rejectSpawn(type, target, "Arena terrain loading timed out. Check world generation/server load.");
+            cancelTerrainPreparation();
+        }, 1200L);
+        int reach = (int) Math.ceil(Math.max(8, radius));
+        java.util.List<java.util.concurrent.CompletableFuture<org.bukkit.Chunk>> chunks = new java.util.ArrayList<>();
+        try {
+            for (int x = (target.getBlockX() - reach) >> 4; x <= (target.getBlockX() + reach) >> 4; x++) {
+                for (int z = (target.getBlockZ() - reach) >> 4; z <= (target.getBlockZ() + reach) >> 4; z++) {
+                    chunks.add(target.getWorld().getChunkAtAsync(x, z).thenApply(chunk -> {
+                        // Paper completes chunk futures on main. Pin each result immediately,
+                        // not after allOf: an earlier chunk can unload while later loads run.
+                        if (epoch != terrainGeneration || result.isDone() || !isEnabled()) return chunk;
+                        if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("Chunk completion was off the server thread");
+                        if (chunk == null) throw new IllegalStateException("Arena chunk load returned no chunk");
+                        if (!terrainChunks.contains(chunk) && chunk.addPluginChunkTicket(plugin)) terrainChunks.add(chunk);
+                        return chunk;
+                    }));
+                }
+            }
+        } catch (RuntimeException error) {
+            rejectSpawn(type, target, "Arena terrain request failed: " + error.getMessage());
+            cancelTerrainPreparation();
+            return result;
+        }
+        java.util.concurrent.CompletableFuture.allOf(chunks.toArray(java.util.concurrent.CompletableFuture[]::new))
+                .whenComplete((ignored, error) -> {
+                    if (result.isDone() || !plugin.isEnabled()) return;
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (epoch != terrainGeneration || !isEnabled()) { result.complete(false); return; }
+                        if (terrainTimeout != null) { terrainTimeout.cancel(); terrainTimeout = null; }
+                        terrainPreparation = null;
+                        boolean spawned = false;
+                        try {
+                            if (error != null) {
+                                rejectSpawn(type, target, "Arena terrain failed to load: " + error.getClass().getSimpleName());
+                            } else {
+                                spawned = spawnBoss(type, target);
+                                if (spawned) {
+                                    // Plugin chunk tickets are not reference counted. Transfer
+                                    // ownership instead of removing tickets the boss now needs.
+                                    activeBoss.retainPreparedChunks(java.util.List.copyOf(terrainChunks));
+                                    terrainChunks.clear();
+                                }
+                            }
+                        } finally {
+                            releaseTerrainChunks();
+                            result.complete(spawned);
+                        }
+                    });
+                });
+        return result;
+    }
+
     public void despawnActiveBoss() {
+        cancelTerrainPreparation();
         if (activeBoss != null) {
             activeBoss.despawn();
             activeBoss = null;
@@ -412,8 +507,10 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         return portalManager;
     }
 
+    public boolean isPreparingTerrain() { return terrainPreparation != null; }
+
     public boolean isEncounterPending() {
-        return portalManager != null && portalManager.isActive();
+        return terrainPreparation != null || (portalManager != null && portalManager.isActive());
     }
 
     public boolean initiateBossEncounter(BossType type, Location targetLoc) {
@@ -440,30 +537,23 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
         if (portalManager != null && config.getBoolean("arena.portals.enabled", true)) {
             final Location finalArenaLoc = arenaLoc;
-            if (finalArenaLoc.getWorld() != null) {
-                World w = finalArenaLoc.getWorld();
-                int cx = finalArenaLoc.getBlockX() >> 4;
-                int cz = finalArenaLoc.getBlockZ() >> 4;
-                for (int dx = -4; dx <= 4; dx++) {
-                    for (int dz = -4; dz <= 4; dz++) {
-                        w.getChunkAtAsync(cx + dx, cz + dz);
-                    }
-                }
-                w.getChunkAtAsync(49610 >> 4, 49528 >> 4);
-                w.getChunkAtAsync(49718 >> 4, 49528 >> 4);
-            }
             portalManager.spawnPortals(finalArenaLoc, () -> {
                 if (isEnabled() && !isBossActive()) {
-                    if (!spawnBoss(type, finalArenaLoc)) portalManager.cleanup();
+                    BossPortalManager encounterPortals = portalManager;
+                    spawnBossAsync(type, finalArenaLoc).thenAccept(success -> {
+                        if (!success && portalManager == encounterPortals) encounterPortals.cleanup();
+                    });
                 }
             });
             return true;
         } else {
-            return spawnBoss(type, arenaLoc);
+            spawnBossAsync(type, arenaLoc);
+            return true;
         }
     }
 
     public void killActiveBoss() {
+        cancelTerrainPreparation();
         if (activeBoss != null) {
             activeBoss.die();
             activeBoss = null;
@@ -820,6 +910,19 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFrostResistance(org.bukkit.event.entity.EntityPotionEffectEvent event) {
+        if (!(activeBoss instanceof BorealisBoss borealis) || !(event.getEntity() instanceof Player player)) return;
+        var effect = event.getNewEffect();
+        if (effect == null || !effect.getType().equals(PotionEffectType.FIRE_RESISTANCE)) return;
+        if (event.getAction() != org.bukkit.event.entity.EntityPotionEffectEvent.Action.ADDED
+                && !(event.getAction() == org.bukkit.event.entity.EntityPotionEffectEvent.Action.CHANGED && event.isOverride())) return;
+        // Repeated cloud refreshes cannot renew protection.
+        if (event.getCause() == org.bukkit.event.entity.EntityPotionEffectEvent.Cause.POTION_DRINK
+                || event.getCause() == org.bukkit.event.entity.EntityPotionEffectEvent.Cause.POTION_SPLASH)
+            borealis.grantFrostRespite(player);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPotionSplash(PotionSplashEvent event) {
         if (event.isCancelled()) return;
         if (activeBoss == null || !activeBoss.isActive()) return;
@@ -841,14 +944,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             // Water's affected-entity map contains water-sensitive mobs, not ordinary wither skeletons.
             if (!net.rocky.coresuite.module.worldbosses.combat.BossPotionHit.waterReaches(potion.getLocation(), bossEntity, event.getHitEntity() == bossEntity)) return;
             if (valerius.applyQuenched(config.getInt("valerius.weakness.quenched-duration-seconds", 10)))
-                activeBoss.recordMechanicContribution(participant, "Water interrupted Valerius");
+                activeBoss.recordMechanicContribution(participant, "The vanguard's furnace faltered");
             return;
         }
         if (!event.getAffectedEntities().contains(bossEntity) || event.getIntensity(bossEntity) <= 0) return;
         if (activeBoss instanceof BorealisBoss borealis && potion.getEffects().stream()
                 .anyMatch(effect -> effect.getType().equals(PotionEffectType.FIRE_RESISTANCE))) {
-            if (borealis.applyThermalShock()) activeBoss.recordMechanicContribution(participant, "Thermal Shock shattered True Ice");
-            else TextUtil.sendMessage(participant, "&bThermal Shock is recovering. Wait for its 20-second cooldown.");
+            if (borealis.applyThermalShock()) activeBoss.recordMechanicContribution(participant, "The tyrant's icy shell fractured");
+            else TextUtil.sendMessage(participant, "&bThe ice holds firm.");
             return;
         }
         boolean hasNightVision = false;
@@ -874,7 +977,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         // 2. Splash Night Vision Counter on Xol'thos
         if (hasNightVision && activeBoss instanceof XolthosBoss xolthos) {
             int duration = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
-            if (xolthos.applyStun(duration)) activeBoss.recordMechanicContribution(participant, "Night Vision revealed Xol'thos");
+            if (xolthos.applyStun(duration)) activeBoss.recordMechanicContribution(participant, "The widow's shadows scattered");
         }
     }
 
@@ -887,11 +990,6 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         if (!itemRegistry.hasSignatureWeapon(player.getInventory().getBoots(), "frostbound_striders")) return;
         if (cause == org.bukkit.event.entity.EntityDamageEvent.DamageCause.FREEZE) event.setCancelled(true);
         else event.setDamage(event.getDamage() * .75);
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onBorealisFreezeMovement(org.bukkit.event.player.PlayerMoveEvent event) {
-        if (activeBoss instanceof BorealisBoss borealis) borealis.restrainFrozenMovement(event);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -1528,12 +1626,11 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
 
                     try {
                         if (args.length >= 6) {
-                            boolean spawned = spawnBoss(type, spawnLoc);
-                            if (spawned) {
-                                TextUtil.sendMessage(sender, "&aSuccessfully spawned &e" + type.getDefaultDisplayName() + "&a at specified location!");
-                            } else {
-                                TextUtil.sendMessage(sender, "&cCannot spawn: &f" + getLastSpawnFailure());
-                            }
+                            TextUtil.sendMessage(sender, "&ePreparing arena terrain...");
+                            spawnBossAsync(type, spawnLoc).thenAccept(spawned -> {
+                                if (spawned) TextUtil.sendMessage(sender, "&aSuccessfully spawned &e" + type.getDefaultDisplayName() + "&a at specified location!");
+                                else TextUtil.sendMessage(sender, "&cCannot spawn: &f" + getLastSpawnFailure());
+                            });
                         } else {
                             boolean initiated = initiateBossEncounter(type, null);
                             if (initiated) {
@@ -1609,6 +1706,31 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                 case "reload" -> {
                     onReload();
                     TextUtil.sendMessage(sender, "&aWorldBosses configuration and scheduler reloaded successfully!");
+                    return true;
+                }
+                case "giveshop" -> {
+                    if (args.length < 2 || args.length > 3) {
+                        TextUtil.sendMessage(sender, "&cUsage: /bossadmin giveshop <item> [player]");
+                        TextUtil.sendMessage(sender, "&7Items: " + String.join(", ", SHOP_EQUIPMENT_IDS));
+                        return true;
+                    }
+                    String itemId = args[1].toLowerCase(java.util.Locale.ROOT);
+                    if (!SHOP_EQUIPMENT_IDS.contains(itemId)) {
+                        TextUtil.sendMessage(sender, "&cUnknown shop equipment. Choose: &e" + String.join(", ", SHOP_EQUIPMENT_IDS));
+                        return true;
+                    }
+                    Player target = args.length == 3 ? Bukkit.getPlayerExact(args[2]) : (sender instanceof Player p ? p : null);
+                    if (target == null) {
+                        TextUtil.sendMessage(sender, "&cSpecify an online player: /bossadmin giveshop <item> <player>");
+                        return true;
+                    }
+                    if (target.getInventory().firstEmpty() == -1) {
+                        TextUtil.sendMessage(sender, "&c" + target.getName() + " needs an empty inventory slot. No item was given.");
+                        return true;
+                    }
+                    target.getInventory().addItem(itemRegistry.createSignatureWeapon(itemId));
+                    TextUtil.sendMessage(sender, "&aGiven 1x &e" + itemId + " &ato &e" + target.getName() + "&a.");
+                    if (!target.equals(sender)) TextUtil.sendMessage(target, "&aAn admin gave you 1x &e" + itemId + "&a.");
                     return true;
                 }
                 case "summonitem", "totem" -> {
@@ -1714,6 +1836,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         TextUtil.sendMessage(sender, "  &e/bossadmin rewards <retry|delivered> <receipt> &8- &7Resolve a reviewed receipt; retry only if not delivered");
         TextUtil.sendMessage(sender, "  &e/bossadmin clearall &8- &7Purge all orphaned bosses across all worlds");
         TextUtil.sendMessage(sender, "  &e/bossadmin summonitem <boss> [player] &8- &7Give summon totem");
+        TextUtil.sendMessage(sender, "  &e/bossadmin giveshop <item> [player] &8- &7Give shop weapon or armour");
         TextUtil.sendMessage(sender, "  &e/bossadmin setnpc <npc-id> &8- &7Set Garrick exchange NPC ID");
         TextUtil.sendMessage(sender, "  &e/bossadmin forcenext &8- &7Trigger next scheduled boss immediately");
         TextUtil.sendMessage(sender, "  &e/bossadmin skiptime <30m|1hr|1h30m> &8- &7Reduce the next boss countdown");
@@ -1786,12 +1909,15 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
     // Tab Completion
     // ─────────────────────────────────────────────────────────────────────────────
 
+    private static final List<String> SHOP_EQUIPMENT_IDS = List.of(
+            "vanguard-cleaver", "crown-of-forest", "widows-fang", "frostbound-striders");
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> completions = new ArrayList<>();
         if (command.getName().equalsIgnoreCase("boss")) {
             if (args.length == 1) {
-                for (String s : Arrays.asList("claim", "codex", "lore", "info", "next", "shop", "party", "help", "valerius", "aethelgard", "xolthos", "borealis")) {
+                for (String s : Arrays.asList("claim", "codex", "lore", "info", "next", "portals", "shop", "party", "help", "valerius", "aethelgard", "xolthos", "borealis")) {
                     if (s.startsWith(args[0].toLowerCase())) completions.add(s);
                 }
             } else if (args.length == 2 && args[0].equalsIgnoreCase("party")) {
@@ -1807,9 +1933,17 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             if (!sender.hasPermission("coresuite.boss.admin") && !sender.isOp()) return completions;
 
             if (args.length == 1) {
-                for (String s : Arrays.asList("spawn", "awaken", "kill", "despawn", "clearall", "purge", "reload", "summonitem", "setnpc", "forcenext", "skiptime", "help")) {
+                for (String s : Arrays.asList("spawn", "awaken", "kill", "despawn", "clearall", "purge", "reload", "summonitem", "giveshop", "setnpc", "forcenext", "skiptime", "help")) {
                     if (s.startsWith(args[0].toLowerCase())) completions.add(s);
                 }
+            } else if (args.length == 2 && args[0].equalsIgnoreCase("giveshop")) {
+                for (String item : SHOP_EQUIPMENT_IDS)
+                    if (item.startsWith(args[1].toLowerCase(java.util.Locale.ROOT))) completions.add(item);
+            } else if (args.length == 3 && args[0].equalsIgnoreCase("giveshop")) {
+                for (Player player : Bukkit.getOnlinePlayers())
+                    if (!(sender instanceof Player viewer) || viewer.canSee(player))
+                        if (player.getName().toLowerCase(java.util.Locale.ROOT).startsWith(args[2].toLowerCase(java.util.Locale.ROOT)))
+                            completions.add(player.getName());
             } else if (args.length == 2 && args[0].equalsIgnoreCase("skiptime")) {
                 for (String duration : Arrays.asList("15m", "30m", "1hr", "1h30m"))
                     if (duration.startsWith(args[1].toLowerCase())) completions.add(duration);

@@ -1,0 +1,65 @@
+[
+  {
+    "page": "page1",
+    "item": "waxed_exposed_copper",
+    "field": "buy",
+    "before": 300.0,
+    "after": 400.0
+  },
+  {
+    "page": "page1",
+    "item": "waxed_exposed_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  },
+  {
+    "page": "page1",
+    "item": "waxed_oxidized_copper",
+    "field": "buy",
+    "before": 300.0,
+    "after": 400.0
+  },
+  {
+    "page": "page1",
+    "item": "waxed_oxidized_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  },
+  {
+    "page": "page1",
+    "item": "waxed_weathered_copper",
+    "field": "buy",
+    "before": 300.0,
+    "after": 400.0
+  },
+  {
+    "page": "page1",
+    "item": "waxed_weathered_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  },
+  {
+    "page": "page4",
+    "item": "exposed_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  },
+  {
+    "page": "page5",
+    "item": "oxidized_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  },
+  {
+    "page": "page8",
+    "item": "weathered_cut_copper_slab",
+    "field": "sell",
+    "before": 40.0,
+    "after": 30.0
+  }
+]

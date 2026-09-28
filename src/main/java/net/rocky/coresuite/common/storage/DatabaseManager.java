@@ -78,7 +78,7 @@ public final class DatabaseManager {
         String password = plugin.getConfig().getString("storage.mysql.password", "");
 
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?autoReconnect=true&useSSL=false");
+        config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&connectTimeout=10000&socketTimeout=30000");
         config.setUsername(username);
         config.setPassword(password);
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
@@ -86,6 +86,7 @@ public final class DatabaseManager {
         config.setMinimumIdle(2);
         config.setConnectionTimeout(10000);
         config.setPoolName("CoreSuite-DB-MySQL");
+        config.setLeakDetectionThreshold(60000);
         
         dataSource = new HikariDataSource(config);
         plugin.getLogger().info("MySQL Database connected: " + host + ":" + port);
@@ -110,6 +111,8 @@ public final class DatabaseManager {
         config.addDataSourceProperty("journal_mode", "WAL");
         config.addDataSourceProperty("synchronous", "NORMAL");
         config.addDataSourceProperty("foreign_keys", "ON");
+        config.addDataSourceProperty("busy_timeout", "5000");
+        config.setLeakDetectionThreshold(60000);
 
         dataSource = new HikariDataSource(config);
         plugin.getLogger().info("Database connected: " + dbFile.getPath());
@@ -166,6 +169,9 @@ public final class DatabaseManager {
                 throw new java.util.concurrent.RejectedExecutionException("CoreSuite database is closed");
             }
             pendingTasks++;
+            if (pendingTasks == 1000 || pendingTasks % 5000 == 0) {
+                plugin.getLogger().warning("Database backlog: " + pendingTasks + " tasks. Check database latency before memory usage grows further.");
+            }
             try {
                 asyncExecutor.execute(() -> {
                     try {
@@ -211,7 +217,8 @@ public final class DatabaseManager {
      * Closes the connection pool and shuts down the executor.
      */
     public void close() {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(Math.max(10, Math.min(120,
+                plugin.getConfig().getInt("storage.shutdown-timeout-seconds", 30))));
         try {
             // Keep accepting child writes from already queued jobs until the queue drains.
             // They must remain queued: their parent may still hold SQLite's only connection.

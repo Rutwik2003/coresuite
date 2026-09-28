@@ -45,6 +45,8 @@ public class BossDiscoveryManager {
 
     public void loadPlayer(UUID uuid) {
         if (uuid == null) return;
+        Set<BossType> session = ConcurrentHashMap.newKeySet();
+        if (playerDiscoveries.putIfAbsent(uuid, session) != null) return;
         plugin.getDatabaseManager().executeAsync(() -> {
             Set<BossType> set = ConcurrentHashMap.newKeySet();
             try (Connection conn = plugin.getDatabaseManager().getConnection();
@@ -60,9 +62,8 @@ public class BossDiscoveryManager {
             } catch (SQLException e) {
                 plugin.getLogger().warning("[WorldBosses] Failed to load boss discoveries for " + uuid + ": " + e.getMessage());
             }
-            playerDiscoveries.compute(uuid, (key, existing) -> {
-                if (existing == null) return set;
-                existing.addAll(set);
+            playerDiscoveries.computeIfPresent(uuid, (key, existing) -> {
+                if (existing == session) existing.addAll(set);
                 return existing;
             });
         });
@@ -81,39 +82,27 @@ public class BossDiscoveryManager {
             return set.contains(type);
         }
 
-        // Synchronous fallback query if player is not cached yet
-        Set<BossType> fallback = ConcurrentHashMap.newKeySet();
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT boss_type FROM coresuite_boss_discoveries WHERE uuid = ?")) {
-            stmt.setString(1, uuid.toString());
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    try {
-                        fallback.add(BossType.valueOf(rs.getString("boss_type").toUpperCase()));
-                    } catch (IllegalArgumentException ignored) {}
-                }
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().warning("[WorldBosses] Error checking boss discovery for " + uuid + ": " + e.getMessage());
-        }
-        playerDiscoveries.put(uuid, fallback);
-        return fallback.contains(type);
+        // A cold codex must never wait for SQLite's connection on the server thread.
+        loadPlayer(uuid);
+        return false;
+    }
+
+    public void clearCache() {
+        playerDiscoveries.clear();
     }
 
     public void recordParticipation(UUID uuid, BossType type) {
         if (uuid == null || type == null) return;
-        Set<BossType> set = playerDiscoveries.computeIfAbsent(uuid, k -> ConcurrentHashMap.newKeySet());
-        boolean isNewUnlock = set.add(type);
+        Set<BossType> set = playerDiscoveries.get(uuid);
+        boolean isNewUnlock = set != null && set.add(type);
 
         long now = System.currentTimeMillis();
-        plugin.getDatabaseManager().executeAsync(() -> {
-            plugin.getDatabaseManager().execute(
+        plugin.getDatabaseManager().execute(
                 "INSERT INTO coresuite_boss_discoveries (uuid, boss_type, unlocked_at, kill_count) VALUES (?, ?, ?, 1) " +
                 (plugin.getDatabaseManager().isMySQL() ? "ON DUPLICATE KEY UPDATE kill_count = kill_count + 1"
                         : "ON CONFLICT(uuid, boss_type) DO UPDATE SET kill_count = kill_count + 1"),
                 uuid.toString(), type.name(), now
             );
-        });
 
         if (isNewUnlock) {
             Player player = Bukkit.getPlayer(uuid);

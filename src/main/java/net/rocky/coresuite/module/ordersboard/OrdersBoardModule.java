@@ -36,6 +36,7 @@ public class OrdersBoardModule extends Module implements CommandExecutor, Listen
 
     @Override
     public void onEnable() {
+        if (OrderPricePolicy.upgrade(config)) saveConfig();
         orderManager = new OrderManager(plugin, config);
         bidManager   = new BidManager(plugin);
         bidManager.initDatabase();

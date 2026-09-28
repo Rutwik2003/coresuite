@@ -12,6 +12,15 @@ min-withdraw-xp: 1
 max-withdraw-xp: 2000000000
 
 messages:
+  # Sent only after successful activation. Experience is measured in points, not levels.
+  withdraw-money:
+    - "&8[&6&lBank&8] &a&lWithdrawal successful!"
+    - "&7Withdrawn: &6{amount} {currency}"
+    - "&7Remaining balance: &e{remaining} {currency}"
+  withdraw-xp:
+    - "&8[&6&lBank&8] &a&lXP bottled successfully!"
+    - "&7Withdrawn: &a{amount} XP points"
+    - "&7Remaining experience: &e{remaining} XP points"
   withdraw-success: "&aWithdrew &f{amount} {currency}&a as a bank note!"
   withdraw-fail: "&cNeed &f{amount}&c but only have &f{balance}"
   deposit-success: "&aRedeemed &f{amount} {currency}&a!"

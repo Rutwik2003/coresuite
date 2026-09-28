@@ -76,7 +76,7 @@ public class ValeriusBoss extends WorldBoss {
         if (isExposed()) {
             bossLoc.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, bossLoc.clone().add(0, 1.2, 0), 18, .45, .7, .45, .03);
             for (Player player : barManager.getViewers()) sendCombatAlert(player, StatusBadge.QUENCHED,
-                    "&bOVERHEATED CORE EXPOSED! &fAttack now for bonus damage.", 2);
+                    "&bTHE FORGE FALTERS! &fCracks spread across the molten core.", 2);
             return;
         }
 
@@ -433,7 +433,7 @@ public class ValeriusBoss extends WorldBoss {
         Location impact = target.getLocation().clone();
         double radius = Math.max(1, Math.min(8, config.getDouble("valerius.combat.caldera-mortar.splash-radius", 4)));
         int warningTicks = Math.max(25, Math.min(100, config.getInt("valerius.combat.caldera-mortar.telegraph-ticks", 40)));
-        sendCombatAlert(target, StatusBadge.CALDERA_MORTAR, "&cMortar incoming! Leave the marked circle! Water can interrupt the cast.", 3);
+        sendCombatAlert(target, StatusBadge.CALDERA_MORTAR, "&cMortar incoming! Leave the marked circle!", 3);
         runAbilityTimer(new java.util.function.Consumer<BukkitTask>() {
             int elapsed;
             public void accept(BukkitTask task) {
@@ -471,8 +471,8 @@ public class ValeriusBoss extends WorldBoss {
             entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_FIRE_EXTINGUISH, 1.5f, 0.8f);
             entity.getWorld().spawnParticle(Particle.SPLASH, entity.getLocation().add(0, 1.5, 0), 40, 0.5, 0.8, 0.5, 0.2);
             for (Player p : barManager.getViewers()) {
-                TextUtil.sendTitle(p, "&b&l✦ QUENCHED! ✦", "&eValerius brittle! Pickaxes +150% DMG (" + seconds + "s)", 5, 35, 10);
-                sendCombatAlert(p, StatusBadge.QUENCHED, "&bArmor Brittle! Pickaxes +150% DMG (" + seconds + "s)", seconds);
+                TextUtil.sendTitle(p, "&b&l✦ QUENCHED! ✦", "&fSteam pours from the vanguard's fractured armour.", 5, 35, 10);
+                sendCombatAlert(p, StatusBadge.QUENCHED, "&bThe molten shell fractures!", seconds);
             }
         }
         return true;

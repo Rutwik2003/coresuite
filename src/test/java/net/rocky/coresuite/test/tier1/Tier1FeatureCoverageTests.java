@@ -604,7 +604,7 @@ public final class Tier1FeatureCoverageTests {
         results.add(runTest("T1-F14-01", "F14_Lore_Spoilers_Removal", 1, "Valerius lore in world-bosses.yml does not contain spoon-fed weakness formulas", () -> {
             Path yml = ctx.getConfigFile();
             String content = Files.readString(yml);
-            TestAssertion.assertContains(content, "Valerius was the grand forgemaster", "Mythological backstory present");
+            TestAssertion.assertContains(content, "Beneath the dead caldera", "Mythological backstory present");
             TestAssertion.assertDoesNotContain(content, "Splash Water Bottle", "No Splash Water Bottle spoiler");
             TestAssertion.assertDoesNotContain(content, "Pickaxes deal +150%", "No pickaxe damage formula in lore");
         }));
@@ -612,7 +612,7 @@ public final class Tier1FeatureCoverageTests {
         results.add(runTest("T1-F14-02", "F14_Lore_Spoilers_Removal", 1, "Aethelgard lore in world-bosses.yml does not contain weapon multiplier spoilers", () -> {
             Path yml = ctx.getConfigFile();
             String content = Files.readString(yml);
-            TestAssertion.assertContains(content, "A desperate king made a dark pact", "Mythological backstory present");
+            TestAssertion.assertContains(content, "A king begged the forest", "Mythological backstory present");
             TestAssertion.assertDoesNotContain(content, "Axes deal +100%", "No axe bonus spoiler in lore");
             TestAssertion.assertDoesNotContain(content, "deal double damage with axes", "No axe spoiler");
         }));
@@ -620,7 +620,7 @@ public final class Tier1FeatureCoverageTests {
         results.add(runTest("T1-F14-03", "F14_Lore_Spoilers_Removal", 1, "Xolthos lore in world-bosses.yml does not contain potion stun spoilers", () -> {
             Path yml = ctx.getConfigFile();
             String content = Files.readString(yml);
-            TestAssertion.assertContains(content, "An ancient spinner residing in the darkest crevices", "Mythological backstory present");
+            TestAssertion.assertContains(content, "In halls forgotten by dawn", "Mythological backstory present");
             TestAssertion.assertDoesNotContain(content, "Splash Night Vision", "No splash night vision spoiler in lore");
             TestAssertion.assertDoesNotContain(content, "stunning her for 8s", "No stun duration spoiler in lore");
         }));

@@ -69,7 +69,7 @@ public class FishBagManager {
 
     public final class BagHolder implements org.bukkit.inventory.InventoryHolder {
         public final UUID owner;
-        public final int page;
+        public int page;
         private final Object session;
         private Inventory inventory;
         private BagHolder(UUID owner, int page) {
@@ -161,60 +161,46 @@ public class FishBagManager {
         this.updateBag(uuid, newBag);
     }
 
+    public enum SortMode { RARITY, WEIGHT, SPECIES }
+
+    private record SortEntry(ItemStack item, String species, int rarity, double weight) {}
+
     public void sortBag(UUID uuid, CustomFishingModule module, boolean byRarity) {
-        ItemStack[] bag = this.getBag(uuid);
-        if (bag == null) {
-            return;
+        sortBag(uuid, module, byRarity ? SortMode.RARITY : SortMode.WEIGHT, 10);
+    }
+
+    public void sortBag(UUID uuid, CustomFishingModule module, SortMode mode, int unlockedPages) {
+        ItemStack[] bag = getBag(uuid);
+        if (bag == null) return;
+        int limit = Math.min(bag.length, Math.max(1, Math.min(10, unlockedPages)) * 45);
+        var entries = new ArrayList<SortEntry>();
+        var speciesKey = new NamespacedKey(plugin, "fish_species");
+        var weightKey = new NamespacedKey(plugin, "fish_weight");
+        var rarities = List.of("mythical", "legendary", "epic", "rare", "uncommon", "common");
+        for (int i = 0; i < limit; i++) {
+            ItemStack item = bag[i];
+            if (item == null || item.getType().isAir()) continue;
+            var meta = item.getItemMeta();
+            String species = meta == null ? null : meta.getPersistentDataContainer().get(speciesKey, PersistentDataType.STRING);
+            Double rawWeight = meta == null ? null : meta.getPersistentDataContainer().get(weightKey, PersistentDataType.DOUBLE);
+            double weight = rawWeight != null && Double.isFinite(rawWeight) ? Math.max(0, rawWeight) : 0;
+            String rarity = species == null ? "" : module.getConfig().getString("species." + species + ".rarity", "common");
+            int rank = rarities.indexOf(rarity.toLowerCase(java.util.Locale.ROOT));
+            entries.add(new SortEntry(item, species == null ? "~" + item.getType().name() : species,
+                    rank < 0 ? 99 : rank, weight));
         }
-        ArrayList<ItemStack> fishList = new ArrayList<ItemStack>();
-        for (ItemStack item : bag) {
-            if (item == null || item.getType() == Material.AIR) continue;
-            fishList.add(item);
-        }
-        NamespacedKey speciesKey = new NamespacedKey((Plugin)this.plugin, "fish_species");
-        NamespacedKey weightKey = new NamespacedKey((Plugin)this.plugin, "fish_weight");
-        List<String> knownRarities = Arrays.asList("mythical", "legendary", "epic", "rare", "uncommon", "common");
-        fishList.sort((a, b) -> {
-            ItemMeta metaA = a.getItemMeta();
-            ItemMeta metaB = b.getItemMeta();
-            if (metaA == null || metaB == null) {
-                return 0;
-            }
-            Double weightA = (Double)metaA.getPersistentDataContainer().get(weightKey, PersistentDataType.DOUBLE);
-            Double weightB = (Double)metaB.getPersistentDataContainer().get(weightKey, PersistentDataType.DOUBLE);
-            if (weightA == null) {
-                weightA = 0.0;
-            }
-            if (weightB == null) {
-                weightB = 0.0;
-            }
-            if (byRarity) {
-                int rankB;
-                String speciesA = (String)metaA.getPersistentDataContainer().get(speciesKey, PersistentDataType.STRING);
-                String speciesB = (String)metaB.getPersistentDataContainer().get(speciesKey, PersistentDataType.STRING);
-                String rarityA = speciesA != null ? module.getConfig().getString("species." + speciesA + ".rarity", "Common").toLowerCase() : "common";
-                String rarityB = speciesB != null ? module.getConfig().getString("species." + speciesB + ".rarity", "Common").toLowerCase() : "common";
-                int rankA = knownRarities.indexOf(rarityA);
-                if (rankA == -1) {
-                    rankA = 99;
-                }
-                if ((rankB = knownRarities.indexOf(rarityB)) == -1) {
-                    rankB = 99;
-                }
-                if (rankA != rankB) {
-                    return Integer.compare(rankA, rankB);
-                }
-                if (speciesA != null && speciesB != null && !speciesA.equals(speciesB)) {
-                    return speciesA.compareTo(speciesB);
-                }
-            }
-            return Double.compare(weightB, weightA);
+        var speciesOrder = java.util.Comparator.comparing(SortEntry::species);
+        var weightOrder = java.util.Comparator.comparingDouble(SortEntry::weight).reversed();
+        entries.sort(switch (mode) {
+            case RARITY -> java.util.Comparator.comparingInt(SortEntry::rarity).thenComparing(speciesOrder).thenComparing(weightOrder);
+            case WEIGHT -> weightOrder.thenComparing(speciesOrder);
+            case SPECIES -> speciesOrder.thenComparing(weightOrder);
         });
-        ItemStack[] newBag = new ItemStack[bag.length];
-        for (int i = 0; i < fishList.size(); ++i) {
-            newBag[i] = (ItemStack)fishList.get(i);
-        }
-        this.updateBag(uuid, newBag);
+        ItemStack[] sorted = bag.clone(); // Preserve inaccessible pages exactly as stored.
+        Arrays.fill(sorted, 0, limit, null);
+        for (int i = 0; i < entries.size(); i++) sorted[i] = entries.get(i).item();
+        updateBag(uuid, sorted);
+        saveBag(uuid);
     }
 
     /*
@@ -261,17 +247,47 @@ public class FishBagManager {
     }
 
     public void openBag(Player player, int totalPages, int currentPage) {
+        renderBag(player, totalPages, currentPage, true);
+    }
+
+    public void sortOpenBag(Player player, CustomFishingModule module, SortMode mode, int pages) {
+        Inventory top = player.getOpenInventory().getTopInventory();
+        if (!(top.getHolder() instanceof BagHolder holder) || !holder.belongsTo(this) || !holder.isCurrent(player.getUniqueId())) return;
+        flushPage(holder);
+        sortBag(player.getUniqueId(), module, mode, pages);
+        renderBag(player, pages, holder.page, false);
+    }
+
+    private void flushPage(BagHolder holder) {
+        ItemStack[] bag = getBag(holder.owner);
+        if (bag == null) return;
+        for (int i = 0; i < 45; i++) bag[holder.page * 45 + i] = holder.inventory.getItem(i);
+    }
+
+    private void renderBag(Player player, int totalPages, int currentPage, boolean flush) {
         ItemMeta meta;
         if (getBag(player.getUniqueId()) == null) {
             TextUtil.sendMessage(player, "&cYour fish bag is not available yet. Please try again shortly.");
             return;
         }
-        if (player.getOpenInventory().getTopInventory().getHolder() instanceof BagHolder) player.closeInventory();
+
         totalPages = Math.max(1, Math.min(10, totalPages));
         currentPage = Math.max(0, Math.min(totalPages - 1, currentPage));
-        BagHolder holder = new BagHolder(player.getUniqueId(), currentPage);
-        Inventory bagInv = Bukkit.createInventory(holder, 54, "Fish Bag (Page " + (currentPage + 1) + ")");
-        holder.inventory = bagInv;
+        Inventory top = player.getOpenInventory().getTopInventory();
+        BagHolder holder;
+        boolean reuse = top.getHolder() instanceof BagHolder existing && existing.belongsTo(this) && existing.isCurrent(player.getUniqueId());
+        Inventory bagInv;
+        if (reuse) {
+            holder = (BagHolder) top.getHolder();
+            if (flush) { flushPage(holder); saveBag(holder.owner); }
+            holder.page = currentPage;
+            bagInv = top;
+            bagInv.clear();
+        } else {
+            holder = new BagHolder(player.getUniqueId(), currentPage);
+            bagInv = Bukkit.createInventory(holder, 54, "Fish Bag");
+            holder.inventory = bagInv;
+        }
         ItemStack[] items = this.getBag(player.getUniqueId());
         int start = currentPage * 45;
         for (int i = 0; i < 45; ++i) {
@@ -308,9 +324,25 @@ public class FishBagManager {
         ItemStack sortRarityBtn = new ItemStack(Material.EMERALD);
         ItemMeta sortRarityMeta = sortRarityBtn.getItemMeta();
         sortRarityMeta.displayName(TextUtil.colorize("&a&lSort by Rarity"));
-        sortRarityMeta.lore(Arrays.asList(TextUtil.colorize("&7Click to sort all fish by rarity.")));
+        sortRarityMeta.lore(Arrays.asList(TextUtil.colorize("&7Sort unlocked pages: rarest first.")));
         sortRarityBtn.setItemMeta(sortRarityMeta);
         bagInv.setItem(47, sortRarityBtn);
+        ItemStack speciesBtn = new ItemStack(Material.COD);
+        ItemMeta speciesMeta = speciesBtn.getItemMeta();
+        speciesMeta.displayName(TextUtil.colorize("&b&lSort by Species"));
+        speciesMeta.lore(List.of(TextUtil.colorize("&7Group species, then heaviest first.")));
+        speciesBtn.setItemMeta(speciesMeta);
+        bagInv.setItem(46, speciesBtn);
+        int occupied = 0;
+        for (int i = 0; i < totalPages * 45; i++)
+            if (items[i] != null && !items[i].getType().isAir()) occupied++;
+        ItemStack summary = new ItemStack(Material.PAPER);
+        ItemMeta summaryMeta = summary.getItemMeta();
+        summaryMeta.displayName(TextUtil.colorize("&bBag: " + occupied + "/" + (totalPages * 45) + " slots"));
+        summaryMeta.lore(List.of(TextUtil.colorize("&7Page " + (currentPage + 1) + " of " + totalPages),
+                TextUtil.colorize("&7Sorting preserves each fish's weight and data.")));
+        summary.setItemMeta(summaryMeta);
+        bagInv.setItem(50, summary);
         ItemStack backBtn = new ItemStack(Material.BARRIER);
         ItemMeta backMeta = backBtn.getItemMeta();
         backMeta.displayName(TextUtil.colorize("&c&lBack"));
@@ -320,7 +352,7 @@ public class FishBagManager {
         ItemStack sortWeightBtn = new ItemStack(Material.ANVIL);
         ItemMeta sortWeightMeta = sortWeightBtn.getItemMeta();
         sortWeightMeta.displayName(TextUtil.colorize("&e&lSort by Weight"));
-        sortWeightMeta.lore(Arrays.asList(TextUtil.colorize("&7Click to sort all fish by weight.")));
+        sortWeightMeta.lore(Arrays.asList(TextUtil.colorize("&7Sort unlocked pages: heaviest first.")));
         sortWeightBtn.setItemMeta(sortWeightMeta);
         bagInv.setItem(51, sortWeightBtn);
 
@@ -340,7 +372,7 @@ public class FishBagManager {
             bagInv.setItem(48, upgradeBtn);
         }
 
-        player.openInventory(bagInv);
+        if (!reuse) player.openInventory(bagInv);
     }
 }
 

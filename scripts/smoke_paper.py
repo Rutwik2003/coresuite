@@ -37,7 +37,7 @@ lines = queue.Queue()
 def read_output():
     for line in process.stdout: lines.put(line)
 threading.Thread(target=read_output, daemon=True).start()
-started = time.monotonic(); ready_at = None; reloaded = False; stopped = False
+started = time.monotonic(); ready_at = None; reloaded = False; stopped = False; probe_finished = False
 with (folder / 'smoke-console.log').open('w', encoding='utf-8') as log:
     try:
         while process.poll() is None or not lines.empty():
@@ -47,10 +47,11 @@ with (folder / 'smoke-console.log').open('w', encoding='utf-8') as log:
                 log.write(line); log.flush()
                 if any(word in line for word in ('ERROR', 'WARN', 'CoreSuite', 'Done (', 'Exception')): print(line.strip(), flush=True)
                 if 'Done (' in line: ready_at = time.monotonic()
+                if 'CORESUITE_PROBE_PASS' in line or 'CORESUITE_PROBE_FAIL' in line: probe_finished = True
             elapsed = time.monotonic() - started
-            if ready_at and not reloaded and time.monotonic() - ready_at > 8:
+            if ready_at and probe_finished and not reloaded and time.monotonic() - ready_at > 8:
                 process.stdin.write('coresuite modules\ncoresuite reload\n'); process.stdin.flush(); reloaded = True
-            if not stopped and ((ready_at and time.monotonic() - ready_at > 22) or elapsed > 240):
+            if not stopped and ((ready_at and probe_finished and reloaded and time.monotonic() - ready_at > 22) or elapsed > 240):
                 process.stdin.write('stop\n'); process.stdin.flush(); stopped = True
             if elapsed > 300: process.kill(); raise RuntimeError('Server test timed out')
     finally:

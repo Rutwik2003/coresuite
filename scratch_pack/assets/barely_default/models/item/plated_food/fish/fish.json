@@ -1,7 +1,0 @@
-{
-	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
-	"parent": "item/plated_food/raw_cod",
-	"textures": {
-		"particle": "barely_default:item/plated_food/fish/fish"
-	}
-}

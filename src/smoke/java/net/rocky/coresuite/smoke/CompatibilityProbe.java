@@ -15,8 +15,37 @@ import java.util.UUID;
 public final class CompatibilityProbe extends JavaPlugin {
     @Override public void onEnable() {
         Bukkit.getScheduler().runTaskLater(this, () -> {
-            try { verify(); getLogger().info("CORESUITE_PROBE_PASS"); }
-            catch (Throwable failure) { getLogger().log(java.util.logging.Level.SEVERE, "CORESUITE_PROBE_FAIL", failure); }
+            World world = Bukkit.getWorlds().getFirst();
+            Location platform = world.getSpawnLocation().add(12, 12, 0);
+            java.util.List<java.util.concurrent.CompletableFuture<Chunk>> chunks = new java.util.ArrayList<>();
+            for (int x = (platform.getBlockX() - 35) >> 4; x <= (platform.getBlockX() + 35) >> 4; x++)
+                for (int z = (platform.getBlockZ() - 35) >> 4; z <= (platform.getBlockZ() + 35) >> 4; z++)
+                    chunks.add(world.getChunkAtAsync(x, z));
+            java.util.concurrent.CompletableFuture.allOf(chunks.toArray(java.util.concurrent.CompletableFuture[]::new))
+                    .whenComplete((ignored, error) -> Bukkit.getScheduler().runTask(this, () -> {
+                        try {
+                            if (error != null) throw new AssertionError("Probe terrain preload failed", error);
+                            verify();
+                            var module = (net.rocky.coresuite.module.worldbosses.WorldBossesModule) CoreSuitePlugin.getInstance().getModuleManager().getModule("world-bosses");
+                            module.despawnActiveBoss();
+                            module.spawnBossAsync(net.rocky.coresuite.module.worldbosses.boss.BossType.BOREALIS, platform)
+                                    .thenAccept(spawned -> {
+                                        if (!spawned) { getLogger().severe("CORESUITE_PROBE_FAIL: async spawn " + module.getLastSpawnFailure()); return; }
+                                        var core = CoreSuitePlugin.getInstance();
+                                        if (chunks.stream().anyMatch(f -> !f.join().getPluginChunkTickets().contains(core))) {
+                                            getLogger().severe("CORESUITE_PROBE_FAIL: arena ticket missing after spawn"); return;
+                                        }
+                                        module.despawnActiveBoss();
+                                        if (chunks.stream().anyMatch(f -> f.join().getPluginChunkTickets().contains(core))) {
+                                            getLogger().severe("CORESUITE_PROBE_FAIL: arena ticket leaked after despawn"); return;
+                                        }
+                                        getLogger().info("CORESUITE_ASYNC_SPAWN_PROBE_PASS");
+                                        getLogger().info("CORESUITE_PROBE_PASS");
+                                    });
+                        } catch (Throwable failure) {
+                            getLogger().log(java.util.logging.Level.SEVERE, "CORESUITE_PROBE_FAIL", failure);
+                        }
+                    }));
         }, 40L);
     }
     private void verify() throws Exception {
@@ -48,6 +77,7 @@ public final class CompatibilityProbe extends JavaPlugin {
         verifyArenaProtection(world);
         verifyCrateRewards(core);
         verifyShopItems(core);
+        verifyMaintenance(core);
         FishBagManager bags = new FishBagManager(core);
         var encode = FishBagManager.class.getDeclaredMethod("toBase64", ItemStack[].class);
         var decode = FishBagManager.class.getDeclaredMethod("fromBase64", String.class);
@@ -63,6 +93,34 @@ public final class CompatibilityProbe extends JavaPlugin {
             fishing.getLegendaryNPCManager().removeNPC(UUID.randomUUID());
         }
     }
+    private void verifyMaintenance(CoreSuitePlugin core) throws Exception {
+        var provider = Bukkit.getPluginManager().getPlugin("Maintenance");
+        if (provider == null) return;
+        ClassLoader loader = provider.getClass().getClassLoader();
+        Class<?> apiType = Class.forName("eu.kennytv.maintenance.api.Maintenance", true, loader);
+        Object api = Class.forName("eu.kennytv.maintenance.api.MaintenanceProvider", true, loader).getMethod("get").invoke(null);
+        var bridge = core.getModuleManager().getModule("maintenance");
+        if (bridge == null || !bridge.isEnabled()) throw new AssertionError("Maintenance bridge disabled");
+        var refresh = bridge.getClass().getDeclaredMethod("refresh", boolean.class); refresh.setAccessible(true);
+        var setter = apiType.getMethod("setMaintenance", boolean.class);
+        boolean previous = (boolean)apiType.getMethod("isMaintenance").invoke(api);
+        try {
+            setter.invoke(api, true); refresh.invoke(bridge, false);
+            if (net.rocky.coresuite.module.maintenance.MaintenanceModule.state(core) != net.rocky.coresuite.module.maintenance.MaintenanceModule.State.MAINTENANCE)
+                throw new AssertionError("Maintenance ON not detected");
+            var status = new net.rocky.coresuite.module.discord.ServerStatusEmbedManager(core, null, new org.bukkit.configuration.file.YamlConfiguration(), null, null);
+            var build = status.getClass().getDeclaredMethod("buildEmbedJson", boolean.class, int.class, int.class, double.class, String.class, java.util.List.class);
+            build.setAccessible(true);
+            String json = (String)build.invoke(status, true, 0, 20, 20.0, "1m", java.util.List.of());
+            com.google.gson.JsonParser.parseString(json);
+            if (!json.contains("Under Maintenance") || json.contains("Join now")) throw new AssertionError("Maintenance Discord embed misleading");
+            setter.invoke(api, false); refresh.invoke(bridge, false);
+            if (net.rocky.coresuite.module.maintenance.MaintenanceModule.state(core) != net.rocky.coresuite.module.maintenance.MaintenanceModule.State.OPEN)
+                throw new AssertionError("Maintenance OFF not detected");
+            getLogger().info("CORESUITE_MAINTENANCE_PROBE_PASS: real Maintenance API transitions and Discord payload");
+        } finally { setter.invoke(api, previous); refresh.invoke(bridge, false); }
+    }
+
     private void verifyArenaProtection(World world) throws Exception {
         Location center = world.getSpawnLocation().add(120, 0, 120);
         var provider = Bukkit.getPluginManager().getPlugin("WorldGuard");
@@ -339,6 +397,7 @@ public final class CompatibilityProbe extends JavaPlugin {
         world.getBlockAt(px, py + 1, pz).setType(Material.STONE);
         if (module.spawnBoss(net.rocky.coresuite.module.worldbosses.boss.BossType.VALERIUS, platform)) throw new AssertionError("Obstructed spawn allowed");
         if (!module.getLastSpawnFailure().contains("STONE")) throw new AssertionError("Missing obstruction diagnostic");
+        world.getBlockAt(px, py + 1, pz).setType(Material.AIR);
         getLogger().info("CORESUITE_MODULE_SPAWN_PROBE_PASS: all four bosses through production spawn checks; obstruction rejected with reason");
         var config = new org.bukkit.configuration.file.YamlConfiguration();
         config.loadFromString(module.getConfig().saveToString());
@@ -386,29 +445,68 @@ public final class CompatibilityProbe extends JavaPlugin {
                 }
                 boss.awaken();
                 if (boss instanceof net.rocky.coresuite.module.worldbosses.boss.BorealisBoss frost) {
-                    if (boss.getEntity().getEquipment().getItemInMainHand().getType() != Material.DIAMOND_AXE
-                            || boss.getEntity().getEquipment().getItemInOffHand().getType() != Material.BOW)
+                    if (boss.getEntity().getEquipment().getItemInMainHand().getType() != Material.BOW
+                            || boss.getEntity().getEquipment().getItemInOffHand().getType() != Material.DIAMOND_AXE)
                         throw new AssertionError("Borealis stance equipment missing");
                     if (frost.calculateIncomingDamage(player, 10, new ItemStack(Material.DIAMOND_SWORD)) != 5)
                         throw new AssertionError("True Ice resistance failed");
                     if (!frost.applyThermalShock() || frost.applyThermalShock()) throw new AssertionError("Thermal Shock cooldown failed");
                     if (frost.calculateIncomingDamage(player, 10, new ItemStack(Material.DIAMOND_SHOVEL)) != 25)
                         throw new AssertionError("Thermal shovel weakness failed");
+                    double shovelHealthBefore = frost.getCurrentHealth();
+                    frost.recordDamage(player, 10, new ItemStack(Material.DIAMOND_SHOVEL));
+                    if (Math.abs(shovelHealthBefore - frost.getCurrentHealth() - 25) > .001)
+                        throw new AssertionError("Thermal shovel damage was not applied to boss HP");
                     var guard = world.spawn(world.getSpawnLocation().add(0, 4, 0), org.bukkit.entity.Stray.class);
-                    var setup = frost.getClass().getDeclaredMethod("setupFrostguard", org.bukkit.entity.Stray.class);
+                    var setup = frost.getClass().getDeclaredMethod("setupFrostguard", org.bukkit.entity.Stray.class, boolean.class);
                     setup.setAccessible(true);
                     try {
-                        setup.invoke(frost, guard);
+                        setup.invoke(frost, guard, true);
+                        if (guard.getEquipment().getItemInMainHand().getType() != Material.BOW) throw new AssertionError("Archer has no bow");
+                        setup.invoke(frost, guard, false);
+                        if (guard.getEquipment().getItemInMainHand().getType() != Material.STONE_SWORD) throw new AssertionError("Sentinel has no sword");
                         if (!frost.isMinion(guard) || guard.getHealth() != 45 || guard.isPersistent())
                             throw new AssertionError("Frostguard registration or health failed");
                         frost.clearMinions();
                         if (guard.isValid()) throw new AssertionError("Frostguard cleanup failed");
                     } finally { guard.remove(); }
+                    var stance = frost.getClass().getDeclaredMethod("updateStance", int.class, long.class);
+                    stance.setAccessible(true);
+                    stance.invoke(frost, 2, 12L);
+                    if (boss.getEntity().getEquipment().getItemInMainHand().getType() != Material.DIAMOND_AXE
+                            || !boss.getEntity().getEquipment().getItemInOffHand().getType().isAir())
+                        throw new AssertionError("Axe stance retained a bow and ranged AI");
+                    stance.invoke(frost, 2, 24L);
+                    if (boss.getEntity().getEquipment().getItemInMainHand().getType() != Material.BOW)
+                        throw new AssertionError("Bow stance did not return");
+                    var effect = new java.util.concurrent.atomic.AtomicReference<org.bukkit.potion.PotionEffect>();
+                    var victimId = java.util.UUID.randomUUID();
+                    var chilled = (org.bukkit.entity.Player) java.lang.reflect.Proxy.newProxyInstance(
+                        getClass().getClassLoader(), new Class<?>[]{org.bukkit.entity.Player.class}, (proxy, method, args) -> {
+                            switch (method.getName()) {
+                                case "getUniqueId": return victimId;
+                                case "isOnline": return true;
+                                case "getWorld": return world;
+                                case "getLocation": return world.getSpawnLocation();
+                                case "addPotionEffect": effect.set((org.bukkit.potion.PotionEffect)args[0]); return true;
+                                case "teleport", "setVelocity": throw new AssertionError("Frostbite forced player movement");
+                                default: return method.getReturnType() == boolean.class ? false : null;
+                            }
+                        });
+                    var chill = frost.getClass().getDeclaredMethod("freeze", org.bukkit.entity.Player.class, int.class, int.class);
+                    chill.setAccessible(true); chill.invoke(frost, chilled, 2000, 10000);
+                    if (effect.get() == null || effect.get().getType() != org.bukkit.potion.PotionEffectType.SLOWNESS
+                            || effect.get().getDuration() != 40 || effect.get().getAmplifier() != 5)
+                        throw new AssertionError("Deep Chill duration or strength incorrect");
+                    effect.set(null); chill.invoke(frost, chilled, 2000, 10000);
+                    if (effect.get() != null) throw new AssertionError("Deep Chill cooldown was bypassed");
+                    getLogger().info("CORESUITE_BOREALIS_STANCE_CHILL_PROBE_PASS");
                     getLogger().info("CORESUITE_BOREALIS_THERMAL_PROBE_PASS");
                 }
                 double maximum = boss.getMaxHealth();
+                double beforeInvalidHit = boss.getCurrentHealth();
                 boss.recordDamage(player, Double.NaN, null);
-                if (boss.getCurrentHealth() != maximum) throw new AssertionError("NaN corrupted health");
+                if (boss.getCurrentHealth() != beforeInvalidHit) throw new AssertionError("NaN corrupted health");
                 boss.setCurrentHealth(maximum / 2);
                 boss.heal(maximum * 10);
                 if (boss.getCurrentHealth() > maximum * .650001) throw new AssertionError("Healing exceeded budget");

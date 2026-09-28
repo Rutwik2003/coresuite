@@ -21,16 +21,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +39,11 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
     private final Map<UUID, Integer> adjustSecondsCache = new ConcurrentHashMap<>();
     
     private int afkTimeout;
+    private volatile long generation;
+    private final Map<UUID, Object> sessions = new ConcurrentHashMap<>();
+    private final Set<UUID> loaded = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> openingMenus = ConcurrentHashMap.newKeySet();
+    private final Set<String> pendingClaims = ConcurrentHashMap.newKeySet();
 
     public PlaytimeRewardsModule(CoreSuitePlugin plugin) {
         super(plugin, "PlaytimeRewards", "playtime-rewards");
@@ -50,8 +51,14 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
 
     @Override
     public void onEnable() {
-        afkTimeout = config.getInt("afk-timeout-seconds", 120);
+        afkTimeout = Math.max(10, config.getInt("afk-timeout-seconds", 120));
         
+        String oldFinalMessage = "&6&l[!] &e{player} has played for 300 hours and claimed the final reward!";
+        if (oldFinalMessage.equals(config.getString("rewards.reward_300h.broadcast-message"))) {
+            config.set("rewards.reward_300h.broadcast-message", "&a{player} has claimed their 300 Hour Reward!");
+            saveConfig();
+        }
+        if (PlaytimeRewardDefaults.upgrade(config)) saveConfig();
         initDatabase();
         registerListener(this);
 
@@ -66,6 +73,8 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
             adminCommand.setTabCompleter(this);
         }
 
+        generation++;
+        for (Player player : Bukkit.getOnlinePlayers()) startSession(player);
         startAfkTask();
     }
 
@@ -75,6 +84,14 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
             saveData(p.getUniqueId());
         }
         
+        generation++;
+        sessions.clear();
+        loaded.clear();
+        lastActivity.clear();
+        afkSecondsCache.clear();
+        adjustSecondsCache.clear();
+        openingMenus.clear();
+        pendingClaims.clear();
         PluginCommand command = plugin.getCommand("playtime");
         if (command != null && command.getExecutor() == this) {
             command.setExecutor(null);
@@ -88,21 +105,13 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
     }
 
     private void initDatabase() {
-        plugin.getDatabaseManager().execute(
-            "CREATE TABLE IF NOT EXISTS coresuite_playtime (" +
-            "uuid TEXT PRIMARY KEY, " +
-            "player_name TEXT, " +
-            "afk_seconds INTEGER DEFAULT 0, " +
-            "adjust_seconds INTEGER DEFAULT 0)"
-        );
-
-        plugin.getDatabaseManager().execute(
-            "CREATE TABLE IF NOT EXISTS coresuite_playtime_claims (" +
-            "uuid TEXT, " +
-            "reward_id TEXT, " +
-            "claim_time INTEGER, " +
-            "PRIMARY KEY (uuid, reward_id))"
-        );
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                PlaytimeStore.initialize(c);
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Cannot initialize playtime storage", e);
+            }
+        });
     }
 
     private void startAfkTask() {
@@ -110,50 +119,44 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
             long now = System.currentTimeMillis();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 UUID uuid = player.getUniqueId();
-                long last = lastActivity.getOrDefault(uuid, now);
-                if (now - last > afkTimeout * 1000L) {
-                    afkSecondsCache.put(uuid, afkSecondsCache.getOrDefault(uuid, 0) + 1);
+                if (loaded.contains(uuid) && now - lastActivity.getOrDefault(uuid, now) > afkTimeout * 1000L) {
+                    afkSecondsCache.compute(uuid, (key, value) -> value == null ? 1 : (int) Math.min(Integer.MAX_VALUE, (long) value + 1));
                 }
             }
-        }, 20L, 20L)); // 1 second loop
-        
-        // Save task every 5 minutes
+        }, 20L, 20L));
         registerTask(Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            List<UUID> uuids = new ArrayList<>();
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                uuids.add(p.getUniqueId());
-            }
-            plugin.getDatabaseManager().executeAsync(() -> {
-                for (UUID uuid : uuids) {
-                    saveData(uuid);
-                }
-            });
+            // Snapshot on the server thread, before logout can clear the caches.
+            for (Player player : Bukkit.getOnlinePlayers()) saveData(player.getUniqueId());
         }, 6000L, 6000L));
     }
 
     private void saveData(UUID uuid) {
+        if (!loaded.contains(uuid)) return;
         int afk = afkSecondsCache.getOrDefault(uuid, 0);
         int adj = adjustSecondsCache.getOrDefault(uuid, 0);
         plugin.getDatabaseManager().execute("UPDATE coresuite_playtime SET afk_seconds = ?, adjust_seconds = ? WHERE uuid = ?", afk, adj, uuid.toString());
     }
 
-    private void loadData(UUID uuid, String name) {
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT afk_seconds, adjust_seconds FROM coresuite_playtime WHERE uuid = ?")) {
-            stmt.setString(1, uuid.toString());
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    afkSecondsCache.put(uuid, rs.getInt("afk_seconds"));
-                    adjustSecondsCache.put(uuid, rs.getInt("adjust_seconds"));
-                } else {
-                    plugin.getDatabaseManager().execute("INSERT INTO coresuite_playtime (uuid, player_name) VALUES (?, ?)", uuid.toString(), name);
-                    afkSecondsCache.put(uuid, 0);
-                    adjustSecondsCache.put(uuid, 0);
-                }
+    private void startSession(Player player) {
+        UUID uuid = player.getUniqueId();
+        String name = player.getName();
+        Object session = new Object();
+        sessions.put(uuid, session);
+        long epoch = generation;
+        lastActivity.put(uuid, System.currentTimeMillis());
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                PlaytimeStore.Data data = PlaytimeStore.load(c, uuid, name, plugin.getDatabaseManager().isMySQL());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (generation != epoch || sessions.get(uuid) != session || !player.isOnline()) return;
+                    afkSecondsCache.put(uuid, data.afk());
+                    adjustSecondsCache.put(uuid, data.adjustment());
+                    loaded.add(uuid);
+                });
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to load playtime for " + uuid + "; claims disabled until reconnect", e);
             }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load playtime data", e);
-        }
+        });
     }
 
     public int getPlaytimeSeconds(OfflinePlayer player) {
@@ -162,65 +165,26 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
         int rawSeconds = rawTicks / 20;
         int afk = afkSecondsCache.getOrDefault(uuid, 0);
         int adj = adjustSecondsCache.getOrDefault(uuid, 0);
-        int total = rawSeconds - afk + adj;
-        return Math.max(0, total);
-    }
-
-    private Map<String, Long> loadAllClaimTimes(UUID uuid) {
-        Map<String, Long> map = new HashMap<>();
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT reward_id, claim_time FROM coresuite_playtime_claims WHERE uuid = ?")) {
-            stmt.setString(1, uuid.toString());
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    map.put(rs.getString("reward_id"), rs.getLong("claim_time"));
-                }
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to load claim times", e);
-        }
-        return map;
-    }
-
-    private long getLastClaimTime(OfflinePlayer player, String rewardId) {
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("SELECT claim_time FROM coresuite_playtime_claims WHERE uuid = ? AND reward_id = ?")) {
-            stmt.setString(1, player.getUniqueId().toString());
-            stmt.setString(2, rewardId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) return rs.getLong("claim_time");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to check claim status", e);
-        }
-        return 0L;
-    }
-
-    private void markClaimed(OfflinePlayer player, String rewardId) {
-        plugin.getDatabaseManager().execute("INSERT OR REPLACE INTO coresuite_playtime_claims (uuid, reward_id, claim_time) VALUES (?, ?, ?)", player.getUniqueId().toString(), rewardId, System.currentTimeMillis());
+        long total = (long) rawSeconds - afk + adj;
+        return (int) Math.max(0, Math.min(Integer.MAX_VALUE, total));
     }
 
     private void updateActivity(Player player) {
-        lastActivity.put(player.getUniqueId(), System.currentTimeMillis());
+        lastActivity.computeIfPresent(player.getUniqueId(), (uuid, previous) -> System.currentTimeMillis());
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        updateActivity(player);
-        plugin.getDatabaseManager().executeAsync(() -> {
-            loadData(player.getUniqueId(), player.getName());
-        });
+        startSession(event.getPlayer());
     }
 
     @EventHandler
     public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
-        int afk = afkSecondsCache.getOrDefault(uuid, 0);
-        int adj = adjustSecondsCache.getOrDefault(uuid, 0);
-        plugin.getDatabaseManager().executeAsync(() -> {
-            plugin.getDatabaseManager().execute("UPDATE coresuite_playtime SET afk_seconds = ?, adjust_seconds = ? WHERE uuid = ?", afk, adj, uuid.toString());
-        });
+        saveData(uuid);
+        sessions.remove(uuid);
+        loaded.remove(uuid);
+        openingMenus.remove(uuid);
         lastActivity.remove(uuid);
         afkSecondsCache.remove(uuid);
         adjustSecondsCache.remove(uuid);
@@ -322,10 +286,14 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     return true;
                 }
                 UUID uuid = target.getUniqueId();
+                if (!loaded.contains(uuid) || pendingClaims.stream().anyMatch(key -> key.startsWith(uuid + ":"))) {
+                    TextUtil.sendMessage(player, "&cPlayer data is loading or a reward is being processed. Try again shortly.");
+                    return true;
+                }
                 if (sub.equals("reset")) {
                     afkSecondsCache.put(uuid, 0);
-                    adjustSecondsCache.put(uuid, 0);
-                    plugin.getDatabaseManager().execute("DELETE FROM coresuite_playtime WHERE uuid = ?", uuid.toString());
+                    adjustSecondsCache.put(uuid, -target.getStatistic(Statistic.PLAY_ONE_MINUTE) / 20);
+                    saveData(uuid);
                     plugin.getDatabaseManager().execute("DELETE FROM coresuite_playtime_claims WHERE uuid = ?", uuid.toString());
                     TextUtil.sendMessage(player, "&aReset playtime data for " + target.getName() + ".");
                     return true;
@@ -343,18 +311,22 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     return true;
                 }
                 
+                if (secs < 0) {
+                    TextUtil.sendMessage(player, "&cSeconds must be non-negative.");
+                    return true;
+                }
                 int currentAdj = adjustSecondsCache.getOrDefault(uuid, 0);
                 if (sub.equals("add")) {
-                    adjustSecondsCache.put(uuid, currentAdj + secs);
+                    adjustSecondsCache.put(uuid, (int) Math.min(Integer.MAX_VALUE, (long) currentAdj + secs));
                     TextUtil.sendMessage(player, "&aAdded " + secs + "s to " + target.getName() + ".");
                 } else if (sub.equals("remove")) {
-                    adjustSecondsCache.put(uuid, currentAdj - secs);
+                    adjustSecondsCache.put(uuid, (int) Math.max(Integer.MIN_VALUE, (long) currentAdj - secs));
                     TextUtil.sendMessage(player, "&aRemoved " + secs + "s from " + target.getName() + ".");
                 } else if (sub.equals("set")) {
                     int rawTicks = target.getStatistic(Statistic.PLAY_ONE_MINUTE);
                     int rawSeconds = rawTicks / 20;
                     int afk = afkSecondsCache.getOrDefault(uuid, 0);
-                    adjustSecondsCache.put(uuid, secs - rawSeconds + afk);
+                    adjustSecondsCache.put(uuid, (int) Math.min(Integer.MAX_VALUE, (long) secs - rawSeconds + afk));
                     TextUtil.sendMessage(player, "&aSet playtime for " + target.getName() + " to " + secs + "s.");
                 } else {
                     TextUtil.sendMessage(player, "&cUnknown action.");
@@ -370,25 +342,84 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                 return true;
             }
             
+            if (args.length > 0 && (args[0].equalsIgnoreCase("review") || args[0].equalsIgnoreCase("resolve"))) {
+                reviewClaims(sender, args);
+                return true;
+            }
             if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
-                this.loadConfig();
-                afkTimeout = config.getInt("afk-timeout-seconds", 120);
+                onReload();
                 TextUtil.sendMessage(sender, "&aPlaytimeRewards config reloaded.");
                 return true;
             }
-            TextUtil.sendMessage(sender, "&cUsage: /playtimereward reload");
+            TextUtil.sendMessage(sender, "&cUsage: /playtimereward reload | review | resolve <uuid> <reward-id> <delivered|retry>");
             return true;
         }
 
         return false;
     }
 
-    private void openGui(Player player, int page) {
+    private void reviewClaims(CommandSender sender, String[] args) {
+        boolean resolve = args[0].equalsIgnoreCase("resolve");
+        UUID recipient = null;
+        if (resolve) {
+            if (args.length != 4 || !(args[3].equalsIgnoreCase("delivered") || args[3].equalsIgnoreCase("retry"))) {
+                TextUtil.sendMessage(sender, "&cUsage: /playtimereward resolve <uuid> <reward-id> <delivered|retry>");
+                return;
+            }
+            try { recipient = UUID.fromString(args[1]); }
+            catch (IllegalArgumentException error) { TextUtil.sendMessage(sender, "&cInvalid UUID."); return; }
+            if (pendingClaims.contains(recipient + ":" + args[2])) {
+                TextUtil.sendMessage(sender, "&cThat claim is still processing. Wait before reviewing it.");
+                return;
+            }
+        }
+        UUID uuid = recipient;
         plugin.getDatabaseManager().executeAsync(() -> {
-            Map<String, Long> claimTimes = loadAllClaimTimes(player.getUniqueId());
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                buildAndOpenGUI(player, page, claimTimes);
-            });
+            List<String> lines = new ArrayList<>();
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                if (resolve) {
+                    try (java.sql.PreparedStatement q = c.prepareStatement("UPDATE coresuite_playtime_claims SET claim_time=? WHERE uuid=? AND reward_id=? AND claim_time<0")) {
+                        q.setLong(1, args[3].equalsIgnoreCase("retry") ? 0 : System.currentTimeMillis());
+                        q.setString(2, uuid.toString()); q.setString(3, args[2]);
+                        lines.add(q.executeUpdate() == 1 ? "&aClaim reconciled. Retry unlocks the reward; it does not deliver automatically." : "&eNo reserved claim matched.");
+                    }
+                } else {
+                    lines.add("&6Reserved playtime claims: verify what was received before resolving. Retry may duplicate a partial payout.");
+                    try (java.sql.PreparedStatement q = c.prepareStatement("SELECT uuid,reward_id FROM coresuite_playtime_claims WHERE claim_time<0 LIMIT 25");
+                         java.sql.ResultSet rows = q.executeQuery()) {
+                        while (rows.next()) lines.add("&e" + rows.getString(1) + " &7" + rows.getString(2));
+                    }
+                    if (lines.size() == 1) lines.add("&7No reserved claims.");
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Cannot review playtime receipts", e);
+                lines.add("&cCannot read or reconcile claims. Check the console.");
+            }
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> lines.forEach(line -> TextUtil.sendMessage(sender, line)));
+        });
+    }
+
+    private void openGui(Player player, int page) {
+        UUID uuid = player.getUniqueId();
+        if (!loaded.contains(uuid)) {
+            TextUtil.sendMessage(player, "&eYour playtime data is still loading. Please try again shortly.");
+            return;
+        }
+        if (!openingMenus.add(uuid)) return;
+        Object session = sessions.get(uuid);
+        long epoch = generation;
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                Map<String, Long> claims = PlaytimeStore.claims(c, uuid);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (generation != epoch || sessions.get(uuid) != session) return;
+                    openingMenus.remove(uuid);
+                    if (player.isOnline()) buildAndOpenGUI(player, page, claims);
+                });
+            } catch (SQLException e) {
+                openingMenus.remove(uuid);
+                plugin.getLogger().log(Level.SEVERE, "Could not read playtime claims for " + uuid, e);
+            }
         });
     }
 
@@ -401,10 +432,12 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
 
         List<String> keys = new ArrayList<>(rewardsSec.getKeys(false));
         int total = keys.size();
-        int perPage = config.getInt("rewards-per-page", 21);
+        int perPage = Math.max(1, Math.min(36, config.getInt("rewards-per-page", 21)));
         int maxPage = (int) Math.ceil((double) total / perPage);
         if (maxPage == 0) maxPage = 1;
 
+        page = Math.max(1, Math.min(page, maxPage));
+        long menuGeneration = generation;
         String title = config.getString("gui-title", "&8&lPlaytime Rewards");
         Gui gui = new Gui(title + " &8- Page " + page, 6);
 
@@ -427,7 +460,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     statusMap.put(key, 0);
                 } else {
                     int cooldownHours = sec.getInt("cooldown-hours", 0);
-                    if (cooldownHours > 0) {
+                    if (cooldownHours > 0 && lastClaim > 0) {
                         if (System.currentTimeMillis() - lastClaim < cooldownHours * 3600000L) {
                             statusMap.put(key, 2);
                         } else {
@@ -505,9 +538,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     TextUtil.createItem(mat, "&a&l" + name + " &e[Click to Claim]", claimLore.toArray(new String[0])),
                     e -> {
                         player.closeInventory();
-                        if (claimReward(player, id, sec)) {
-                            TextUtil.sendMessage(player, "&aSuccessfully claimed!");
-                        }
+                        if (menuGeneration == generation) claimReward(player, id, sec);
                     }
                 ));
             } else if (status == 1) {
@@ -531,7 +562,9 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                 
                 long lastClaim = lastClaimMap.getOrDefault(id, 0L);
                 int cooldownHours = sec.getInt("cooldown-hours", 0);
-                if (cooldownHours > 0) {
+                if (lastClaim < 0) {
+                    claimedLore.add("&eDelivery pending review. Contact an administrator.");
+                } else if (cooldownHours > 0) {
                     long cooldownMillis = cooldownHours * 3600000L;
                     long timeLeftMillis = (lastClaim + cooldownMillis) - System.currentTimeMillis();
                     int timeLeftSecs = (int) (timeLeftMillis / 1000);
@@ -563,6 +596,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
         gui.setItem(51, new GuiButton(
             TextUtil.createItem(Material.EMERALD_BLOCK, "&6&lClaim All Available", "&7Claims every unlocked reward", "&7you haven't claimed yet."),
             e -> {
+                if (menuGeneration != generation) return;
                 int c = 0;
                 for (String key : keys) {
                     ConfigurationSection s = rewardsSec.getConfigurationSection(key);
@@ -574,7 +608,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                     }
                 }
                 player.closeInventory();
-                if (c > 0) TextUtil.sendMessage(player, "&aClaimed " + c + " reward(s)!");
+                if (c > 0) TextUtil.sendMessage(player, "&eProcessing " + c + " reward(s)...");
                 else TextUtil.sendMessage(player, "&7No rewards available to claim right now.");
             }
         ));
@@ -589,20 +623,66 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
         gui.open(player);
     }
     private boolean claimReward(Player player, String id, ConfigurationSection sec) {
-        // Validation is already done via statusMap before calling this method.
+        UUID uuid = player.getUniqueId();
+        if (!isEnabled() || !loaded.contains(uuid) || getPlaytimeSeconds(player) < sec.getInt("required-seconds")) return false;
+        String key = uuid + ":" + id;
+        if (!pendingClaims.add(key)) return false;
+        long epoch = generation;
+        Object session = sessions.get(uuid);
+        long now = System.currentTimeMillis();
+        long cooldown = Math.max(0, sec.getLong("cooldown-hours", 0));
+        cooldown = Math.min(cooldown, Integer.MAX_VALUE) * 3600000L;
+        final long delay = cooldown;
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                if (!PlaytimeStore.reserve(c, uuid, id, now, delay, plugin.getDatabaseManager().isMySQL())) {
+                    pendingClaims.remove(key);
+                    return;
+                }
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (generation != epoch || sessions.get(uuid) != session || !player.isOnline()) {
+                        finishClaim(uuid, id, now, 0, key); // No payout started: safe to retry.
+                        return;
+                    }
+                    try {
+                        deliverReward(player, sec);
+                        finishClaim(uuid, id, now, now, key);
+                    } catch (RuntimeException e) {
+                        pendingClaims.remove(key);
+                        plugin.getLogger().log(Level.SEVERE, "Playtime delivery needs manual review: " + key + ". Reservation retained to prevent duplicate rewards.", e);
+                        TextUtil.sendMessage(player, "&cReward delivery needs administrator review. Your claim has been recorded.");
+                    }
+                });
+            } catch (SQLException | RuntimeException e) {
+                pendingClaims.remove(key);
+                plugin.getLogger().log(Level.SEVERE, "Playtime claim failed or needs review: " + key, e);
+            }
+        });
+        return true;
+    }
 
-        // Perform DB write asynchronously to avoid main thread blocking
-        plugin.getDatabaseManager().executeAsync(() -> markClaimed(player, id));
+    private void finishClaim(UUID uuid, String id, long now, long result, String key) {
+        plugin.getDatabaseManager().executeAsync(() -> {
+            try (Connection c = plugin.getDatabaseManager().getConnection()) {
+                PlaytimeStore.finish(c, uuid, id, now, result);
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.SEVERE, "Playtime receipt needs manual review: " + key, e);
+            } finally {
+                pendingClaims.remove(key);
+            }
+        });
+    }
 
+    private void deliverReward(Player player, ConfigurationSection sec) {
         double money = sec.getDouble("money", 0);
         if (money > 0) {
-            plugin.getEconomyManager().deposit(player, money);
+            if (!plugin.getEconomyManager().deposit(player, money)) throw new IllegalStateException("Economy rejected playtime payout");
         }
 
         List<String> commands = sec.getStringList("commands");
         for (String cmd : commands) {
-            String parsed = cmd.replace("{player}", player.getName());
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
+            String parsed = PlaytimeRewardDefaults.commandFor(cmd, player.getName());
+            if (!Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed)) throw new IllegalStateException("Reward command rejected: " + parsed);
         }
 
         String claimMsg = sec.getString("claim-message");
@@ -623,7 +703,6 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
             } catch (IllegalArgumentException ignored) {}
         }
 
-        return true;
     }
 
     @Override
@@ -642,7 +721,7 @@ public class PlaytimeRewardsModule extends Module implements CommandExecutor, Li
                 }
             }
         } else if (command.getName().equalsIgnoreCase("playtimereward") && args.length == 1 && sender.hasPermission("playtimereward.admin")) {
-            org.bukkit.util.StringUtil.copyPartialMatches(args[0], java.util.Collections.singletonList("reload"), completions);
+            org.bukkit.util.StringUtil.copyPartialMatches(args[0], java.util.List.of("reload", "review", "resolve"), completions);
         }
         return completions;
     }

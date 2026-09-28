@@ -1,8 +1,0 @@
-{
-	"credit": "Created by Mickey Joe Alpha - http://YouTube.com/@MushirMickeyJoe",
-	"parent": "barely_default:item/plated_food/chorus_soup",
-	"textures": {
-		"soup": "barely_default:item/plated_food/eerie_soup",
-		"particle": "barely_default:item/plated_food/eerie_soup_bowl"
-	}
-}

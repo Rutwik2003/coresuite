@@ -406,13 +406,32 @@ public class BankNotesModule extends Module implements Listener, CommandExecutor
                     logTransaction(admin ? "ADMIN-GIVE" : xp ? "WITHDRAW-XP" : "WITHDRAW", owner, amount, id);
                     if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
                         if (isEnabled() && player.isOnline()) {
-                            TextUtil.sendMessage(player, "&aNote issued for " + TextUtil.formatNumber(amount) + (xp ? " XP." : " " + config.getString("currency", "Coins") + "."));
+                            if (admin) TextUtil.sendMessage(player, "&aNote issued for " + TextUtil.formatNumber(amount) + (xp ? " XP." : " " + config.getString("currency", "Coins") + "."));
+                            else sendWithdrawalConfirmation(player, amount, xp);
                             deliverPending(player);
                         }
                     });
                 });
             });
         });
+    }
+
+    private void sendWithdrawalConfirmation(Player player, double amount, boolean xp) {
+        String currency = xp ? "XP points" : config.getString("currency", "Coins");
+        String remaining;
+        try {
+            remaining = TextUtil.formatNumber(xp ? getTotalExperience(player) : plugin.getEconomyManager().getBalance(player));
+        } catch (RuntimeException error) {
+            // A balance-display failure must never interfere with delivery of an activated note.
+            remaining = "unavailable";
+            plugin.getLogger().log(Level.WARNING, "Could not display remaining balance for " + player.getUniqueId(), error);
+        }
+        java.util.List<String> lines = config.getStringList(xp ? "messages.withdraw-xp" : "messages.withdraw-money");
+        if (lines.isEmpty()) lines = java.util.List.of(
+                "&8[&6&lBank&8] &aWithdrawal successful!",
+                "&7Withdrawn: &f{amount} {currency} &8| &7Remaining: &e{remaining} {currency}");
+        for (String line : lines) TextUtil.sendMessage(player, line.replace("{amount}", TextUtil.formatNumber(amount))
+                .replace("{remaining}", remaining).replace("{currency}", currency));
     }
 
     @EventHandler

@@ -194,8 +194,8 @@ public class HunterExchangeGUI {
             List.of(
                 "&7Essential combat potions to counter",
                 "&7all 3 World Boss mechanics:",
-                "  &b• 3x Splash Water Potions &7(Quench)",
-                "  &d• 2x Splash Night Vision &7(Stun)",
+                "  &b• 3x Splash Water Potions",
+                "  &d• 2x Splash Night Vision",
                 "  &c• 2x Fire Resistance (8m)",
                 "  &a• 2x Splash Health II"
             ),
@@ -462,7 +462,7 @@ public class HunterExchangeGUI {
         PotionMeta pmWater = (PotionMeta) splashWater.getItemMeta();
         if (pmWater != null) {
             pmWater.setBasePotionType(PotionType.WATER);
-            pmWater.displayName(TextUtil.colorize("&bSplash Potion of Water &7(Quench)"));
+            pmWater.displayName(TextUtil.colorize("&bSplash Potion of Water"));
             splashWater.setItemMeta(pmWater);
         }
 
@@ -472,7 +472,7 @@ public class HunterExchangeGUI {
         PotionMeta pmNv = (PotionMeta) splashNv.getItemMeta();
         if (pmNv != null) {
             pmNv.setBasePotionType(PotionType.LONG_NIGHT_VISION);
-            pmNv.displayName(TextUtil.colorize("&dSplash Potion of Night Vision &7(Stun)"));
+            pmNv.displayName(TextUtil.colorize("&dSplash Potion of Night Vision"));
             splashNv.setItemMeta(pmNv);
         }
 

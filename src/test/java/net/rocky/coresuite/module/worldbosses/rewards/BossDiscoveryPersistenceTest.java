@@ -41,4 +41,29 @@ class BossDiscoveryPersistenceTest {
             }
         }
     }
+    @Test void delayedReadCannotRepopulateAnUnloadedPlayerAndColdChecksStayAsync() throws Exception {
+        var core = mock(CoreSuitePlugin.class);
+        var db = mock(DatabaseManager.class);
+        when(core.getDatabaseManager()).thenReturn(db);
+        java.util.List<Runnable> queued = new java.util.ArrayList<>();
+        doAnswer(call -> { queued.add(call.getArgument(0)); return null; }).when(db).executeAsync(any());
+        var connection = mock(java.sql.Connection.class);
+        var statement = mock(java.sql.PreparedStatement.class);
+        var rows = mock(java.sql.ResultSet.class);
+        when(db.getConnection()).thenReturn(connection);
+        when(connection.prepareStatement(anyString())).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(rows);
+        when(rows.next()).thenReturn(true,false);
+        when(rows.getString("boss_type")).thenReturn("BOREALIS");
+        var discovery = new BossDiscoveryManager(core);
+        UUID uuid = UUID.randomUUID();
+        assertFalse(discovery.hasDiscovered(uuid,BossType.BOREALIS));
+        verify(db,never()).getConnection();
+        discovery.unloadPlayer(uuid);
+        queued.getFirst().run();
+        var cache = BossDiscoveryManager.class.getDeclaredField("playerDiscoveries"); cache.setAccessible(true);
+        assertTrue(((java.util.Map<?,?>)cache.get(discovery)).isEmpty());
+        verify(connection).close(); verify(statement).close(); verify(rows).close();
+    }
+
 }

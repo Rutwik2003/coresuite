@@ -27,6 +27,7 @@ public class CasinoLeaderboardGUI {
 
     public static void open(CoreSuitePlugin plugin, CasinoStatsManager statsManager, Player player, Runnable onBack) {
         statsManager.getTopWinners(10, topList -> {
+            if (!player.isOnline()) return;
             Gui gui = new Gui("&8▶ &6&l🏆 Casino High Rollers &8◀", 4);
             gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
@@ -76,6 +77,8 @@ public class CasinoLeaderboardGUI {
             }));
 
             gui.open(player);
+        }, () -> {
+            if (player.isOnline()) TextUtil.sendMessage(player, "&cCasino leaderboard is temporarily unavailable. Please try again; this does not mean your stats were reset.");
         });
     }
 }

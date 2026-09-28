@@ -1144,16 +1144,20 @@ implements Listener {
         final UUID u = player.getUniqueId();
         this.inDialogueSequence.add(u);
         this.setChatState(u, "awaiting_intro");
-        int scenarioIndex = ThreadLocalRandom.current().nextInt(SCENARIO_PROMPTS.length);
-        ArrayList<Integer> availablePaths = new ArrayList<Integer>(Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
-        Collections.shuffle(availablePaths);
-        final ArrayList chosenPaths = new ArrayList(availablePaths.subList(0, 3));
+        // Stable for this quest attempt, even after cancel, timeout or reconnect.
+        var offer = AnglerIntroOffer.create(u, getTimesCompleted(u), getTimesDisrespected(u), SCENARIO_PROMPTS.length);
+        final List<Integer> chosenPaths = offer.paths();
         this.introOptions.put(u, chosenPaths);
-        final int si = scenarioIndex;
+        final int si = offer.scenario();
         new BukkitRunnable(){
             int tick = 0;
 
             public void run() {
+                if (!player.isOnline() || getStage(u) != 10 || introOptions.get(u) != chosenPaths) {
+                    this.cancel();
+                    return;
+                }
+
                 if (this.tick == 0) {
                     TextUtil.sendMessage((CommandSender)player, "&e[Ancient Angler]&f " + SCENARIO_PROMPTS[si]);
                 } else if (this.tick == 1) {

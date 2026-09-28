@@ -131,6 +131,12 @@ public abstract class Module {
         registeredListeners.add(listener);
     }
 
+    /** Releases both Bukkit registration and our lifecycle reference when replacing a listener. */
+    protected final void unregisterListener(Listener listener) {
+        HandlerList.unregisterAll(listener);
+        registeredListeners.remove(listener);
+    }
+
     protected final org.bukkit.scheduler.BukkitTask registerTask(org.bukkit.scheduler.BukkitTask task) {
         registeredTasks.add(task);
         return task;

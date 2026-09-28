@@ -21,6 +21,10 @@ import org.bukkit.command.TabCompleter;
 
 public class KillPodiumModule extends Module implements CommandExecutor, TabCompleter {
 
+    private volatile long generation;
+    private final java.util.concurrent.atomic.AtomicBoolean updating = new java.util.concurrent.atomic.AtomicBoolean();
+    private final java.util.Map<Integer, String> appliedSkins = new java.util.HashMap<>();
+
     public KillPodiumModule(CoreSuitePlugin plugin) {
         super(plugin, "KillPodium", "kill-podium");
     }
@@ -39,12 +43,15 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
             command.setTabCompleter(this);
         }
 
-        int interval = config.getInt("update-interval", 300);
+        generation++;
+        int interval = Math.max(30, config.getInt("update-interval", 300));
         registerTask(Bukkit.getScheduler().runTaskTimer(plugin, this::runPodiumUpdate, interval * 20L, interval * 20L));
     }
 
     @Override
     public void onDisable() {
+        generation++;
+        appliedSkins.clear();
         PluginCommand command = plugin.getCommand("podiumupdate");
         if (command != null && command.getExecutor() == this) {
             command.setExecutor(null);
@@ -88,14 +95,23 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
             }
         }
 
+        if (!updating.compareAndSet(false, true)) return;
+        long epoch = generation;
+        // Only fetch changed leaders; unchanged NPCs need no network or skin work.
+        npcPlayerMap.entrySet().removeIf(entry -> entry.getValue().equals(appliedSkins.get(entry.getKey())));
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            for (var entry : npcPlayerMap.entrySet()) {
-                syncPodiumSkin(entry.getKey(), entry.getValue());
+            try {
+                for (var entry : npcPlayerMap.entrySet()) {
+                    if (generation != epoch || !plugin.isEnabled()) break;
+                    syncPodiumSkin(entry.getKey(), entry.getValue(), epoch);
+                }
+            } finally {
+                updating.set(false);
             }
         });
     }
 
-    private void syncPodiumSkin(int npcId, String playerName) {
+    private void syncPodiumSkin(int npcId, String playerName, long epoch) {
         if (playerName == null || playerName.isEmpty() || playerName.equalsIgnoreCase("N/A") || playerName.equalsIgnoreCase("none")) {
             return;
         }
@@ -148,17 +164,23 @@ public class KillPodiumModule extends Module implements CommandExecutor, TabComp
             return;
         }
 
-        NPC npc = CitizensAPI.getNPCRegistry().getById(npcId);
-        if (npc == null) {
-            plugin.getLogger().warning("NPC id " + npcId + " doesn't exist");
-            return;
-        }
-
-        SkinTrait trait = npc.getOrAddTrait(SkinTrait.class);
-        trait.setSkinPersistent(playerName, signature, value);
-        trait.setShouldUpdateSkins(false);
-        trait.setFetchDefaultSkin(false);
-        plugin.getLogger().info("Updated NPC " + npcId + " skin to match " + playerName + " (texture length: " + value.length() + ")");
+        if (generation != epoch || !plugin.isEnabled()) return;
+        String texture = value;
+        String signedTexture = signature;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (generation != epoch || !isEnabled()) return;
+            NPC npc = CitizensAPI.getNPCRegistry().getById(npcId);
+            if (npc == null) {
+                plugin.getLogger().warning("NPC id " + npcId + " doesn't exist");
+                return;
+            }
+            SkinTrait trait = npc.getOrAddTrait(SkinTrait.class);
+            trait.setSkinPersistent(playerName, signedTexture, texture);
+            trait.setShouldUpdateSkins(false);
+            trait.setFetchDefaultSkin(false);
+            appliedSkins.put(npcId, playerName);
+            plugin.getLogger().info("Updated NPC " + npcId + " skin to match " + playerName);
+        });
     }
 
     @Override

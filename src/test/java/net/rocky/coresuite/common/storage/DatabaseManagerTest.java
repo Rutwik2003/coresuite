@@ -13,6 +13,7 @@ class DatabaseManagerTest {
     @Test @Timeout(15) void shutdownDrainsChildTasksWithoutRunningThemInsideTheParent() throws Exception {
         CoreSuitePlugin plugin = mock(CoreSuitePlugin.class);
         when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
+        when(plugin.getConfig()).thenReturn(new org.bukkit.configuration.file.YamlConfiguration());
         DatabaseManager database = new DatabaseManager(plugin);
         CountDownLatch parentStarted = new CountDownLatch(1);
         CountDownLatch releaseParent = new CountDownLatch(1);
@@ -40,4 +41,30 @@ class DatabaseManagerTest {
         assertTrue(childRan.get()); assertTrue(childSawParentDone.get());
         assertThrows(RejectedExecutionException.class, () -> database.executeAsync(() -> {}));
     }
+    @Test @Timeout(10) void failedJobDoesNotPreventFollowingSaveOrPoolShutdown() throws Exception {
+        CoreSuitePlugin plugin = mock(CoreSuitePlugin.class);
+        when(plugin.getLogger()).thenReturn(Logger.getAnonymousLogger());
+        var config = new org.bukkit.configuration.file.YamlConfiguration();
+        config.set("storage.database", "test.db");
+        when(plugin.getConfig()).thenReturn(config);
+        java.nio.file.Path folder = java.nio.file.Path.of("build", "db-tests", java.util.UUID.randomUUID().toString());
+        java.nio.file.Files.createDirectories(folder);
+        when(plugin.getDataFolder()).thenReturn(folder.toFile());
+        DatabaseManager database = new DatabaseManager(plugin);
+        database.initialize();
+        try {
+            database.executeAsync(() -> { throw new IllegalStateException("intentional regression test"); });
+            database.execute("CREATE TABLE test (value INTEGER)");
+            database.execute("INSERT INTO test VALUES (?)", 42);
+        } finally {
+            database.close();
+        }
+        assertThrows(java.sql.SQLException.class, database::getConnection);
+        // Reopening proves a clean shutdown flushed queued writes to disk.
+        try (var c = java.sql.DriverManager.getConnection("jdbc:sqlite:" + folder.resolve("test.db").toAbsolutePath());
+             var stmt = c.createStatement(); var rows = stmt.executeQuery("SELECT value FROM test")) {
+            assertTrue(rows.next()); assertEquals(42, rows.getInt(1));
+        }
+    }
+
 }

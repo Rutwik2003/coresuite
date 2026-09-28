@@ -124,7 +124,9 @@ public final class DiscordCommandHandler {
         embed.addProperty("color", 3066993); // Green
 
         if (onlineCount == 0) {
-            embed.addProperty("description", "There are currently **no players online**.\n\n*Be the first to join!*");
+            embed.addProperty("description", net.rocky.coresuite.module.maintenance.MaintenanceModule.state(plugin)
+                    == net.rocky.coresuite.module.maintenance.MaintenanceModule.State.OPEN
+                    ? "There are currently **no players online**.\n\n*Be the first to join!*" : "The server is under maintenance or access status is unavailable.");
         } else {
             String roster = players.stream()
                     .limit(50)
@@ -164,7 +166,7 @@ public final class DiscordCommandHandler {
         // Status field
         JsonObject f1 = new JsonObject();
         f1.addProperty("name", "📡 Status");
-        f1.addProperty("value", "🟢 Online");
+        f1.addProperty("value", net.rocky.coresuite.module.maintenance.MaintenanceModule.label(net.rocky.coresuite.module.maintenance.MaintenanceModule.state(plugin)));
         f1.addProperty("inline", true);
         fields.add(f1);
 

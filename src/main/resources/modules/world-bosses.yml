@@ -309,13 +309,10 @@ valerius:
     - "WOODED_BADLANDS"
     - "DESERT"
   lore:
-    - "&7Valerius was the grand forgemaster of a lost desert empire,"
-    - "&7ultimately sealed within his own masterpiece."
-    - "&7Tempered in deep magma, his armor laughs at swords."
-    - "&7Yet, when searing metal is kissed by a &b&nsudden torrential chill&7,"
-    - "&7the rigid shell forgets its strength."
-    - "&7Only the &e&nblunt tools of the deep earth&7 can shatter what remains."
-  
+    - "&7Beneath the dead caldera, a sentinel still keeps the forge alight."
+    - "&7His blackened armour carries the names of those the mountain swallowed."
+    - "&7The oldest smiths left no instructions, only a song of a furnace gone silent."
+
   bgm: "coresuite:boss.valerius"
   bgm-duration-seconds: 376
   bgm-p1: "coresuite:boss.valerius.p1"
@@ -407,6 +404,11 @@ valerius:
   # Rewards
   loot:
     rank-1:
+      # Guaranteed extra keys for MVP, in addition to commands below. Set [] to disable.
+      extra-key-commands:
+        - "crates key give %player% Common 1"
+        - "crates key give %player% Uncommon 1"
+        - "crates key give %player% Rare 1"
       currency: 25000
       shards: 4
       commands:
@@ -439,12 +441,9 @@ aethelgard:
     - "OLD_GROWTH_PINE_TAIGA"
     - "OLD_GROWTH_SPRUCE_TAIGA"
   lore:
-    - "&7A desperate king made a dark pact with the forest to escape death."
-    - "&7Bark replaced his skin, and writhing roots replaced his veins."
-    - "&7As long as he treads upon &2&nnatural soil&7, the earth mends him."
-    - "&7His wooden armor resists arrows, but axes expose his weakness."
-    - "&7Wild growth must be pruned: the ancient wood weeps when kissed"
-    - "&7by the &e&nlumberjack's bite&7, and the &c&ncleansing spark of fire&7."
+    - "&7A king begged the forest for a life without end. The forest collected his kingdom."
+    - "&7Now a hollow crown wanders beneath branches that whisper in stolen voices."
+    - "&7Deep beneath the throne, the oldest rings remember a season he fears."
 
   bgm: "coresuite:boss.aethelgard"
   bgm-duration-seconds: 156
@@ -523,6 +522,11 @@ aethelgard:
 
   loot:
     rank-1:
+      # Guaranteed extra keys for MVP, in addition to commands below. Set [] to disable.
+      extra-key-commands:
+        - "crates key give %player% Common 1"
+        - "crates key give %player% Uncommon 1"
+        - "crates key give %player% Rare 1"
       currency: 35000
       shards: 4
       commands:
@@ -558,12 +562,9 @@ xolthos:
     - "DRIPSTONE_CAVES"
     - "LUSH_CAVES"
   lore:
-    - "&7An ancient spinner residing in the darkest crevices of the world."
-    - "&7She dances in the absolute black, effortlessly dodging 90% of blows"
-    - "&7with mirage-like deception and subterranean stealth."
-    - "&7Her sensitive subterranean eyes harbor a fatal vulnerability:"
-    - "&7She cannot endure artificial enlightenment! Hitting her with a"
-    - "&d&lSplash Potion of Night Vision &7shatters her evasion and stuns her for 20s!"
+    - "&7In halls forgotten by dawn, the widow weaves memories into her web."
+    - "&7Travellers swear her shadow arrives before her, and lingers after she is gone."
+    - "&7An unfinished chronicle speaks of one night when every shadow lost its name."
 
   bgm: "coresuite:boss.xolthos"
   bgm-duration-seconds: 170
@@ -653,6 +654,11 @@ xolthos:
 
   loot:
     rank-1:
+      # Guaranteed extra keys for MVP, in addition to commands below. Set [] to disable.
+      extra-key-commands:
+        - "crates key give %player% Common 1"
+        - "crates key give %player% Uncommon 1"
+        - "crates key give %player% Rare 1"
       currency: 50000
       shards: 5
       commands:
@@ -677,12 +683,11 @@ xolthos:
 borealis:
   display-name: "&b&lBorealis, The Permafrost Tyrant"
   lore:
-    - "&7Borealis sealed his soldiers in the Glacial Vault, where True Ice claimed their hearts."
-    - "&7Blades slide from his shell and arrows shatter. Bring the alchemist's heat of the Nether:"
-    - "&6Splash Fire Resistance &7melts his armor for 6 seconds. Wield the gravedigger's tool:"
-    - "&bShovels deal 2.5x damage during Thermal Shock. &7The counter recovers every 20 seconds."
-    - "&7Slay his Frostguard before Cruel Siphon consumes them. Leather wards off Deep Freeze."
-    - "&7When his bow breaks, beware the axe: the tyrant's final winter has begun."
+    - "&7Borealis sealed the Glacial Vault with his soldiers still inside."
+    - "&7True Ice claimed their hearts, but their oath outlived the warmth of the world."
+    - "&7A buried pilgrim wrote of a winter that forgot itself for a single breath."
+    - "&7The rest of the page is missing. Beneath the ice, the court still waits."
+
   base-entity: "STRAY"
   scale: 1.65
   max-health: 2600.0
@@ -700,8 +705,16 @@ borealis:
   bgm-p3-duration-seconds: 48
   awakening-bgm: "coresuite:boss.awakening"
   combat:
+    # Shared healing budget across the whole fight; phases cannot heal above their entry threshold.
+    maximum-healing-fraction: 0.15
+    # Freezing remains dangerous but no longer heals Borealis by default.
+    freeze-heal-per-hit: 0.0
+    siphon:
+      heal-per-minion: 20.0
+      delay-seconds: 20
     frostguard:
-      cooldown-seconds: 24
+      cooldown-seconds: 45
+      health: 30.0
     glacial-volley:
       cooldown-seconds: 12
     frost-nova:
@@ -710,6 +723,11 @@ borealis:
       damage: 16.0
   loot:
     rank-1:
+      # Guaranteed extra keys for MVP, in addition to commands below. Set [] to disable.
+      extra-key-commands:
+        - "crates key give %player% Common 1"
+        - "crates key give %player% Uncommon 1"
+        - "crates key give %player% Rare 1"
       currency: 40000
       shards: 4
       commands:

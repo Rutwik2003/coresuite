@@ -309,11 +309,6 @@ public abstract class WorldBoss {
                 Bukkit.broadcast(TextUtil.colorize(""));
             }
 
-            if (type == BossType.XOLTHOS) {
-                int stunSec = config.getInt("xolthos.weakness.stun-duration-seconds", 20);
-                Bukkit.broadcast(TextUtil.colorize("  &d💡 &lTACTICAL INTEL: &fXol'thos can &cevade attacks&f! Throw &e&lSplash Potions of Night Vision &fto blind and stun her for &a" + stunSec + "s &f(+50% damage)!"));
-                Bukkit.broadcast(TextUtil.colorize(""));
-            }
 
             Bukkit.broadcast(TextUtil.colorize("  &c&l⚠ DANGER DISCLAIMER:"));
             Bukkit.broadcast(TextUtil.colorize("  &cYou are at your own risk here. We are not responsible for any damage to your armour, inventory, or anything. You can die here and lose stuff — don't blame us for it!"));
@@ -1349,6 +1344,11 @@ public abstract class WorldBoss {
                 config.getDouble("balance.maximum-damage-multiplier", 1.15), 1.15, solo, 3.0);
         return Math.min(cap, solo + perPlayer * Math.max(0, scaledPlayers - 1));
     }
+    /** Takes ownership of arena tickets already acquired by asynchronous preparation. */
+    public void retainPreparedChunks(java.util.Collection<org.bukkit.Chunk> chunks) {
+        heldChunks.addAll(chunks);
+    }
+
     private void releaseChunks() {
         for (org.bukkit.Chunk chunk : heldChunks) chunk.removePluginChunkTicket(plugin);
         heldChunks.clear();

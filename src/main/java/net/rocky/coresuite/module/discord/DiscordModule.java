@@ -147,6 +147,23 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
         return config.getString("discord-to-minecraft.bot-token", "").trim();
     }
 
+    public void maintenanceChanged(net.rocky.coresuite.module.maintenance.MaintenanceModule.State state, boolean announce) {
+        if (statusManager != null) statusManager.scheduleDebouncedUpdate();
+        if (topicManager != null) topicManager.updateTopic();
+        if (!announce || state == net.rocky.coresuite.module.maintenance.MaintenanceModule.State.UNKNOWN) return;
+        String destination = getChatDestination();
+        if (destination.isEmpty()) return;
+        var embed = new JsonObject();
+        embed.addProperty("title", net.rocky.coresuite.module.maintenance.MaintenanceModule.label(state));
+        embed.addProperty("description", state == net.rocky.coresuite.module.maintenance.MaintenanceModule.State.MAINTENANCE
+                ? "The server is undergoing maintenance. Only maintenance-whitelisted players can join."
+                : "Maintenance has ended. The server is open again!");
+        embed.addProperty("color", state == net.rocky.coresuite.module.maintenance.MaintenanceModule.State.MAINTENANCE ? 16753920 : 3066993);
+        var embeds = new JsonArray(); embeds.add(embed);
+        var payload = new JsonObject(); payload.add("embeds", embeds);
+        webhookClient.sendHybridAsync(destination, getBotToken(), payload.toString());
+    }
+
     private String buildStartEmbedJson() {
         String title = config.getString("events.server-start.title", "🟢 Server is Online!");
         String javaIp = config.getString("server-status.embed.java-ip", "meermc.rutwikdev.com:25569");
@@ -155,6 +172,11 @@ public class DiscordModule extends Module implements CommandExecutor, TabComplet
                 "The Minecraft server is online and ready for players!\n\n" +
                 "**Java IP:** `" + javaIp + "`\n" +
                 "**Bedrock IP:** `" + bedrockIp + "`");
+        var maintenance = net.rocky.coresuite.module.maintenance.MaintenanceModule.state(plugin);
+        if (maintenance != net.rocky.coresuite.module.maintenance.MaintenanceModule.State.OPEN) {
+            title = net.rocky.coresuite.module.maintenance.MaintenanceModule.label(maintenance);
+            desc = "The server has started with restricted access. Check maintenance status before joining.";
+        }
         String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
         JsonObject embed = new JsonObject();

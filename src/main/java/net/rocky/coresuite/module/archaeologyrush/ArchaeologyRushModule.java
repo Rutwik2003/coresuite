@@ -38,13 +38,13 @@ public class ArchaeologyRushModule extends Module implements CommandExecutor, Li
     public void onEnable() {
         plugin.getDatabaseManager().execute(
             "CREATE TABLE IF NOT EXISTS coresuite_artifact_fragments (" +
-            "uuid TEXT NOT NULL, set_id TEXT NOT NULL, fragment_index INTEGER NOT NULL, " +
+            "uuid VARCHAR(36) NOT NULL, set_id VARCHAR(191) NOT NULL, fragment_index INTEGER NOT NULL, " +
             "obtained_at BIGINT NOT NULL, PRIMARY KEY (uuid, set_id, fragment_index))"
         );
         plugin.getDatabaseManager().execute(
             "CREATE TABLE IF NOT EXISTS coresuite_artifact_completions (" +
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT NOT NULL, player_name TEXT NOT NULL, " +
-            "set_id TEXT NOT NULL, completed_at BIGINT NOT NULL)"
+            (plugin.getDatabaseManager().isMySQL() ? "id BIGINT PRIMARY KEY AUTO_INCREMENT, " : "id INTEGER PRIMARY KEY AUTOINCREMENT, ") +
+            "uuid VARCHAR(36) NOT NULL, player_name VARCHAR(64) NOT NULL, set_id VARCHAR(191) NOT NULL, completed_at BIGINT NOT NULL)"
         );
 
         registry = new ArtifactSetRegistry(plugin, config);

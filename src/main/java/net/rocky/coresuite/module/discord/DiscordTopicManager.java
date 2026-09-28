@@ -75,6 +75,9 @@ public final class DiscordTopicManager {
         String uptime = formatUptime();
 
         String format = config.getString("channel-topic.format-online", "🟢 Online: {online}/{max} | TPS: {tps} | IP: {ip}");
+        var maintenance = net.rocky.coresuite.module.maintenance.MaintenanceModule.state(plugin);
+        if (maintenance != net.rocky.coresuite.module.maintenance.MaintenanceModule.State.OPEN)
+            format = net.rocky.coresuite.module.maintenance.MaintenanceModule.label(maintenance) + " | Players: {online}/{max} | IP: {ip}";
         String topic = format.replace("{online}", String.valueOf(online))
                 .replace("{max}", String.valueOf(max))
                 .replace("{tps}", tpsFormatted)

@@ -1088,7 +1088,7 @@ public class PostOrderGUI implements Listener {
                 "&8&m────────────────────",
                 "&7Type any price in chat.",
                 "&7Min: &f" + plugin.getEconomyManager().format(config.getDouble("min-order-value", 1000)),
-                "&7Max: &f" + plugin.getEconomyManager().format(config.getDouble("max-order-value", 500000)),
+                "&7Max: &f" + maximumPriceLabel(),
                 "&8&m────────────────────",
                 "&e▶ Click to type custom price"
             ),
@@ -1097,7 +1097,7 @@ public class PostOrderGUI implements Listener {
                 awaitingInput.put(player.getUniqueId(), CTX_PRICE);
                 TextUtil.sendMessage(player, "&8[&6Orders&8] &eHow much will you pay in total? &8(type a number or &ccancel&8)");
                 TextUtil.sendMessage(player, "&8  &7Min: &f" + plugin.getEconomyManager().format(config.getDouble("min-order-value", 1000))
-                        + "  &7Max: &f" + plugin.getEconomyManager().format(config.getDouble("max-order-value", 500000)));
+                        + "  &7Max: &f" + maximumPriceLabel());
             }
         ));
 
@@ -1116,7 +1116,16 @@ public class PostOrderGUI implements Listener {
     //  ITEM + SERVICE FLOW — Step 3.5: Expiry Selection (NO GAPS, Contiguous)
     // ══════════════════════════════════════════════════════════════════════════
 
+    private String maximumPriceLabel() {
+        double max = config.getDouble("max-order-value", 0);
+        return max == 0 ? "No limit" : plugin.getEconomyManager().format(max);
+    }
+
     public void openExpiryStep(Player player, Order.OrderType type, double priceTotal) {
+        if (!OrderPricePolicy.valid(config, priceTotal)) {
+            TextUtil.sendMessage(player, "&cThat price is invalid or outside the configured limits.");
+            return;
+        }
         Gui gui = new Gui("&8▶ &6&lOrder Duration &8◀", 3);
         gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
@@ -1236,6 +1245,9 @@ public class PostOrderGUI implements Listener {
             ),
             e -> {
                 player.closeInventory();
+                if (!OrderPricePolicy.valid(config, priceTotal) || !Double.isFinite(totalCost) || totalCost <= 0) {
+                    TextUtil.sendMessage(player, "&cThat price is no longer valid. Please create the order again."); return;
+                }
                 if (!plugin.getEconomyManager().has(player, totalCost)) {
                     TextUtil.sendMessage(player, "&8[&6Orders&8] &cYou need &e"
                             + plugin.getEconomyManager().format(totalCost) + "&c to post this order.");
@@ -1352,11 +1364,10 @@ public class PostOrderGUI implements Listener {
                     try {
                         double price = Double.parseDouble(input.replace(",", ""));
                         double min   = config.getDouble("min-order-value", 1000);
-                        double max   = config.getDouble("max-order-value", 500000);
-                        if (price < min || price > max) {
+                        if (!OrderPricePolicy.valid(config, price)) {
                             TextUtil.sendMessage(p, "&8[&6Orders&8] &cPrice must be between &e"
                                     + plugin.getEconomyManager().format(min) + "&c and &e"
-                                    + plugin.getEconomyManager().format(max) + "&c.");
+                                    + maximumPriceLabel() + "&c.");
                             awaitingInput.put(uuid, CTX_PRICE);
                             return;
                         }

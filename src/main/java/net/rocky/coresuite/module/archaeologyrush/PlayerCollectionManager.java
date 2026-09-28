@@ -21,11 +21,15 @@ public class PlayerCollectionManager {
     // UUID -> (SetID -> Set<FragmentIndex>)
     private final Map<UUID, Map<String, Set<Integer>>> cache = new ConcurrentHashMap<>();
 
+    private final Map<UUID, Object> sessions = new ConcurrentHashMap<>();
+
     public PlayerCollectionManager(CoreSuitePlugin plugin) {
         this.plugin = plugin;
     }
 
     public void loadPlayer(UUID uuid, Runnable callback) {
+        Object session = new Object();
+        sessions.put(uuid, session);
         plugin.getDatabaseManager().executeAsync(() -> {
             try (Connection conn = plugin.getDatabaseManager().getConnection();
                  PreparedStatement stmt = conn.prepareStatement("SELECT set_id, fragment_index FROM coresuite_artifact_fragments WHERE uuid = ?")) {
@@ -35,24 +39,27 @@ public class PlayerCollectionManager {
                     while (rs.next()) {
                         String setId = rs.getString("set_id");
                         int fragmentIndex = rs.getInt("fragment_index");
-                        playerSets.computeIfAbsent(setId, k -> new HashSet<>()).add(fragmentIndex);
+                        playerSets.computeIfAbsent(setId, k -> ConcurrentHashMap.newKeySet()).add(fragmentIndex);
                     }
-                    cache.put(uuid, playerSets);
+                    if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> {
+                        if (sessions.get(uuid) != session) return;
+                        cache.put(uuid, playerSets);
+                        if (callback != null) callback.run();
+                    });
                 }
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "DB error loading player fragments for " + uuid, e);
-            }
-            if (callback != null) {
-                Bukkit.getScheduler().runTask(plugin, callback);
             }
         });
     }
 
     public void unloadPlayer(UUID uuid) {
+        sessions.remove(uuid);
         cache.remove(uuid);
     }
 
     public void clearCache() {
+        sessions.clear();
         cache.clear();
     }
 
@@ -75,19 +82,21 @@ public class PlayerCollectionManager {
     }
 
     public void addFragment(UUID uuid, String playerName, String setId, int fragmentIndex) {
+        sessions.remove(uuid); // Invalidate a read started before this new fragment.
         // Update cache
         cache.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>())
-             .computeIfAbsent(setId, k -> new HashSet<>())
+             .computeIfAbsent(setId, k -> ConcurrentHashMap.newKeySet())
              .add(fragmentIndex);
 
         // Update DB
         plugin.getDatabaseManager().execute(
-                "INSERT OR IGNORE INTO coresuite_artifact_fragments (uuid, set_id, fragment_index, obtained_at) VALUES (?, ?, ?, ?)",
+                (plugin.getDatabaseManager().isMySQL() ? "INSERT IGNORE" : "INSERT OR IGNORE") + " INTO coresuite_artifact_fragments (uuid, set_id, fragment_index, obtained_at) VALUES (?, ?, ?, ?)",
                 uuid.toString(), setId, fragmentIndex, System.currentTimeMillis()
         );
     }
 
     public void completeSet(UUID uuid, String playerName, ArtifactSet set, Runnable onSuccess) {
+        sessions.remove(uuid); // Do not let an older read resurrect consumed fragments.
         // Clear from cache
         if (cache.containsKey(uuid)) {
             cache.get(uuid).remove(set.id());
@@ -98,6 +107,16 @@ public class PlayerCollectionManager {
             try (Connection conn = plugin.getDatabaseManager().getConnection()) {
                 conn.setAutoCommit(false);
                 try {
+                    // Revalidate inside the transaction: stale menus cannot redeem a set twice.
+                    Set<Integer> persisted = new HashSet<>();
+                    try (PreparedStatement check = conn.prepareStatement("SELECT fragment_index FROM coresuite_artifact_fragments WHERE uuid=? AND set_id=?")) {
+                        check.setString(1, uuid.toString()); check.setString(2, set.id());
+                        try (ResultSet rows = check.executeQuery()) { while (rows.next()) persisted.add(rows.getInt(1)); }
+                    }
+                    if (set.fragments().isEmpty() || set.fragments().stream().anyMatch(fragment -> !persisted.contains(fragment.fragmentIndex()))) {
+                        conn.rollback();
+                        return;
+                    }
                     // Delete fragments
                     try (PreparedStatement delStmt = conn.prepareStatement("DELETE FROM coresuite_artifact_fragments WHERE uuid = ? AND set_id = ?")) {
                         delStmt.setString(1, uuid.toString());

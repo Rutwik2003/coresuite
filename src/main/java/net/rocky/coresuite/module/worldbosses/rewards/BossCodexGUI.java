@@ -55,13 +55,7 @@ public class BossCodexGUI {
         renderBossSlot(gui, player, 11, BossType.VALERIUS, Material.NETHERITE_AXE,
             "&c&lValerius, The Ashen Vanguard",
             "&8Type: &7Wither Skeleton | &cAdaptive HP",
-            List.of(
-                "&7Forged in the caldera of an extinct abyssal rift.",
-                "&7Valerius wears black slag armor tempered by eternal magma.",
-                "&7Swords bounce off his incandescent plate like twigs.",
-                "&7Legend whispers of ancient forgemasters quenching his armor",
-                "&7with pure torrential chill before shattering the brittle shell."
-            ),
+            BossLore.lines(BossType.VALERIUS),
             List.of(
                 "  &c• Phase 1 (100%-60%): &7The Forge",
                 "  &6• Phase 2 (60%-20%): &7Meltdown",
@@ -74,14 +68,7 @@ public class BossCodexGUI {
         renderBossSlot(gui, player, 13, BossType.AETHELGARD, Material.CARVED_PUMPKIN,
             "&2&lAethelgard, The Root-Bound King",
             "&8Type: &7Husk | &2Adaptive HP",
-            List.of(
-                "&7A desperate king made a dark pact with the forest to escape death.",
-                "&7Bark replaced his skin, and writhing roots replaced his veins.",
-                "&7As long as he stands on natural soil, the earth mends him.",
-                "&7His wooden armor resists arrows, but axes expose his weakness.",
-                "&7The ancient wood weeps when kissed by the lumberjack's axe",
-                "&7and the cleansing spark of fire."
-            ),
+            BossLore.lines(BossType.AETHELGARD),
             List.of(
                 "  &a• Phase 1 (100%-50%): &7Overgrowth",
                 "  &e• Phase 2 (50%-20%): &7The Harvest",
@@ -94,13 +81,7 @@ public class BossCodexGUI {
         renderBossSlot(gui, player, 15, BossType.XOLTHOS, Material.SPIDER_EYE,
             "&5&lXol'thos, The Weeping Widow",
             "&8Type: &7Cave Spider | &5Adaptive HP",
-            List.of(
-                "&7An ancient spinner residing in the darkest crevices of the world.",
-                "&7She dances in the absolute black, dodging attacks with mirage speed.",
-                "&7Her subterranean eyes harbor a fatal flaw: she cannot endure",
-                "&7the alchemist's forced enlightenment, paralyzed by the sudden clarity",
-                "&7of artificial sight."
-            ),
+            BossLore.lines(BossType.XOLTHOS),
             List.of(
                 "  &5• Phase 1 (100%-70%): &7The Trap",
                 "  &e• Phase 2 (70%-30%): &7The Brood",
@@ -111,9 +92,7 @@ public class BossCodexGUI {
 
         renderBossSlot(gui, player, 22, BossType.BOREALIS, Material.BLUE_ICE,
             "&b&lBorealis, The Permafrost Tyrant", "&8Type: &7Stray | &bAdaptive HP",
-            List.of("&7True Ice entombs the tyrant and his court.", "&7Normal swords, axes and bows deal half damage.",
-                "&6Splash Fire Resistance: &76s Thermal Shock.", "&bUse shovels during the opening: &72.5x damage.",
-                "&7Slay his guards before he consumes them.", "&7Leather protects against Deep Freeze."),
+            BossLore.lines(BossType.BOREALIS),
             List.of("&b100%-60%: Permafrost", "&360%-20%: Whiteout", "&c20%-0%: Absolute Zero"),
             "&bFrostbound Striders &7(Glacial Guard boots)");
         // Active Boss Status / Next Spawn Tracker
@@ -194,7 +173,7 @@ public class BossCodexGUI {
         lore.add("&6⚔ Combat Phases:");
         lore.addAll(phaseLines);
         lore.add("");
-        lore.add("&e🏆 Signature Mythic Drop:");
+        lore.add("&e🏆 Signature Shop Equipment:");
         lore.add("  " + signatureDrop);
         lore.add("&8&m────────────────────────────────");
         lore.add("&a▶ Click to print chronicles to chat!");
@@ -213,73 +192,8 @@ public class BossCodexGUI {
         }
 
         player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1f, 1.2f);
-        switch (type) {
-            case BOREALIS -> TextUtil.sendMessage(player,
-                "&bBorealis, The Permafrost Tyrant &7sealed his soldiers in the Glacial Vault. True Ice claimed their hearts but not their oath. "
-                + "Swords, axes and bows deal half damage until Splash Fire Resistance melts his armor for 6s. Shovels then deal 2.5x damage. "
-                + "Thermal Shock is reliable with a 20s shared cooldown; ordinary fire does not activate it. "
-                + "Destroy his four Frostguard before the warned Cruel Siphon; wear leather against Deep Freeze. "
-                + "Dodge novas and hail. His shattered bow signals faster melee attacks and brief Frostbite roots. Frostbound Striders are shop-only.");
-            case VALERIUS -> {
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                TextUtil.sendMessage(player, "  &c&l⚔ VALERIUS, THE ASHEN VANGUARD &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fWither Skeleton &8| &cHealth: Adaptive HP");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
-                TextUtil.sendMessage(player, "  &7Forged in the caldera of an extinct abyssal rift. Valerius wears");
-                TextUtil.sendMessage(player, "  &7black slag armor tempered by eternal magma. Swords bounce off him like twigs.");
-                TextUtil.sendMessage(player, "  &7Legend whispers of ancient forgemasters quenching his armor");
-                TextUtil.sendMessage(player, "  &7with torrential chill before shattering the brittle shell.");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &6⚔ Combat Phases:");
-                TextUtil.sendMessage(player, "  &c• Phase 1: &7The Forge");
-                TextUtil.sendMessage(player, "  &6• Phase 2: &7Meltdown");
-                TextUtil.sendMessage(player, "  &4• Phase 3: &7Ash Void");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e🏆 Signature Drop: &cThe Vanguard's Cleaver");
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            }
-            case AETHELGARD -> {
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                TextUtil.sendMessage(player, "  &2&l⚔ AETHELGARD, THE ROOT-BOUND KING &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fHusk &8| &aHealth: Adaptive HP");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
-                TextUtil.sendMessage(player, "  &7A desperate king made a dark pact with the forest to escape death.");
-                TextUtil.sendMessage(player, "  &7Bark replaced his skin, and writhing roots replaced his veins.");
-                TextUtil.sendMessage(player, "  &7As long as he stands on natural soil, the earth mends him.");
-                TextUtil.sendMessage(player, "  &7His wooden armor resists arrows, but axes expose his weakness.");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &6⚔ Combat Phases:");
-                TextUtil.sendMessage(player, "  &a• Phase 1: &7Overgrowth");
-                TextUtil.sendMessage(player, "  &e• Phase 2: &7The Harvest");
-                TextUtil.sendMessage(player, "  &c• Phase 3: &7Deadwood");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e🏆 Signature Drop: &aCrown of the Forest");
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            }
-            case XOLTHOS -> {
-                TextUtil.sendMessage(player, "&dNight Vision: 50% resist chance. A deflection blocks retries for 10s; successful stuns have a 10s recovery window afterward.");
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                TextUtil.sendMessage(player, "  &5&l⚔ XOL'THOS, THE WEEPING WIDOW &8- &6CHRONICLES");
-                TextUtil.sendMessage(player, "  &7Entity: &fCave Spider &8| &5Health: Adaptive HP");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e📜 Lore Backstory:");
-                TextUtil.sendMessage(player, "  &7An ancient spinner residing in the darkest crevices of the world.");
-                TextUtil.sendMessage(player, "  &7She dances in the absolute black, dodging attacks with mirage speed.");
-                TextUtil.sendMessage(player, "  &7Her subterranean eyes harbor a fatal flaw: she cannot endure");
-                TextUtil.sendMessage(player, "  &7the alchemist's forced enlightenment, paralyzed by the sudden clarity");
-                TextUtil.sendMessage(player, "  &7of artificial sight.");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &6⚔ Combat Phases:");
-                TextUtil.sendMessage(player, "  &5• Phase 1: &7The Trap");
-                TextUtil.sendMessage(player, "  &e• Phase 2: &7The Brood");
-                TextUtil.sendMessage(player, "  &c• Phase 3: &7Frenzy");
-                TextUtil.sendMessage(player, "");
-                TextUtil.sendMessage(player, "  &e🏆 Signature Drop: &5The Widow's Fang");
-                TextUtil.sendMessage(player, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            }
-        }
+        TextUtil.sendMessage(player, "&6Ancient Chronicles — " + type.name());
+        for (String line : BossLore.lines(type)) TextUtil.sendMessage(player, line);
     }
 
     private String formatTime(int seconds) {

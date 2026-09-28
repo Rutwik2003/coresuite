@@ -34,6 +34,7 @@ class BorealisBossTest {
         var config = new YamlConfiguration(); config.set("borealis.weakness.fire-resist-chance", 0);
         var boss = new BorealisBoss(null, config, null);
         boss.entity = mock(LivingEntity.class);
+        boss.active = true;
         boss.barManager = mock(BossBarManager.class);
         boss.domainManager = mock(net.rocky.coresuite.module.worldbosses.combat.BossDomainManager.class);
         var world = mock(org.bukkit.World.class);
@@ -78,37 +79,129 @@ class BorealisBossTest {
         assertTrue(fresh.applyStun(12)); assertTrue(fresh.isStunned());
         assertFalse(fresh.applyStun(12));
     }
-    @Test void freezeRestrainsMovementButExpiresAndDoesNotBlockTeleports() throws Exception {
+    @Test void phasesChooseBowThenMixedThenAxeWithCappedMinions() {
+        assertTrue(BorealisBoss.usesBow(1, 0));
+        assertTrue(BorealisBoss.usesBow(1, 12));
+        assertTrue(BorealisBoss.usesBow(2, 0));
+        assertFalse(BorealisBoss.usesBow(2, 12));
+        assertTrue(BorealisBoss.usesBow(2, 24));
+        assertFalse(BorealisBoss.usesBow(3, 0));
+        assertEquals(0, BorealisBoss.minionCap(1));
+        assertEquals(4, BorealisBoss.minionCap(2));
+        assertEquals(2, BorealisBoss.minionCap(3));
+    }
+    @Test void everyShovelGetsBonusOnlyInsideThermalWindow() throws Exception {
         var boss = new BorealisBoss(null, new YamlConfiguration(), null);
+        var exposed = BorealisBoss.class.getDeclaredField("exposedUntil"); exposed.setAccessible(true);
+        for (var material : org.bukkit.Material.values()) {
+            if (!material.name().endsWith("_SHOVEL")) continue;
+            var tool = mock(org.bukkit.inventory.ItemStack.class); when(tool.getType()).thenReturn(material);
+            exposed.setLong(boss, 0);
+            assertEquals(8, boss.calculateIncomingDamage(null,8,tool),material.name());
+            exposed.setLong(boss, System.currentTimeMillis()+60000);
+            assertEquals(20, boss.calculateIncomingDamage(null,8,tool),material.name());
+            exposed.setLong(boss, System.currentTimeMillis()-1);
+            assertEquals(8, boss.calculateIncomingDamage(null,8,tool),material.name());
+        }
+    }
+
+    @Test void domainFrostIsClearedByOneLeatherPieceAndOnLeavingDomain() throws Exception {
+        var core = mock(net.rocky.coresuite.CoreSuitePlugin.class);
+        when(core.getName()).thenReturn("CoreSuite");
+        var boss = spy(new BorealisBoss(core,new YamlConfiguration(),null));
         boss.active = true;
         boss.barManager = mock(BossBarManager.class);
         boss.domainManager = mock(net.rocky.coresuite.module.worldbosses.combat.BossDomainManager.class);
         var player = mock(org.bukkit.entity.Player.class);
-        var id = java.util.UUID.randomUUID(); when(player.getUniqueId()).thenReturn(id);
+        doReturn(false).when(boss).hasFireResistance(player);
+        var inventory = mock(org.bukkit.inventory.PlayerInventory.class);
+        var world = mock(org.bukkit.World.class);
+        var block = mock(org.bukkit.block.Block.class);
+        var uuid = java.util.UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(uuid);
         when(player.isOnline()).thenReturn(true);
         when(player.getGameMode()).thenReturn(org.bukkit.GameMode.SURVIVAL);
+        when(player.getInventory()).thenReturn(inventory);
+        when(inventory.getArmorContents()).thenReturn(new org.bukkit.inventory.ItemStack[4]);
+        when(player.getLocation()).thenReturn(new org.bukkit.Location(world,0,64,0));
+        when(world.getBlockAt(any(org.bukkit.Location.class))).thenReturn(block);
+        when(block.getType()).thenReturn(org.bukkit.Material.AIR);
         when(boss.barManager.getViewers()).thenReturn(Set.of(player));
         when(boss.domainManager.isInDomain(any())).thenReturn(true);
-        var field = BorealisBoss.class.getDeclaredField("frozenUntil"); field.setAccessible(true);
-        @SuppressWarnings("unchecked") var frozen = (java.util.Map<java.util.UUID, Long>)field.get(boss);
-        frozen.put(id, System.currentTimeMillis() + 2000);
-        var world = mock(org.bukkit.World.class);
-        var from = new org.bukkit.Location(world, 0, 64, 0);
-        var to = new org.bukkit.Location(world, 2, 65, 2, 90, 30);
-        var event = new org.bukkit.event.player.PlayerMoveEvent(player, from, to);
+        when(player.getMaxFreezeTicks()).thenReturn(140);
+        var ticks = new java.util.concurrent.atomic.AtomicInteger();
+        when(player.getFreezeTicks()).thenAnswer(call -> ticks.get());
+        doAnswer(call -> { ticks.set(call.getArgument(0)); return null; }).when(player).setFreezeTicks(anyInt());
+        var update = BorealisBoss.class.getDeclaredMethod("updateDomainFrost"); update.setAccessible(true);
         try (var auth = mockStatic(net.rocky.coresuite.common.integration.AuthenticationGate.class);
-             var movement = mockStatic(net.rocky.coresuite.module.worldbosses.combat.BossMovement.class)) {
+             var bukkit = mockStatic(org.bukkit.Bukkit.class)) {
             auth.when(() -> net.rocky.coresuite.common.integration.AuthenticationGate.isAuthenticated(player)).thenReturn(true);
-            movement.when(() -> net.rocky.coresuite.module.worldbosses.combat.BossMovement.clear(any(org.bukkit.Location.class))).thenReturn(true);
-            boss.restrainFrozenMovement(event);
-            assertEquals(0, event.getTo().getX()); assertEquals(64, event.getTo().getY());
-            assertEquals(90, event.getTo().getYaw());
-            frozen.put(id, 0L);
-            event.setTo(to); boss.restrainFrozenMovement(event); assertEquals(2, event.getTo().getX());
-            frozen.put(id, System.currentTimeMillis() + 2000);
-            var teleport = new org.bukkit.event.player.PlayerTeleportEvent(player, from, to);
-            boss.restrainFrozenMovement(teleport);
-            assertEquals(to, teleport.getTo()); assertFalse(frozen.containsKey(id));
+            bukkit.when(() -> org.bukkit.Bukkit.getPlayer(uuid)).thenReturn(player);
+            update.invoke(boss); assertEquals(49,ticks.get());
+            var leather = mock(org.bukkit.inventory.ItemStack.class);
+            when(leather.getType()).thenReturn(org.bukkit.Material.LEATHER_HELMET);
+            when(inventory.getArmorContents()).thenReturn(new org.bukkit.inventory.ItemStack[]{leather,null,null,null});
+            update.invoke(boss); assertEquals(0,ticks.get());
+            when(inventory.getArmorContents()).thenReturn(new org.bukkit.inventory.ItemStack[4]);
+            update.invoke(boss); assertEquals(49,ticks.get());
+            var boots = mock(org.bukkit.inventory.ItemStack.class);
+            var meta = mock(org.bukkit.inventory.meta.ItemMeta.class);
+            var pdc = mock(org.bukkit.persistence.PersistentDataContainer.class);
+            when(boots.hasItemMeta()).thenReturn(true); when(boots.getItemMeta()).thenReturn(meta);
+            when(meta.getPersistentDataContainer()).thenReturn(pdc);
+            when(pdc.get(new org.bukkit.NamespacedKey(core,"boss_weapon"),org.bukkit.persistence.PersistentDataType.STRING)).thenReturn("frostbound_striders");
+            when(inventory.getBoots()).thenReturn(boots);
+            update.invoke(boss); assertEquals(0,ticks.get());
+            when(inventory.getBoots()).thenReturn(null);
+            update.invoke(boss); assertEquals(49,ticks.get());
+            doReturn(true).when(boss).hasFireResistance(player);
+            boss.grantFrostRespite(player);
+            update.invoke(boss); assertEquals(0,ticks.get());
+            var warmth = BorealisBoss.class.getDeclaredField("warmthUntil"); warmth.setAccessible(true);
+            @SuppressWarnings("unchecked") var windows = (java.util.Map<java.util.UUID,Long>) warmth.get(boss);
+            long deadline = windows.get(uuid);
+            boss.grantFrostRespite(player);
+            assertEquals(deadline,windows.get(uuid), "Reapplication cannot extend an active window");
+            windows.put(uuid,System.currentTimeMillis()-1);
+            update.invoke(boss); assertEquals(49,ticks.get(), "Ongoing eight-minute effect cannot renew immunity");
+            when(boss.domainManager.isInDomain(any())).thenReturn(false);
+            update.invoke(boss);
+            when(boss.domainManager.isInDomain(any())).thenReturn(true);
+            update.invoke(boss); assertEquals(49,ticks.get(), "Reentry cannot renew immunity");
+            boss.grantFrostRespite(player);
+            update.invoke(boss); assertEquals(0,ticks.get(), "Fresh potion can grant a new window");
+            doReturn(false).when(boss).hasFireResistance(player);
+            update.invoke(boss); assertEquals(49,ticks.get(), "Removing the effect ends protection");
+            when(boss.domainManager.isInDomain(any())).thenReturn(false);
+            update.invoke(boss); assertEquals(0,ticks.get());
+            verify(player,never()).setVelocity(any());
         }
+    }
+
+
+    @Test void healingCannotUndoPhaseProgressOrExceedTheEncounterBudget() {
+        var boss = new BorealisBoss(null, new YamlConfiguration(), null);
+        boss.maxHealth = 1000;
+        boss.currentHealth = 590;
+        boss.currentPhase = new BossPhase(2, 20, "Whiteout", net.kyori.adventure.bossbar.BossBar.Color.WHITE, "WHITEOUT");
+        assertEquals(10, boss.heal(240), .0001);
+        assertEquals(600, boss.currentHealth, .0001);
+        assertEquals(0, boss.heal(240), .0001);
+        boss.currentHealth = 400;
+        assertEquals(140, boss.heal(10000), .0001);
+        assertEquals(0, boss.getRemainingHealing(), .0001);
+        boss.currentHealth = 100;
+        boss.currentPhase = new BossPhase(3, 0, "Absolute Zero", net.kyori.adventure.bossbar.BossBar.Color.RED, "ABSOLUTE_ZERO");
+        assertEquals(0, boss.heal(10000), .0001); // phase change never resets the reserve
+    }
+
+    @Test void phaseThreeHealingStopsAtTwentyPercentAndRejectsInvalidAmounts() {
+        var boss = new BorealisBoss(null, new YamlConfiguration(), null);
+        boss.maxHealth = 1000; boss.currentHealth = 190;
+        boss.currentPhase = new BossPhase(3, 0, "Absolute Zero", net.kyori.adventure.bossbar.BossBar.Color.RED, "ABSOLUTE_ZERO");
+        assertEquals(10, boss.heal(500), .0001);
+        assertEquals(200, boss.currentHealth, .0001);
+        assertEquals(0, boss.heal(Double.NaN));
+        assertEquals(0, boss.heal(Double.POSITIVE_INFINITY));
     }
 }

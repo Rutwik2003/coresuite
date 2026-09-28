@@ -146,7 +146,9 @@ public final class ServerStatusEmbedManager {
 
     private String buildEmbedJson(boolean online, int currentPlayers, int maxPlayers, double tps, String uptime, List<String> playerNames) {
         String title = DiscordSanitizer.escapeJson(config.getString("server-status.embed.title", "🎮 MeerMC Network • Live Status"));
-        int color = online ? config.getInt("server-status.embed.online-color", 3066993)
+        var maintenance = net.rocky.coresuite.module.maintenance.MaintenanceModule.state(plugin);
+        boolean restricted = online && maintenance != net.rocky.coresuite.module.maintenance.MaintenanceModule.State.OPEN;
+        int color = restricted ? config.getInt("server-status.embed.maintenance-color", 16753920) : online ? config.getInt("server-status.embed.online-color", 3066993)
                            : config.getInt("server-status.embed.offline-color", 15158332);
 
         String javaIp = config.getString("server-status.embed.java-ip", "meermc.rutwikdev.com:25569");
@@ -161,7 +163,7 @@ public final class ServerStatusEmbedManager {
         // Field 1: State
         fields.append("{")
               .append("\"name\": \"📡 Status\",")
-              .append("\"value\": \"").append(online ? "🟢 **Online**" : "🔴 **Offline**").append("\",")
+              .append("\"value\": \"").append(online ? net.rocky.coresuite.module.maintenance.MaintenanceModule.label(maintenance) : "🔴 **Offline**").append("\",")
               .append("\"inline\": true")
               .append("},");
 
@@ -214,7 +216,7 @@ public final class ServerStatusEmbedManager {
                       .append("\"name\": \"🎮 Online Players (").append(currentPlayers).append(")\",");
                 StringBuilder roster = new StringBuilder();
                 if (playerNames.isEmpty()) {
-                    roster.append("*No players currently online. Join now to start playing!*");
+                    roster.append(restricted ? "*Public access is currently restricted.*" : "*No players currently online. Join now to start playing!*");
                 } else {
                     for (int i = 0; i < playerNames.size(); i++) {
                         roster.append("• **").append(DiscordSanitizer.escapeJson(playerNames.get(i))).append("**");

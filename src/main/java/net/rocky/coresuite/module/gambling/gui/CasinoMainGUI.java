@@ -192,7 +192,7 @@ public class CasinoMainGUI {
         if (meta != null) {
             meta.setOwningPlayer(player);
             meta.setDisplayName(TextUtil.legacyColorize("&b&l" + player.getName() + "'s Casino Stats"));
-            List<String> statsLore = new ArrayList<>(List.of(
+            List<String> statsLore = new ArrayList<>(stats == null ? List.of("&eStatistics are loading or temporarily unavailable.", "&7Click to refresh. Your saved totals are preserved.") : List.of(
                 "&8&m────────────────────",
                 "&7Balance:       &a" + plugin.getEconomyManager().format(balance),
                 "&7Total Won:     &a" + plugin.getEconomyManager().format(stats.totalWon()),
@@ -205,7 +205,7 @@ public class CasinoMainGUI {
             meta.setLore(statsLore.stream().map(TextUtil::legacyColorize).toList());
             head.setItemMeta(meta);
         }
-        gui.setItem(33, new GuiButton(head, e -> {}));
+        gui.setItem(33, new GuiButton(head, e -> open(player)));
 
         // Exit button at slot 40
         gui.setItem(40, GuiButton.of(Material.DARK_OAK_DOOR, "&c&lExit Casino",

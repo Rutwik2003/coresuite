@@ -276,4 +276,152 @@ rewards:
       - "crate key give {player} rare 2"
     money: 300000
     claim-message: "&aYou claimed the massive 300 Hour Reward!"
-    broadcast-message: "&6&l[!] &e{player} has played for 300 hours and claimed the final reward!"
+    broadcast-message: "&6&l[!] &e{player} has played for 300 hours and claimed their 300 Hour Reward!"
+
+  # Extended milestones are ONE-TIME rewards (no cooldown-hours).
+  # Edit required-seconds, money, commands, names and messages freely.
+  # XP below is raw points, NOT levels. Keys complement cash and XP; no boss shards, equipment or new titles.
+  # Keep reward IDs stable: changing an ID makes it a new, unclaimed reward.
+  reward_350h:
+    required-seconds: 1260000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l350 Hours"
+    lore:
+      - "&7A one-time thank-you for 350 active hours."
+    grants: "&f$40,000 &7+ &f750 XP points &7+ &f2x Enchanter Keys &7+ &f1x Potions Key &7+ &f1x UC Key"
+    commands:
+      - "minecraft:experience add {player} 750 points"
+      - "crates key give {player} enchanter 2"
+      - "crates key give {player} potions 1"
+      - "uc give key 1 %player_name%"
+    money: 40000
+    claim-message: "&aClaimed: $40,000, 750 XP points, 2x Enchanter Keys, 1x Potions Key, 1x UC Key!"
+    broadcast-message: "&a{player} reached 350 active hours!"
+
+  reward_400h:
+    required-seconds: 1440000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l400 Hours"
+    lore:
+      - "&7A one-time thank-you for 400 active hours."
+    grants: "&f$50,000 &7+ &f1,000 XP points &7+ &f1x Enchanter Key &7+ &f2x Potions Keys &7+ &f2x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 1000 points"
+      - "crates key give {player} enchanter 1"
+      - "crates key give {player} potions 2"
+      - "uc give key 2 %player_name%"
+    money: 50000
+    claim-message: "&aClaimed: $50,000, 1,000 XP points, 1x Enchanter Key, 2x Potions Keys, 2x UC Keys!"
+    broadcast-message: "&a{player} reached 400 active hours!"
+
+  reward_500h:
+    required-seconds: 1800000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l500 Hours"
+    lore:
+      - "&7A one-time thank-you for 500 active hours."
+    grants: "&f$75,000 &7+ &f1,500 XP points &7+ &f2x Enchanter Keys &7+ &f1x Potions Key &7+ &f3x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 1500 points"
+      - "crates key give {player} enchanter 2"
+      - "crates key give {player} potions 1"
+      - "uc give key 3 %player_name%"
+    money: 75000
+    claim-message: "&aClaimed: $75,000, 1,500 XP points, 2x Enchanter Keys, 1x Potions Key, 3x UC Keys!"
+    broadcast-message: "&a{player} reached 500 active hours!"
+
+  reward_600h:
+    required-seconds: 2160000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l600 Hours"
+    lore:
+      - "&7A one-time thank-you for 600 active hours."
+    grants: "&f$100,000 &7+ &f2,000 XP points &7+ &f2x Enchanter Keys &7+ &f2x Potions Keys &7+ &f2x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 2000 points"
+      - "crates key give {player} enchanter 2"
+      - "crates key give {player} potions 2"
+      - "uc give key 2 %player_name%"
+    money: 100000
+    claim-message: "&aClaimed: $100,000, 2,000 XP points, 2x Enchanter Keys, 2x Potions Keys, 2x UC Keys!"
+    broadcast-message: "&a{player} reached 600 active hours!"
+
+  reward_750h:
+    required-seconds: 2700000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l750 Hours"
+    lore:
+      - "&7A one-time thank-you for 750 active hours."
+    grants: "&f$125,000 &7+ &f2,500 XP points &7+ &f1x Enchanter Key &7+ &f3x Potions Keys &7+ &f3x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 2500 points"
+      - "crates key give {player} enchanter 1"
+      - "crates key give {player} potions 3"
+      - "uc give key 3 %player_name%"
+    money: 125000
+    claim-message: "&aClaimed: $125,000, 2,500 XP points, 1x Enchanter Key, 3x Potions Keys, 3x UC Keys!"
+    broadcast-message: "&a{player} reached 750 active hours!"
+
+  reward_1000h:
+    required-seconds: 3600000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l1,000 Hours"
+    lore:
+      - "&7A one-time thank-you for 1,000 active hours."
+    grants: "&f$150,000 &7+ &f3,000 XP points &7+ &f3x Enchanter Keys &7+ &f1x Elite Key &7+ &f4x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 3000 points"
+      - "crates key give {player} enchanter 3"
+      - "crates key give {player} elite 1"
+      - "uc give key 4 %player_name%"
+    money: 150000
+    claim-message: "&aClaimed: $150,000, 3,000 XP points, 3x Enchanter Keys, 1x Elite Key, 4x UC Keys!"
+    broadcast-message: "&a{player} reached 1,000 active hours!"
+
+  reward_1250h:
+    required-seconds: 4500000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l1,250 Hours"
+    lore:
+      - "&7A one-time thank-you for 1,250 active hours."
+    grants: "&f$175,000 &7+ &f4,000 XP points &7+ &f2x Enchanter Keys &7+ &f4x Potions Keys &7+ &f4x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 4000 points"
+      - "crates key give {player} enchanter 2"
+      - "crates key give {player} potions 4"
+      - "uc give key 4 %player_name%"
+    money: 175000
+    claim-message: "&aClaimed: $175,000, 4,000 XP points, 2x Enchanter Keys, 4x Potions Keys, 4x UC Keys!"
+    broadcast-message: "&a{player} reached 1,250 active hours!"
+
+  reward_1500h:
+    required-seconds: 5400000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l1,500 Hours"
+    lore:
+      - "&7A one-time thank-you for 1,500 active hours."
+    grants: "&f$200,000 &7+ &f5,000 XP points &7+ &f4x Enchanter Keys &7+ &f1x Elite Key &7+ &f5x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 5000 points"
+      - "crates key give {player} enchanter 4"
+      - "crates key give {player} elite 1"
+      - "uc give key 5 %player_name%"
+    money: 200000
+    claim-message: "&aClaimed: $200,000, 5,000 XP points, 4x Enchanter Keys, 1x Elite Key, 5x UC Keys!"
+    broadcast-message: "&a{player} reached 1,500 active hours!"
+
+  reward_2000h:
+    required-seconds: 7200000
+    material: "EXPERIENCE_BOTTLE"
+    name: "&b&l2,000 Hours"
+    lore:
+      - "&7A one-time thank-you for 2,000 active hours."
+    grants: "&f$250,000 &7+ &f6,000 XP points &7+ &f5x Potions Keys &7+ &f2x Elite Keys &7+ &f6x UC Keys"
+    commands:
+      - "minecraft:experience add {player} 6000 points"
+      - "crates key give {player} potions 5"
+      - "crates key give {player} elite 2"
+      - "uc give key 6 %player_name%"
+    money: 250000
+    claim-message: "&aClaimed: $250,000, 6,000 XP points, 5x Potions Keys, 2x Elite Keys, 6x UC Keys!"
+    broadcast-message: "&a{player} reached 2,000 active hours!"

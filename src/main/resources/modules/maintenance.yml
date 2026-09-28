@@ -1,0 +1,4 @@
+# Reads kennytv Maintenance's live API; does not replace its commands or whitelist.
+poll-seconds: 2
+# Announce transitions through the existing Discord chat destination.
+announce-changes: true

@@ -25,6 +25,7 @@ modules:
   creator: true
 
   # Custom Economy & Gameplay Modules
+  maintenance: true
   orders-board: true
   wishing-well: true
   archaeology-rush: true
@@ -39,6 +40,8 @@ modules:
 
 # Storage settings
 storage:
+  # Time allowed for queued saves to finish during a clean shutdown (10-120 seconds).
+  shutdown-timeout-seconds: 30
   # Type can be "SQLITE" or "MYSQL"
   type: "SQLITE"
   

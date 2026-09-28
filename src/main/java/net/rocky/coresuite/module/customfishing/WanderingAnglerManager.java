@@ -326,6 +326,7 @@ implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         Villager trader;
         PersistentDataContainer pdc;
         Entity entity = event.getRightClicked();
@@ -359,6 +360,8 @@ implements Listener {
                 this.plugin.getLogger().log(Level.SEVERE, "Failed to load fish logbook for NPC", e);
             }
             Bukkit.getScheduler().runTask((Plugin)this.plugin, () -> {
+                if (!player.isOnline() || !trader.isValid() || !trader.getUniqueId().equals(activeAnglerUuid)
+                        || !player.getWorld().equals(trader.getWorld()) || player.getLocation().distanceSquared(trader.getLocation()) > 64) return;
                 Gui gui = new Gui("&0Wandering Angler", 3);
                 gui.fillBorder(Material.BLACK_STAINED_GLASS_PANE);
                 PersistentDataContainer pdc = trader.getPersistentDataContainer();
@@ -381,6 +384,12 @@ implements Listener {
                     lore.add("&7price for any &b" + uncoloredName + "&7 you have!");
                     lore.add("");
                     lore.add("&aClick here to sell 1x " + uncoloredName);
+                    lore.add("&7Uses inventory first, then your fish bag.");
+                    ItemStack[] bagItems = module.getFishBagManager().getBag(player.getUniqueId());
+                    int inBag = 0;
+                    if (bagItems != null) for (ItemStack fish : bagItems)
+                        if (matchesFish(fish, uncoloredName)) inBag += fish.getAmount();
+                    lore.add(bagItems == null ? "&eFish bag is still loading." : "&bIn fish bag: " + inBag);
                     try {
                         mat = Material.valueOf((String)sec.getString("material", "COD").toUpperCase());
                     }
@@ -427,40 +436,63 @@ implements Listener {
                             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
                             return;
                         }
-                        boolean sold = false;
-                        for (int slot = 0; slot < player.getInventory().getSize(); ++slot) {
-                            String spName;
-                            NamespacedKey spKey;
-                            
-                            PersistentDataContainer itemPdc;
-                            ItemStack item2 = player.getInventory().getItem(slot);
-                            ItemMeta mLocal;
-                            if (item2 == null || !item2.hasItemMeta() || !(itemPdc = (mLocal = item2.getItemMeta()).getPersistentDataContainer()).has(spKey = new NamespacedKey((Plugin)this.plugin, "fish_species"), PersistentDataType.STRING) || !targetStrippedName.equals(spName = (String)itemPdc.get(spKey, PersistentDataType.STRING))) continue;
-                            double w = (Double)itemPdc.getOrDefault(new NamespacedKey((Plugin)this.plugin, "fish_weight"), PersistentDataType.DOUBLE, 1.0);
-                            double price = (Double)itemPdc.getOrDefault(new NamespacedKey((Plugin)this.plugin, "fish_price"), PersistentDataType.DOUBLE, 1.0);
-                            double totalValue = w * price * 2.5;
-                            if (item2.getAmount() <= 1) {
-                                player.getInventory().setItem(slot, null);
-                            } else {
-                                item2.setAmount(item2.getAmount() - 1);
-                                
-                            }
-                            this.plugin.getEconomyManager().deposit((OfflinePlayer)player, totalValue);
-                            TextUtil.sendMessage((CommandSender)player, "&aSold 1x " + coloredName + " &ato the Angler for &d" + this.plugin.getEconomyManager().format(totalValue) + "&a!");
-                            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
-                            sold = true;
-                            break;
+                        if (!trader.isValid() || !trader.getUniqueId().equals(activeAnglerUuid)
+                                || !player.getWorld().equals(trader.getWorld())
+                                || player.getLocation().distanceSquared(trader.getLocation()) > 64) {
+                            TextUtil.sendMessage(player, "&cThe Angler is no longer nearby.");
+                            player.closeInventory();
+                            return;
                         }
-                        if (!sold) {
-                            TextUtil.sendMessage((CommandSender)player, "&cYou don't have any " + coloredName + " &cin your inventory!");
-                            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
-                        }
+                        sellFish(player, targetStrippedName, coloredName);
                     });
                 }
                 gui.open(player);
                 player.playSound(player.getLocation(), Sound.ENTITY_WANDERING_TRADER_TRADE, 1.0f, 1.0f);
             });
         });
+    }
+
+    private boolean matchesFish(ItemStack fish, String species) {
+        if (fish == null || fish.getAmount() <= 0 || !fish.hasItemMeta()) return false;
+        String stored = fish.getItemMeta().getPersistentDataContainer().get(module.getSpeciesKey(), PersistentDataType.STRING);
+        return species.equalsIgnoreCase(stored);
+    }
+
+    private void sellFish(Player player, String species, String displayName) {
+        ItemStack[] bag = module.getFishBagManager().getBag(player.getUniqueId());
+        for (int source = 0; source < 2; source++) {
+            int size = source == 0 ? player.getInventory().getStorageContents().length : bag == null ? 0 : bag.length;
+            for (int slot = 0; slot < size; slot++) {
+                ItemStack fish = source == 0 ? player.getInventory().getItem(slot) : bag[slot];
+                if (!matchesFish(fish, species)) continue;
+                var data = fish.getItemMeta().getPersistentDataContainer();
+                double weight = data.getOrDefault(new NamespacedKey(plugin, "fish_weight"), PersistentDataType.DOUBLE, 1.0);
+                double price = data.getOrDefault(new NamespacedKey(plugin, "fish_price"), PersistentDataType.DOUBLE, 1.0);
+                double value = weight * price * 2.5;
+                if (!Double.isFinite(value) || value <= 0 || weight <= 0 || price <= 0) {
+                    TextUtil.sendMessage(player, "&cThis fish has invalid pricing data. Nothing was sold.");
+                    return;
+                }
+                if (!plugin.getEconomyManager().deposit(player, value)) {
+                    TextUtil.sendMessage(player, "&cPayment failed. Your fish was kept; please try again later.");
+                    return;
+                }
+                ItemStack remaining = fish.getAmount() == 1 ? null : fish.clone();
+                if (remaining != null) remaining.setAmount(fish.getAmount() - 1);
+                if (source == 0) player.getInventory().setItem(slot, remaining);
+                else {
+                    bag[slot] = remaining;
+                    module.getFishBagManager().updateBag(player.getUniqueId(), bag);
+                    module.getFishBagManager().saveBag(player.getUniqueId());
+                }
+                TextUtil.sendMessage(player, "&aSold 1x " + displayName + " &afrom your "
+                        + (source == 0 ? "inventory" : "fish bag") + " for &d" + plugin.getEconomyManager().format(value) + "&a!");
+                player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1, 1);
+                return;
+            }
+        }
+        TextUtil.sendMessage(player, bag == null ? "&eYour fish bag is still loading. Please try again shortly."
+                : "&cYou don't have any " + displayName + " &cin your inventory or fish bag.");
     }
 }
 

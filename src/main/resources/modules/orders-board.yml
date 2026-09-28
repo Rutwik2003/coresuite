@@ -3,7 +3,8 @@ npc-id: -1
 posting-fee-percent: 5
 expiry-fee-percent: 10
 max-orders-per-player: 3
-max-order-value: 500000
+# 0 disables the maximum; the buyer must still afford payout plus posting fee.
+max-order-value: 0
 min-order-value: 1000
 expiry-hours: 72
 

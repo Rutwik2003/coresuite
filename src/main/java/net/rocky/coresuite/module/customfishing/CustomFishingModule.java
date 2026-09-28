@@ -360,6 +360,10 @@ TabCompleter {
         if (this.fishBagManager != null) this.fishBagManager.shutdown();
         this.dataSessions.clear();
         this.playerData.clear();
+        this.lastFishTime.clear();
+        this.fishStreak.clear();
+        this.actionbarOverride.clear();
+        this.chunkCatches.clear();
     }
 
     private void initDatabase() {
@@ -628,10 +632,9 @@ TabCompleter {
                 int page = holder.page;
                 if (slot == 45 && page > 0) fishBagManager.openBag(player, pages, page - 1);
                 else if (slot == 53 && page + 1 < pages) fishBagManager.openBag(player, pages, page + 1);
-                else if (slot == 47 || slot == 51) {
-                    player.closeInventory();
-                    fishBagManager.sortBag(player.getUniqueId(), this, slot == 47);
-                    fishBagManager.openBag(player, pages, page);
+                else if (slot == 46 || slot == 47 || slot == 51) {
+                    fishBagManager.sortOpenBag(player, this, slot == 46 ? FishBagManager.SortMode.SPECIES
+                            : slot == 47 ? FishBagManager.SortMode.RARITY : FishBagManager.SortMode.WEIGHT, pages);
                 } else if (slot == 48 && pages < 10) player.performCommand("fish buybag");
                 else if (slot == 49) player.performCommand("fish");
             });

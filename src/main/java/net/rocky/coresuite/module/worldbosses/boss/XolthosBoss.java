@@ -472,7 +472,7 @@ public class XolthosBoss extends WorldBoss {
         if (BorealisBoss.resistsCounter(config.getDouble("xolthos.weakness.night-vision-resist-chance", 50))) {
             // Shared by all throwers: a second potion cannot immediately reroll a failed attempt.
             stunRecoveryUntil = now + 10000L;
-            if (barManager != null) broadcastToDomain("&5NIGHT VISION DEFLECTED! &fXol'thos resists further attempts for 10 seconds!");
+            if (barManager != null) broadcastToDomain("&5THE SHADOW HOLDS! &fThe widow recoils into the darkness.");
             return false;
         }
         seconds = Math.max(1, Math.min(12, seconds));
@@ -492,8 +492,8 @@ public class XolthosBoss extends WorldBoss {
                 loc.getWorld().spawnParticle(Particle.GLOW, loc, 30, 0.5, 0.5, 0.5, 0.1);
             } catch (Throwable ignored) {}
             for (Player p : barManager.getViewers()) {
-                TextUtil.sendTitle(p, "&d&l✦ BLINDED BY SIGHT! ✦", "&fXol'thos stunned & vulnerable (+50% DMG) for " + seconds + "s!", 5, 35, 10);
-                sendCombatAlert(p, StatusBadge.STUNNED, "&dBlinded by Sight! Vulnerable (+50% DMG) (" + seconds + "s)", seconds);
+                TextUtil.sendTitle(p, "&d&l✦ BLINDED BY SIGHT! ✦", "&fThe widow reels as her shadows scatter!", 5, 35, 10);
+                sendCombatAlert(p, StatusBadge.STUNNED, "&dThe widow's dance falters!", seconds);
             }
         }
         return true;
@@ -522,7 +522,7 @@ public class XolthosBoss extends WorldBoss {
             Location loc = entity.getLocation();
             loc.getWorld().spawnParticle(Particle.PORTAL, loc.add(0, 0.5, 0), 20, 0.3, 0.3, 0.3, 0.1);
             loc.getWorld().playSound(loc, Sound.ENTITY_ENDERMAN_TELEPORT, 1.2f, 1.5f);
-            TextUtil.sendActionBar(player, "&5&l✦ SHADOW PHASE &7— use Splash Night Vision to reveal Xol'thos!");
+            TextUtil.sendActionBar(player, "&5&l✦ SHADOW PHASE &7— The widow vanishes into the dark!");
             return originalDamage * .35;
         }
 

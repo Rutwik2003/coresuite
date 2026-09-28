@@ -8,6 +8,7 @@ description: A professional, modular multi-purpose plugin by Rocky_Rutwik
 website: ''
 
 softdepend:
+  - Maintenance
   - Vault
   - Citizens
   - SkinsRestorer

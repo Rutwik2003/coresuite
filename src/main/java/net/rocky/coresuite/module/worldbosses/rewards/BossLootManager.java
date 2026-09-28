@@ -100,6 +100,10 @@ public class BossLootManager {
                 if (i < 3) {
                     addTier(lootSec.getConfigurationSection(i == 0 ? "rank-1" : "rank-2-3"), shardId, false, items, rewards, multiplier);
                 }
+                if (i == 0) {
+                    for (String command : lootSec.getStringList("rank-1.extra-key-commands"))
+                        if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
+                }
                 int shardTotal = items.stream().mapToInt(ItemStack::getAmount).sum();
                 items.clear();
                 int cappedShards = BossRewardBalance.cappedShards(shardTotal, i);

@@ -76,7 +76,7 @@ public class BossPortalManager implements Listener {
     private final Set<UUID> enteredPlayers = ConcurrentHashMap.newKeySet();
 
     public boolean canEnterWindow(UUID player, long now) {
-        return portalsActive && (entryClosesAt == 0 || now < entryClosesAt || enteredPlayers.contains(player));
+        return portalsActive && (module == null || !module.isPreparingTerrain()) && (entryClosesAt == 0 || now < entryClosesAt || enteredPlayers.contains(player));
     }
 
     /** Wall-clock deadlines also recover correctly after an empty server resumes ticking. */
@@ -89,6 +89,7 @@ public class BossPortalManager implements Listener {
         if (forming && now >= formingEndsAt) finishForming();
         if (!portalsActive) return;
         if (!module.isBossActive()) {
+            if (module.isPreparingTerrain()) return;
             endWithoutVictory();
             return;
         }
@@ -818,6 +819,10 @@ public class BossPortalManager implements Listener {
             return;
         }
 
+        if (module != null && module.isPreparingTerrain()) {
+            TextUtil.sendMessage(player, "&eThe arena terrain is still preparing. Please try again shortly.");
+            return;
+        }
         // Five-block sphere: being far above/below a rift must not grant entry.
         if (!canEnterWindow(uuid, System.currentTimeMillis())) {
             TextUtil.sendMessage(player, "&cThe 15-minute entry window has closed. Only existing fighters may re-enter.");

@@ -49,4 +49,31 @@ class ConfigUpdaterTest {
             }
         }
     }
+    @Test void extendedPlaytimeMilestonesMergeWithoutChangingCustomRewards() throws Exception {
+        var defaults = new YamlConfiguration();
+        defaults.load(Path.of("src/main/resources/modules/playtime-rewards.yml").toFile());
+        var current = new YamlConfiguration();
+        current.set("rewards.reward_300h.money", 123);
+        current.set("rewards.reward_350h.commands", java.util.List.of("say custom"));
+        assertTrue(ConfigUpdater.merge(current, defaults));
+        assertEquals(123,current.getInt("rewards.reward_300h.money"));
+        assertEquals(java.util.List.of("say custom"),current.getStringList("rewards.reward_350h.commands"));
+        assertEquals(7200000,current.getInt("rewards.reward_2000h.required-seconds"));
+        assertFalse(ConfigUpdater.merge(current,defaults));
+    }
+
+
+    @Test void mvpExtraKeysMergeForEveryBossWithoutReplacingConfiguredCommands() throws Exception {
+        var defaults = new YamlConfiguration(); defaults.load(Path.of("src/main/resources/modules/world-bosses.yml").toFile());
+        var config = new YamlConfiguration();
+        config.set("valerius.loot.rank-1.commands", java.util.List.of("custom command"));
+        assertTrue(ConfigUpdater.merge(config, defaults));
+        for (String boss : java.util.List.of("valerius", "aethelgard", "xolthos", "borealis"))
+            assertEquals(java.util.List.of("crates key give %player% Common 1", "crates key give %player% Uncommon 1", "crates key give %player% Rare 1"),
+                    config.getStringList(boss + ".loot.rank-1.extra-key-commands"));
+        assertEquals(java.util.List.of("custom command"), config.getStringList("valerius.loot.rank-1.commands"));
+        config.set("valerius.loot.rank-1.extra-key-commands", java.util.List.of());
+        ConfigUpdater.merge(config, defaults);
+        assertTrue(config.getStringList("valerius.loot.rank-1.extra-key-commands").isEmpty());
+    }
 }
