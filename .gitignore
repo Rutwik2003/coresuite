@@ -46,6 +46,7 @@ TEST_READY.md
 
 # Private server snapshots, historical patch scripts and local audit backups
 /.local/
+/My server plugins/
 *.db-shm
 *.db-wal
 *.tar.gz

@@ -2,7 +2,16 @@
 # Public repository: no GitHub token belongs on the Minecraft server.
 repository: "Rutwik2003/meermc-resourcepack"
 check-interval-seconds: 300
-required: false
+delivery-policy-version: 1
+# Java players must accept and successfully load the pack to remain connected.
+# Older optional configs migrate once; you can deliberately set false afterwards.
+required: true
+# Includes waiting for a verified release and client download/application (30-900 seconds).
+load-timeout-seconds: 180
+# Geyser-Spigot: adds the GitHub Bedrock audio overlay alongside existing fish textures.
+# Updated audio applies when Bedrock players reconnect; Geyser enforces its own required-pack setting.
+bedrock-audio:
+  enabled: true
 # False: existing players receive updates on reconnect (avoids reloads during boss fights).
 update-online-players: false
-prompt: "Download MeerMC's boss music and custom textures?"
+prompt: "MeerMC requires this pack for boss music and custom textures. Accept to play."

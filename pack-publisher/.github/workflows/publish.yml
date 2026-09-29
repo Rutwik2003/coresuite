@@ -24,6 +24,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           VERSION: pack-${{ github.run_number }}-${{ github.run_attempt }}
         run: python scripts/build_pack.py --repository "$REPOSITORY" --version "$VERSION"
+      - name: Build Bedrock audio
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: pack-${{ github.run_number }}-${{ github.run_attempt }}
+          BEDROCK_VERSION: 1.${{ github.run_number }}.${{ github.run_attempt }}
+        run: python scripts/build_bedrock_audio.py --repository "$REPOSITORY" --release "$VERSION" --version "$BEDROCK_VERSION"
       - name: Publish complete release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,5 +37,5 @@ jobs:
           VERSION: pack-${{ github.run_number }}-${{ github.run_attempt }}
         run: |
           gh release create "$VERSION" --target "$GITHUB_SHA" --draft --title "MeerMC pack $VERSION" --notes "Automatically built and validated resource pack."
-          gh release upload "$VERSION" dist/meermc-pack.zip dist/manifest.properties
+          gh release upload "$VERSION" dist/meermc-pack.zip dist/manifest.properties dist/meermc-bedrock-audio.mcpack dist/bedrock-manifest.properties
           gh release edit "$VERSION" --draft=false --latest

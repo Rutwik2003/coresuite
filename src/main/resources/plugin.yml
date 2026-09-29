@@ -8,6 +8,8 @@ description: A professional, modular multi-purpose plugin by Rocky_Rutwik
 website: ''
 
 softdepend:
+  - Geyser-Spigot
+  - floodgate
   - Maintenance
   - Vault
   - Citizens

@@ -21,7 +21,15 @@ public final class ConfigUpdater {
             if (present) {
                 try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) { existing.load(reader); }
             }
-            boolean changed = merge(existing, defaults);
+            boolean changed = false;
+            // The original delivery policy made the pack optional and treated an offer as success.
+            // Upgrade once; subsequent explicit administrator choices remain intact.
+            if (resource.equals("modules/resource-pack.yml") && existing.getInt("delivery-policy-version", 0) < 1) {
+                existing.set("required", true);
+                existing.set("delivery-policy-version", 1);
+                changed = true;
+            }
+            changed |= merge(existing, defaults);
             if (!present || changed) {
                 Files.createDirectories(file.getParent());
                 Path backup = null;

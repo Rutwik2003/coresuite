@@ -9,6 +9,16 @@ import java.util.zip.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PackManifestTest {
+    @Test void bedrockManifestUsesItsOwnArtifactAndRootMetadata() throws Exception {
+        byte[] data=zip("manifest.json");
+        byte[] manifest=manifest(data,"https://github.com/owner/pack/releases/download/v1/meermc-bedrock-audio.mcpack");
+        var pack=PackManifest.parse(manifest,"owner/pack","meermc-bedrock-audio.mcpack");
+        pack.verify(data,"manifest.json");
+        assertThrows(IOException.class,()->PackManifest.parse(manifest,"owner/pack"));
+        assertThrows(IOException.class,()->pack.verify(data));
+        data[10]^=1;
+        assertThrows(IOException.class,()->pack.verify(data,"manifest.json"));
+    }
     private byte[] manifest(byte[] zip, String url) throws Exception {
         return ("version=pack-1\nurl=" + url + "\nsha1=" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(zip))
             + "\nsize=" + zip.length + "\n").getBytes(StandardCharsets.UTF_8);

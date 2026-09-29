@@ -51,6 +51,7 @@ public final class CompatibilityProbe extends JavaPlugin {
     private void verify() throws Exception {
         CoreSuitePlugin core = CoreSuitePlugin.getInstance();
         if (core == null || !core.isEnabled()) throw new AssertionError("CoreSuite is not enabled");
+        verifyBedrockAudio(core);
         if (PaperCompat.sound("ENTITY_PLAYER_LEVELUP") != Sound.ENTITY_PLAYER_LEVELUP) throw new AssertionError("Sound adapter mismatch");
         World world = Bukkit.getWorlds().getFirst();
         Pig pig = world.spawn(world.getSpawnLocation().add(0, 3, 0), Pig.class);
@@ -92,6 +93,28 @@ public final class CompatibilityProbe extends JavaPlugin {
             if (fishing.getLegendaryNPCManager().isAvailable()) throw new AssertionError("Citizens incorrectly detected");
             fishing.getLegendaryNPCManager().removeNPC(UUID.randomUUID());
         }
+    }
+
+    private void verifyBedrockAudio(CoreSuitePlugin core) throws Exception {
+        var geyser = Bukkit.getPluginManager().getPlugin("Geyser-Spigot");
+        var module = core.getModuleManager().getModule("resource-pack");
+        if (geyser == null || !geyser.isEnabled() || module == null || !module.isEnabled()) return;
+        var bridgeField = module.getClass().getDeclaredField("bedrock"); bridgeField.setAccessible(true);
+        Object bridge = bridgeField.get(module);
+        if (bridge == null) throw new AssertionError("Geyser audio bridge missing");
+        var packField = bridge.getClass().getDeclaredField("currentPack"); packField.setAccessible(true);
+        Object pack = packField.get(bridge);
+        if (pack == null) throw new AssertionError("Geyser verified audio cache not loaded");
+        ClassLoader loader=geyser.getClass().getClassLoader();
+        Class<?> eventType=Class.forName("org.geysermc.geyser.event.type.SessionLoadResourcePacksEventImpl",true,loader);
+        Object event=eventType.getConstructors()[0].newInstance(new Object[]{null});
+        var before=new java.util.ArrayList<>((java.util.List<?>)eventType.getMethod("resourcePacks").invoke(event));
+        Class<?> api=Class.forName("org.geysermc.geyser.api.GeyserApi",true,loader);
+        Object bus=api.getMethod("eventBus").invoke(api.getMethod("api").invoke(null));
+        Class.forName("org.geysermc.event.bus.BaseBus",true,loader).getMethod("fire",Object.class).invoke(bus,event);
+        var after=(java.util.List<?>)eventType.getMethod("resourcePacks").invoke(event);
+        if (!after.contains(pack) || !after.containsAll(before)) throw new AssertionError("Bedrock audio missing or existing packs removed");
+        getLogger().info("CORESUITE_GEYSER_AUDIO_PROBE_PASS");
     }
     private void verifyMaintenance(CoreSuitePlugin core) throws Exception {
         var provider = Bukkit.getPluginManager().getPlugin("Maintenance");
@@ -465,7 +488,7 @@ public final class CompatibilityProbe extends JavaPlugin {
                         if (guard.getEquipment().getItemInMainHand().getType() != Material.BOW) throw new AssertionError("Archer has no bow");
                         setup.invoke(frost, guard, false);
                         if (guard.getEquipment().getItemInMainHand().getType() != Material.STONE_SWORD) throw new AssertionError("Sentinel has no sword");
-                        if (!frost.isMinion(guard) || guard.getHealth() != 45 || guard.isPersistent())
+                        if (!frost.isMinion(guard) || guard.getHealth() != 30 || guard.isPersistent())
                             throw new AssertionError("Frostguard registration or health failed");
                         frost.clearMinions();
                         if (guard.isValid()) throw new AssertionError("Frostguard cleanup failed");

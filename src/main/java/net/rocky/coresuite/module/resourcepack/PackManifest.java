@@ -10,6 +10,10 @@ import java.util.zip.ZipInputStream;
 /** Small public manifest; pack URLs must belong to the configured GitHub repository. */
 public record PackManifest(String version, URI url, String sha1, int size) {
     public static PackManifest parse(byte[] bytes, String repository) throws IOException {
+        return parse(bytes, repository, "meermc-pack.zip");
+    }
+
+    static PackManifest parse(byte[] bytes, String repository, String artifact) throws IOException {
         if (!repository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")) throw new IOException("Invalid repository");
         Properties p = new Properties();
         p.load(new StringReader(new String(bytes, StandardCharsets.UTF_8)));
@@ -23,13 +27,17 @@ public record PackManifest(String version, URI url, String sha1, int size) {
                     || !"https".equals(url.getScheme()) || !"github.com".equals(url.getHost())
                     || url.getUserInfo() != null || url.getPort() != -1 || url.getQuery() != null || url.getFragment() != null
                     || !url.getPath().startsWith("/" + repository + "/releases/download/")
-                    || !url.getPath().endsWith("/meermc-pack.zip") || url.getPath().contains(".."))
+                    || !url.getPath().endsWith("/" + artifact) || url.getPath().contains(".."))
                 throw new IOException("Invalid pack manifest fields");
             return new PackManifest(version, url, hash, size);
         } catch (IllegalArgumentException ex) { throw new IOException("Invalid pack manifest", ex); }
     }
 
     public void verify(byte[] zip) throws Exception {
+        verify(zip, "pack.mcmeta");
+    }
+
+    void verify(byte[] zip, String rootMetadata) throws Exception {
         if (zip.length != size || !HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(zip)).equals(sha1))
             throw new IOException("Pack size or SHA-1 mismatch");
         boolean metadata = false;
@@ -37,7 +45,7 @@ public record PackManifest(String version, URI url, String sha1, int size) {
             long expanded = 0;
             byte[] buffer = new byte[8192];
             for (var entry = input.getNextEntry(); entry != null; entry = input.getNextEntry()) {
-                if (entry.getName().equals("pack.mcmeta")) metadata = true;
+                if (entry.getName().equals(rootMetadata)) metadata = true;
                 int read;
                 while ((read = input.read(buffer)) != -1) {
                     expanded += read;
@@ -45,7 +53,7 @@ public record PackManifest(String version, URI url, String sha1, int size) {
                 }
             }
         }
-        if (!metadata) throw new IOException("ZIP has no root pack.mcmeta");
+        if (!metadata) throw new IOException("ZIP has no root " + rootMetadata);
     }
 
     static byte[] download(URI uri, int limit) throws IOException {
@@ -56,7 +64,7 @@ public record PackManifest(String version, URI url, String sha1, int size) {
                     || !("github.com".equals(host) || "release-assets.githubusercontent.com".equals(host)
                     || "objects.githubusercontent.com".equals(host))) throw new IOException("Untrusted download redirect");
             HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
-            connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
+            connection.setConnectTimeout(20000); connection.setReadTimeout(15000);
             connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("User-Agent", "CoreSuite-ResourcePack/1.0");
             connection.setRequestProperty("Cache-Control", "no-cache");

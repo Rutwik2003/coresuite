@@ -9,6 +9,17 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class ConfigUpdaterTest {
+    @Test void resourcePackPolicyMigratesOnceAndPreservesOtherSettings() throws Exception {
+        Path file=directory.resolve("modules/resource-pack.yml");Files.createDirectories(file.getParent());
+        Files.writeString(file,"required: false\nrepository: owner/custom\nupdate-online-players: false\n");
+        var plugin=plugin("delivery-policy-version: 1\nrequired: true\nload-timeout-seconds: 180\nrepository: default/repo\n");
+        var config=ConfigUpdater.load(plugin,"modules/resource-pack.yml");
+        assertTrue(config.getBoolean("required"));assertEquals("owner/custom",config.getString("repository"));
+        assertEquals(180,config.getInt("load-timeout-seconds"));assertFalse(config.getBoolean("update-online-players"));
+        config.set("required",false);config.save(file.toFile());
+        assertFalse(ConfigUpdater.load(plugin,"modules/resource-pack.yml").getBoolean("required"));
+        try(var files=Files.list(file.getParent())) { assertEquals(1,files.filter(p->p.toString().endsWith(".bak")).count()); }
+    }
     @TempDir Path directory;
     private JavaPlugin plugin(String defaults) {
         var plugin = mock(JavaPlugin.class);
