@@ -9,6 +9,38 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 class ConfigUpdaterTest {
+    @Test void bossMigrationBacksUpOriginalAndPersistsOnce() throws Exception {
+        Path file = directory.resolve("modules/world-bosses.yml"); Files.createDirectories(file.getParent());
+        String original = "valerius:\n  loot:\n    participation:\n      currency: 20000\n";
+        Files.writeString(file, original);
+        String defaults = Files.readString(Path.of("src/main/resources/modules/world-bosses.yml"));
+        var config = ConfigUpdater.load(plugin(defaults), "modules/world-bosses.yml");
+        assertEquals(55000, config.getInt("valerius.loot.participation.currency"));
+        ConfigUpdater.load(plugin(defaults), "modules/world-bosses.yml");
+        try (var files = Files.list(file.getParent())) {
+            var backups = files.filter(p -> p.toString().endsWith(".bak")).toList();
+            assertEquals(1, backups.size()); assertEquals(original, Files.readString(backups.getFirst()));
+        }
+    }
+
+    @Test void bossLootMigrationUpdatesStockPreservesCustomAndOnlyRunsOnce() throws Exception {
+        var defaults = new YamlConfiguration();
+        defaults.load(Path.of("src/main/resources/modules/world-bosses.yml").toFile());
+        var target = new YamlConfiguration();
+        target.set("valerius.loot.participation.currency", 20000);
+        target.set("valerius.loot.rank-2-3.currency", 123456);
+        target.set("valerius.loot.rank-2-3.commands", java.util.List.of("custom reward"));
+        assertTrue(net.rocky.coresuite.module.worldbosses.rewards.BossLootMigration.upgrade(target, defaults));
+        mergeForTest(target, defaults);
+        assertEquals(55000, target.getInt("valerius.loot.participation.currency"));
+        assertEquals(123456, target.getInt("valerius.loot.rank-2.currency"));
+        assertEquals(java.util.List.of("custom reward"), target.getStringList("valerius.loot.rank-3.commands"));
+        target.set("valerius.loot.participation.currency", 20000);
+        assertFalse(net.rocky.coresuite.module.worldbosses.rewards.BossLootMigration.upgrade(target, defaults));
+        assertEquals(20000, target.getInt("valerius.loot.participation.currency"));
+    }
+    private void mergeForTest(YamlConfiguration target, YamlConfiguration defaults) { ConfigUpdater.merge(target, defaults); }
+
     @Test void resourcePackPolicyMigratesOnceAndPreservesOtherSettings() throws Exception {
         Path file=directory.resolve("modules/resource-pack.yml");Files.createDirectories(file.getParent());
         Files.writeString(file,"required: false\nrepository: owner/custom\nupdate-online-players: false\n");

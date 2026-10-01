@@ -29,6 +29,8 @@ public final class ConfigUpdater {
                 existing.set("delivery-policy-version", 1);
                 changed = true;
             }
+            if (resource.equals("modules/world-bosses.yml"))
+                changed |= net.rocky.coresuite.module.worldbosses.rewards.BossLootMigration.upgrade(existing, defaults);
             changed |= merge(existing, defaults);
             if (!present || changed) {
                 Files.createDirectories(file.getParent());

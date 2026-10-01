@@ -10,8 +10,38 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class BorealisBossTest {
+    @Test void thermalShockStopsAiAndRestoresItAfterConfiguredWindow() throws Exception {
+        var config = new YamlConfiguration();
+        config.set("borealis.weakness.fire-resistance-resist-chance", 0);
+        config.set("borealis.weakness.thermal-shock-duration-seconds", 3);
+        config.set("borealis.weakness.cooldown-seconds", 30);
+        var boss = new BorealisBoss(null, config, null);
+        boss.active = true; boss.isAwakened = true;
+        boss.barManager = mock(BossBarManager.class);
+        when(boss.barManager.getViewers()).thenReturn(Set.of());
+        var entity = mock(LivingEntity.class);
+        var world = mock(org.bukkit.World.class);
+        when(entity.isValid()).thenReturn(true);
+        when(entity.getWorld()).thenReturn(world);
+        when(entity.getLocation()).thenAnswer(call -> new org.bukkit.Location(world, 0, 64, 0));
+        boss.entity = entity;
+        long start = System.currentTimeMillis();
+        assertTrue(boss.applyThermalShock());
+        verify(entity).setAI(false);
+        var exposed = BorealisBoss.class.getDeclaredField("exposedUntil"); exposed.setAccessible(true);
+        assertTrue(exposed.getLong(boss) >= start + 3000 && exposed.getLong(boss) < start + 4000);
+        var ready = BorealisBoss.class.getDeclaredField("fireReadyAt"); ready.setAccessible(true);
+        assertTrue(ready.getLong(boss) >= start + 30000);
+        exposed.setLong(boss, 0);
+        boss.refreshThermalShockAi();
+        verify(entity).setAI(true);
+        assertFalse(boss.applyThermalShock());
+    }
+
     @Test void thermalShockIsReliableAndCannotBeExtended() throws Exception {
-        var boss = new BorealisBoss(null, new YamlConfiguration(), null);
+        var config = new YamlConfiguration();
+        config.set("borealis.weakness.fire-resistance-resist-chance", 0);
+        var boss = new BorealisBoss(null, config, null);
         boss.active = true; boss.isAwakened = true;
         boss.barManager = mock(BossBarManager.class);
         when(boss.barManager.getViewers()).thenReturn(Set.of());
@@ -28,6 +58,16 @@ class BorealisBossTest {
         var exposed = BorealisBoss.class.getDeclaredField("exposedUntil"); exposed.setAccessible(true); exposed.setLong(boss, 0);
         assertEquals(5, boss.calculateIncomingDamage(null, 10, sword));
         assertFalse(boss.applyThermalShock(), "Recovery continues after the six-second window");
+    }
+
+    @Test void thermalShockCanBeDeflectedByFrost() {
+        var config = new YamlConfiguration();
+        config.set("borealis.weakness.fire-resistance-resist-chance", 100);
+        var boss = new BorealisBoss(null, config, null);
+        boss.active = true; boss.isAwakened = true;
+        boss.barManager = mock(BossBarManager.class);
+        when(boss.barManager.getViewers()).thenReturn(Set.of());
+        assertFalse(boss.applyThermalShock(), "100% resist chance deflects thermal shock");
     }
 
     @Test void novaHitsInsideButRespectsDodgeSpectatorAndDomain() throws Exception {
@@ -88,7 +128,7 @@ class BorealisBossTest {
         assertFalse(BorealisBoss.usesBow(3, 0));
         assertEquals(0, BorealisBoss.minionCap(1));
         assertEquals(4, BorealisBoss.minionCap(2));
-        assertEquals(2, BorealisBoss.minionCap(3));
+        assertEquals(0, BorealisBoss.minionCap(3));
     }
     @Test void everyShovelGetsBonusOnlyInsideThermalWindow() throws Exception {
         var boss = new BorealisBoss(null, new YamlConfiguration(), null);

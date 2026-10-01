@@ -1708,6 +1708,24 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
                     TextUtil.sendMessage(sender, "&aWorldBosses configuration and scheduler reloaded successfully!");
                     return true;
                 }
+                case "tp", "teleport", "forceenter" -> {
+                    if (args.length < 2) {
+                        TextUtil.sendMessage(sender, "&cUsage: /bossadmin tp <player>");
+                        return true;
+                    }
+                    Player target = Bukkit.getPlayerExact(args[1]);
+                    if (target == null) target = Bukkit.getPlayer(args[1]);
+                    if (target == null || !target.isOnline()) {
+                        TextUtil.sendMessage(sender, "&cPlayer '" + args[1] + "' is not online.");
+                        return true;
+                    }
+                    if (portalManager != null) {
+                        portalManager.adminTeleportPlayer(target, sender);
+                    } else {
+                        TextUtil.sendMessage(sender, "&cPortal manager is offline. Cannot teleport player.");
+                    }
+                    return true;
+                }
                 case "giveshop" -> {
                     if (args.length < 2 || args.length > 3) {
                         TextUtil.sendMessage(sender, "&cUsage: /bossadmin giveshop <item> [player]");
@@ -1840,6 +1858,7 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         TextUtil.sendMessage(sender, "  &e/bossadmin setnpc <npc-id> &8- &7Set Garrick exchange NPC ID");
         TextUtil.sendMessage(sender, "  &e/bossadmin forcenext &8- &7Trigger next scheduled boss immediately");
         TextUtil.sendMessage(sender, "  &e/bossadmin skiptime <30m|1hr|1h30m> &8- &7Reduce the next boss countdown");
+        TextUtil.sendMessage(sender, "  &e/bossadmin tp <player> &8- &7Force-teleport player into arena ($50k deducted)");
         TextUtil.sendMessage(sender, "  &e/bossadmin reload &8- &7Reload world-bosses.yml");
         TextUtil.sendMessage(sender, "&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
@@ -1933,9 +1952,14 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
             if (!sender.hasPermission("coresuite.boss.admin") && !sender.isOp()) return completions;
 
             if (args.length == 1) {
-                for (String s : Arrays.asList("spawn", "awaken", "kill", "despawn", "clearall", "purge", "reload", "summonitem", "giveshop", "setnpc", "forcenext", "skiptime", "help")) {
+                for (String s : Arrays.asList("spawn", "awaken", "kill", "despawn", "clearall", "purge", "reload", "summonitem", "giveshop", "setnpc", "forcenext", "skiptime", "tp", "help")) {
                     if (s.startsWith(args[0].toLowerCase())) completions.add(s);
                 }
+            } else if (args.length == 2 && (args[0].equalsIgnoreCase("tp") || args[0].equalsIgnoreCase("teleport") || args[0].equalsIgnoreCase("forceenter"))) {
+                for (Player player : Bukkit.getOnlinePlayers())
+                    if (!(sender instanceof Player viewer) || viewer.canSee(player))
+                        if (player.getName().toLowerCase(java.util.Locale.ROOT).startsWith(args[1].toLowerCase(java.util.Locale.ROOT)))
+                            completions.add(player.getName());
             } else if (args.length == 2 && args[0].equalsIgnoreCase("giveshop")) {
                 for (String item : SHOP_EQUIPMENT_IDS)
                     if (item.startsWith(args[1].toLowerCase(java.util.Locale.ROOT))) completions.add(item);

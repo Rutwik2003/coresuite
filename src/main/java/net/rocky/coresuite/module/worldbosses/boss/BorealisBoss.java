@@ -66,9 +66,14 @@ public final class BorealisBoss extends WorldBoss {
         return System.currentTimeMillis() >= exposedUntil;
     }
 
+    void refreshThermalShockAi() {
+        if (entity != null && entity.isValid()) entity.setAI(abilityCombatAllowed());
+    }
+
     @Override public void onCombatTick(long tick) {
         if (entity == null || !entity.isValid()) return;
 
+        refreshThermalShockAi();
         int phase = currentPhase == null ? 1 : currentPhase.getPhaseNumber();
         updateStance(phase, tick);
         updateDomainFrost();
@@ -76,9 +81,9 @@ public final class BorealisBoss extends WorldBoss {
         freezeRecovery.entrySet().removeIf(entry -> entry.getValue() <= System.currentTimeMillis());
         if (barManager.getViewers().stream().noneMatch(this::targetable)) return;
         phasePressure(tick, phase);
-        if (phase >= 2 && abilityReady(tick, "frostguard", 45)) {
+        if (phase == 2 && abilityReady(tick, "frostguard", 45)) {
             summonFrostguard(phase);
-            if (phase == 2 && siphonAt == Long.MAX_VALUE && liveMinionCount() > 0) siphonAt = tick + Math.max(10, config.getInt("borealis.combat.siphon.delay-seconds", 20));
+            if (siphonAt == Long.MAX_VALUE && liveMinionCount() > 0) siphonAt = tick + Math.max(10, config.getInt("borealis.combat.siphon.delay-seconds", 20));
         }
         if (phase == 2 && tick >= siphonAt) {
             siphonAt = Long.MAX_VALUE;
@@ -126,11 +131,32 @@ public final class BorealisBoss extends WorldBoss {
     public boolean applyThermalShock() {
         long now = System.currentTimeMillis();
         if (!active || !isAwakened || now < fireReadyAt) return false;
-        fireReadyAt = now + 20000;
-        exposedUntil = now + 6000;
+        double resistChance = config.getDouble("borealis.weakness.fire-resistance-resist-chance", 50.0);
+        if (resistsCounter(resistChance)) {
+            // Deflected by frost: 10s retry cooldown prevents potion spam
+            fireReadyAt = now + Math.max(1, Math.min(60, config.getInt("borealis.weakness.retry-cooldown-seconds", 10))) * 1000L;
+            broadcastToDomain("&bTHE FROST DEFLECTS THE FLAME! &fBorealis resists the thermal shock!");
+            if (entity != null && entity.isValid()) {
+                entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_GLASS_BREAK, 1.2f, 0.6f);
+                entity.getWorld().spawnParticle(Particle.SNOWFLAKE, entity.getLocation().add(0, 1.5, 0), 25, 0.5, 0.5, 0.5, 0.1);
+            }
+            return false;
+        }
+        int duration = Math.max(1, Math.min(12, config.getInt("borealis.weakness.thermal-shock-duration-seconds", 6)));
+        int cooldown = Math.max(duration + 5, Math.min(120, config.getInt("borealis.weakness.cooldown-seconds", 20)));
+        fireReadyAt = now + cooldown * 1000L;
+        exposedUntil = now + duration * 1000L;
+        if (entity != null && entity.isValid()) {
+            entity.setAI(false);
+            entity.setVelocity(new org.bukkit.util.Vector());
+        }
         interruptCasts();
         siphonAt = Long.MAX_VALUE;
-        broadcastToDomain("&6THERMAL SHOCK! &fSteam rises as cracks spread through the tyrant's icy shell!");
+        broadcastToDomain("&6THERMAL SHOCK! &fThe tyrant stands stunned as steam rises from his fractured shell!");
+        if (entity != null && entity.isValid()) {
+            entity.getWorld().playSound(entity.getLocation(), Sound.BLOCK_FIRE_EXTINGUISH, 1.5f, 0.7f);
+            entity.getWorld().spawnParticle(Particle.LAVA, entity.getLocation().add(0, 1.5, 0), 20, 0.4, 0.6, 0.4, 0.1);
+        }
         return true;
     }
 
@@ -228,7 +254,7 @@ public final class BorealisBoss extends WorldBoss {
         return phase == 1 || (phase == 2 && (tick / 12) % 2 == 0);
     }
 
-    static int minionCap(int phase) { return phase == 2 ? 4 : phase == 3 ? 2 : 0; }
+    static int minionCap(int phase) { return phase == 2 ? 4 : 0; }
 
     private void updateStance(int phase, long tick) {
         boolean bow = usesBow(phase, tick);
@@ -291,7 +317,6 @@ public final class BorealisBoss extends WorldBoss {
         if (phase == 3 && !bowBroken) {
             bowBroken = true;
             clearMinions();
-            summonFrostguard(3);
             siphonAt = Long.MAX_VALUE;
             entity.getEquipment().setItemInOffHand(null);
             applyAttributeSafely(entity, PaperCompat.MOVEMENT_SPEED, .36);

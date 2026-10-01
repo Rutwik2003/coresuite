@@ -132,6 +132,8 @@ public class BossPortalManager implements Listener {
     private final Map<UUID, Long> promptCooldowns = new ConcurrentHashMap<>();
     /** 15-second spawn protection immunity (UUID -> expiry timestamp) */
     private final Map<UUID, Long> spawnProtection = new ConcurrentHashMap<>();
+    /** Players explicitly admitted by an admin command (/bossadmin tp) */
+    private final Set<UUID> adminAdmittedPlayers = ConcurrentHashMap.newKeySet();
 
     // ── Particle Animation State ─────────────────────────────────────────────
     private double particleAngle = 0;
@@ -144,13 +146,27 @@ public class BossPortalManager implements Listener {
         loadReturnLocations();
     }
 
-    private boolean inArena(Location location) {
-        if (location == null || location.getWorld() == null) return false;
-        if (arenaOccupancy == null && config.getBoolean("arena.fixed-location.enabled", true)) {
-            World world = Bukkit.getWorld(config.getString("arena.fixed-location.world", "world"));
+    public Location getArenaCenter() {
+        if (arenaCenter != null) return arenaCenter.clone();
+        if (config.getBoolean("arena.fixed-location.enabled", true) && Bukkit.getServer() != null) {
+            String worldName = config.getString("arena.fixed-location.world", "world");
+            World world = Bukkit.getWorld(worldName);
             if (world != null) {
-                Location center = new Location(world, config.getDouble("arena.fixed-location.x", 49662),
-                        config.getDouble("arena.fixed-location.y", 205), config.getDouble("arena.fixed-location.z", 49528));
+                double x = config.getDouble("arena.fixed-location.x", 49662.0);
+                double y = config.getDouble("arena.fixed-location.y", 205.0);
+                double z = config.getDouble("arena.fixed-location.z", 49528.0);
+                arenaCenter = new Location(world, x, y, z);
+                return arenaCenter.clone();
+            }
+        }
+        return null;
+    }
+
+    public boolean inArena(Location location) {
+        if (location == null || location.getWorld() == null) return false;
+        if (arenaOccupancy == null) {
+            Location center = getArenaCenter();
+            if (center != null) {
                 arenaOccupancy = net.rocky.coresuite.common.integration.BossProtectionGate.arenaOccupancy(center,
                         Math.max(64, config.getDouble("domain.radius", 35) + config.getDouble("domain.spectator-distance", 16)));
             }
@@ -160,6 +176,7 @@ public class BossPortalManager implements Listener {
 
     private boolean admissionAllowed(Player player) {
         return internalTransfers.contains(player.getUniqueId()) || player.hasPermission("coresuite.boss.admin")
+                || adminAdmittedPlayers.contains(player.getUniqueId())
                 || (paidPlayers.contains(player.getUniqueId()) && (canEnterWindow(player.getUniqueId(), System.currentTimeMillis()) || exitPortal != null || exitSpawnTask != null));
     }
 
@@ -914,7 +931,69 @@ public class BossPortalManager implements Listener {
                 && player.distanceSquared(entrance) <= 25.0;
     }
 
+    /**
+     * Admin force-teleport: teleports a player inside the arena barrier, deducting the 50k fee.
+     * Bypasses distance to portals, portal formation, and closed portal entry windows.
+     */
+    public boolean adminTeleportPlayer(Player player, org.bukkit.command.CommandSender admin) {
+        if (player == null || !player.isOnline()) {
+            TextUtil.sendMessage(admin, "&cTarget player is not online.");
+            return false;
+        }
+        if (inArena(player.getLocation())) {
+            TextUtil.sendMessage(admin, "&c" + player.getName() + " is already inside the Boss Arena!");
+            return false;
+        }
+
+        double fee = config.getDouble("arena.portals.entry-fee", 50000.0);
+        net.rocky.coresuite.common.economy.EconomyManager eco = plugin != null ? plugin.getEconomyManager() : null;
+
+        boolean alreadyPaid = paidPlayers.contains(player.getUniqueId());
+        if (alreadyPaid) fee = 0;
+        if (fee > 0) {
+            if (eco == null || !eco.isAvailable()) {
+                TextUtil.sendMessage(admin, "&cEconomy provider is unavailable. Cannot deduct entry fee from " + player.getName() + ".");
+                return false;
+            }
+            double balance = eco.getBalance(player);
+            if (balance < fee) {
+                TextUtil.sendMessage(admin, "&c" + player.getName() + " has insufficient funds! Required: &e$"
+                        + String.format("%,.0f", fee) + " &c(Balance: &e$" + String.format("%,.0f", balance) + "&c).");
+                return false;
+            }
+            if (!eco.withdraw(player, fee)) {
+                TextUtil.sendMessage(admin, "&cFailed to deduct $" + String.format("%,.0f", fee) + " from " + player.getName() + ".");
+                return false;
+            }
+        }
+
+        Location prevLoc = player.getLocation().clone();
+        adminAdmittedPlayers.add(player.getUniqueId());
+        paidPlayers.add(player.getUniqueId());
+
+        if (!teleportToArena(player, prevLoc)) {
+            boolean refunded = fee <= 0 || (eco != null && eco.deposit(player, fee));
+            adminAdmittedPlayers.remove(player.getUniqueId());
+            if (refunded && !alreadyPaid) paidPlayers.remove(player.getUniqueId());
+            TextUtil.sendMessage(admin, "&cTeleport failed (unable to find a safe landing in the arena). "
+                    + (fee <= 0 ? "No fee charged." : refunded ? "Fee was refunded."
+                    : "Refund failed; paid admission retained. Review the economy transaction before charging again."));
+            if (!refunded) {
+                TextUtil.sendMessage(player, "&cArena teleport and refund failed. Your paid admission is retained; contact an admin.");
+                plugin.getLogger().warning("[WorldBosses] Admin entry refund requires review for " + player.getUniqueId() + ": " + fee);
+            }
+            return false;
+        }
+
+        TextUtil.sendMessage(admin, "&aSuccessfully teleported &e" + player.getName() + " &ainside the Boss Arena! Deducted &e$"
+                + String.format("%,.0f", fee) + "&a.");
+        TextUtil.sendMessage(player, "&a&l✦ &fYou have been teleported to the Boss Arena by an admin! &8($"
+                + String.format("%,.0f", fee) + " entry fee deducted)");
+        return true;
+    }
+
     private boolean teleportToArena(Player player, Location entranceLoc) {
+        if (arenaCenter == null) arenaCenter = getArenaCenter();
         if (arenaCenter == null) return false;
         World world = arenaCenter.getWorld();
         if (world == null) return false;
@@ -1128,6 +1207,7 @@ public class BossPortalManager implements Listener {
         arenaCenter = null;
         // Keep offline players' saved returns for evacuation when they reconnect.
         paidPlayers.clear();
+        adminAdmittedPlayers.clear();
         spawnProtection.clear();
         promptCooldowns.clear();
         particleAngle = 0;

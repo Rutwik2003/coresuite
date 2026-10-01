@@ -7,6 +7,7 @@ import net.rocky.coresuite.common.text.TextUtil;
 import net.rocky.coresuite.module.worldbosses.boss.BossType;
 import net.rocky.coresuite.module.worldbosses.combat.BossDamageTracker;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -14,6 +15,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 
@@ -94,28 +96,36 @@ public class BossLootManager {
                 BossDamageTracker.DamageEntry entry = sortedDamagers.get(i);
                 double multiplier = BossRewardBalance.dynamicMultiplier(config, damageTracker.getPeakPlayers(),
                         sortedDamagers.size(), entry.percentage(), damageTracker.getContribution(entry.uuid()));
-                java.util.List<ItemStack> items = new java.util.ArrayList<>();
+                java.util.List<ItemStack> shardItems = new java.util.ArrayList<>();
+                java.util.List<ItemStack> extraItems = new java.util.ArrayList<>();
                 java.util.List<BossRewardMailbox.Reward> rewards = new java.util.ArrayList<>();
-                addTier(lootSec.getConfigurationSection("participation"), shardId, true, items, rewards, multiplier);
+                addTier(lootSec.getConfigurationSection("participation"), shardId, true, shardItems, extraItems, rewards, multiplier);
                 if (i < 3) {
-                    addTier(lootSec.getConfigurationSection(i == 0 ? "rank-1" : "rank-2-3"), shardId, false, items, rewards, multiplier);
+                    ConfigurationSection rankTier = null;
+                    if (i == 0) rankTier = lootSec.getConfigurationSection("rank-1");
+                    else if (i == 1) rankTier = lootSec.isConfigurationSection("rank-2") ? lootSec.getConfigurationSection("rank-2") : lootSec.getConfigurationSection("rank-2-3");
+                    else if (i == 2) rankTier = lootSec.isConfigurationSection("rank-3") ? lootSec.getConfigurationSection("rank-3") : lootSec.getConfigurationSection("rank-2-3");
+                    if (rankTier != null) {
+                        addTier(rankTier, shardId, false, shardItems, extraItems, rewards, multiplier);
+                    }
                 }
                 if (i == 0) {
                     for (String command : lootSec.getStringList("rank-1.extra-key-commands"))
                         if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
                 }
-                int shardTotal = items.stream().mapToInt(ItemStack::getAmount).sum();
-                items.clear();
+                int shardTotal = shardItems.stream().mapToInt(ItemStack::getAmount).sum();
+                java.util.List<ItemStack> finalItems = new java.util.ArrayList<>();
                 int cappedShards = BossRewardBalance.cappedShards(shardTotal, i);
-                if (cappedShards > 0) items.add(itemRegistry.createShard(shardId, cappedShards));
+                if (cappedShards > 0) finalItems.add(itemRegistry.createShard(shardId, cappedShards));
+                finalItems.addAll(extraItems);
                 ConfigurationSection rare = lootSec.getConfigurationSection("rare-drops");
                 if (rare != null) {
-                    for (var bonus : i == 0 ? rare.getMapList("bonus-keys") : java.util.List.<java.util.Map<?, ?>>of()) {
+                    for (var bonus : (i < 2) ? rare.getMapList("bonus-keys") : java.util.List.<java.util.Map<?, ?>>of()) {
                         if (bonus.get("chance") instanceof Number chance && bonus.get("command") instanceof String command
                                 && !command.isBlank() && random.nextDouble() * 100 < BossRewardBalance.rareChance(chance.doubleValue(), 1))
                             rewards.add(BossRewardMailbox.Reward.command(command));
                     }
-                    if (i == 0 && random.nextDouble() * 100 < BossRewardBalance.rareChance(rare.getDouble("crate-key-chance", 0), 1)) {
+                    if (i < 2 && random.nextDouble() * 100 < BossRewardBalance.rareChance(rare.getDouble("crate-key-chance", 0), 1)) {
                         String command = rare.getString("crate-key-command", "");
                         if (!command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
                     }
@@ -126,7 +136,7 @@ public class BossLootManager {
                 rewards.removeIf(reward -> "CURRENCY".equals(reward.kind()));
                 currency = BossRewardBalance.dynamicCurrency(currency, config.getDouble("arena.portals.entry-fee", 50000), multiplier);
                 if (currency > 0) rewards.add(BossRewardMailbox.Reward.currency(currency));
-                rewards.add(0, BossRewardMailbox.Reward.items(items));
+                rewards.add(0, BossRewardMailbox.Reward.items(finalItems));
                 java.util.List<BossRewardMailbox.Reward> receipts = new java.util.ArrayList<>();
                 for (int component = 0; component < rewards.size(); component++) {
                     BossRewardMailbox.Reward reward = rewards.get(component);
@@ -192,15 +202,79 @@ public class BossLootManager {
                 config.getInt("rewards.participation.minimum-contribution", 3)));
     }
 
-    private void addTier(ConfigurationSection tier, String shardId, boolean participation, java.util.List<ItemStack> items, java.util.List<BossRewardMailbox.Reward> rewards, double multiplier) {
+    private void addTier(ConfigurationSection tier, String shardId, boolean participation,
+                         java.util.List<ItemStack> shardItems,
+                         java.util.List<ItemStack> extraItems,
+                         java.util.List<BossRewardMailbox.Reward> rewards,
+                         double multiplier) {
         int shards = tier == null ? 0 : tier.getInt("shards", 0);
         if (participation) shards = Math.max(1, shards);
         shards = (int) Math.floor(Math.max(0, shards) * multiplier);
         for (int remaining = Math.min(2304, Math.max(0, shards)); remaining > 0; remaining -= 64)
-            items.add(itemRegistry.createShard(shardId, Math.min(64, remaining)));
+            shardItems.add(itemRegistry.createShard(shardId, Math.min(64, remaining)));
         if (tier == null) return;
+        extraItems.addAll(parseConfiguredItems(tier));
         double currency = tier.getDouble("currency", 0);
         if (Double.isFinite(currency) && currency > 0) rewards.add(BossRewardMailbox.Reward.currency(currency));
         for (String command : tier.getStringList("commands")) if (command != null && !command.isBlank()) rewards.add(BossRewardMailbox.Reward.command(command));
+    }
+
+    public static List<ItemStack> parseConfiguredItems(ConfigurationSection tier) {
+        return parseConfiguredItems(tier, ItemStack::new);
+    }
+
+    public static <T> List<T> parseConfiguredItems(ConfigurationSection tier, java.util.function.BiFunction<Material, Integer, T> creator) {
+        if (tier == null || creator == null) return List.of();
+        List<String> entries = tier.getStringList("items");
+        if (entries.isEmpty()) return List.of();
+        List<T> result = new ArrayList<>();
+        for (String entry : entries) {
+            if (entry == null || entry.isBlank()) continue;
+            String[] parts = entry.trim().split(":");
+            if (parts.length < 2) continue;
+            String matName = parts[0].trim().toUpperCase(java.util.Locale.ROOT);
+            Material material = Material.matchMaterial(matName);
+            if (material == null || material == Material.AIR || material == Material.CAVE_AIR || material == Material.VOID_AIR) continue;
+
+            String countStr = parts[1].trim();
+            double chance = 100.0;
+            if (parts.length >= 3) {
+                String chanceStr = parts[2].trim().replace("%", "");
+                try {
+                    chance = Double.parseDouble(chanceStr);
+                } catch (NumberFormatException ignored) { continue; }
+                if (!Double.isFinite(chance) || chance < 0 || chance > 100) continue;
+            }
+
+            if (chance < 100.0 && java.util.concurrent.ThreadLocalRandom.current().nextDouble(100.0) >= chance) {
+                continue;
+            }
+
+            int count;
+            try {
+                if (!countStr.matches("\\d+(?:-\\d+)?")) continue;
+                String[] range = countStr.split("-");
+                int min = Math.min(2304, Integer.parseInt(range[0]));
+                int max = range.length == 1 ? min : Math.min(2304, Integer.parseInt(range[1]));
+                if (min > max) { int swap = min; min = max; max = swap; }
+                count = min == max ? min : java.util.concurrent.ThreadLocalRandom.current().nextInt(min, max + 1);
+            } catch (NumberFormatException invalid) { continue; }
+
+            int maxStack = 64;
+            try {
+                maxStack = Math.max(1, material.getMaxStackSize());
+            } catch (Throwable ignored) {
+                if (material.name().contains("TOTEM")) maxStack = 1;
+            }
+            while (count > 0) {
+                int toAdd = Math.min(count, maxStack);
+                try {
+                    T item = creator.apply(material, toAdd);
+                    if (item != null) result.add(item);
+                } catch (IllegalArgumentException invalidItem) { break; }
+                count -= toAdd;
+            }
+        }
+        return result;
     }
 }

@@ -162,13 +162,15 @@ balance:
 # performing a counter (Water/Night Vision), or helping remove minions. These defaults also apply
 # to older world-bosses.yml files that do not yet contain this section.
 rewards:
+  loot-balance-version: 1
+  participation-balance-upgraded: true
   # Combined shard payout is capped after bonuses: MVP 6, ranks 2–3 4, others 2.
   dynamic:
     # Up to +25% for peak encounter size and +25% for damage/support effort.
     # Cash above the entry-fee allowance and shards scale; guaranteed keys do not multiply.
     enabled: true
   participation:
-    minimum-damage: 20.0
+    minimum-damage: 150.0
     minimum-contribution: 3
 
 combat:
@@ -411,20 +413,43 @@ valerius:
         - "crates key give %player% Rare 1"
       currency: 25000
       shards: 4
+      items:
+        - "DIAMOND:8-16"
+        - "GOLD_INGOT:8-16"
+        - "EMERALD:8-16"
+        - "NETHERITE_SCRAP:1:25%"
+        - "TOTEM_OF_UNDYING:1:25%"
+        - "EXPERIENCE_BOTTLE:24-40"
       commands:
         - "crates key give %player% enchanter 1"
-    rank-2-3:
+    rank-2:
       currency: 15000
       shards: 2
+      items:
+        - "DIAMOND:4-8"
+        - "EXPERIENCE_BOTTLE:16-24"
       commands:
-        - "crates key give %player% Common 1"
+        - "crates key give %player% Rare 1"
+    rank-3:
+      currency: 10000
+      shards: 1
+      items:
+        - "DIAMOND:2-4"
+        - "EXPERIENCE_BOTTLE:8-16"
+      commands:
+        - "crates key give %player% Uncommon 1"
     participation:
       currency: 55000
-      shards: 2
-    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
+      shards: 1
+      items:
+        - "DIAMOND:4-8"
+        - "GOLD_INGOT:4-8"
+        - "EMERALD:4-8"
+        - "EXPERIENCE_BOTTLE:8-16"
+    # Bonus keys roll for the top two contributors. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 2.0
-      crate-key-command: "crates key give %player% enchanter 1"
+      crate-key-chance: 0.5
+      crate-key-command: "crates key give %player% Elite 1"
 
 # ------------------------------------------------------------------------------
 # BOSS 2: AETHELGARD, THE ROOT-BOUND KING
@@ -527,22 +552,45 @@ aethelgard:
         - "crates key give %player% Common 1"
         - "crates key give %player% Uncommon 1"
         - "crates key give %player% Rare 1"
-      currency: 35000
+      currency: 30000
       shards: 4
+      items:
+        - "DIAMOND:8-16"
+        - "GOLD_INGOT:8-16"
+        - "EMERALD:8-16"
+        - "NETHERITE_SCRAP:1:25%"
+        - "TOTEM_OF_UNDYING:1:25%"
+        - "EXPERIENCE_BOTTLE:24-40"
       commands:
         - "crates key give %player% potions 1"
-    rank-2-3:
-      currency: 20000
+    rank-2:
+      currency: 18000
       shards: 2
+      items:
+        - "DIAMOND:4-8"
+        - "EXPERIENCE_BOTTLE:16-24"
+      commands:
+        - "crates key give %player% Rare 1"
+    rank-3:
+      currency: 12000
+      shards: 1
+      items:
+        - "DIAMOND:2-4"
+        - "EXPERIENCE_BOTTLE:8-16"
       commands:
         - "crates key give %player% Uncommon 1"
     participation:
       currency: 60000
-      shards: 3
-    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
+      shards: 1
+      items:
+        - "DIAMOND:4-8"
+        - "GOLD_INGOT:4-8"
+        - "EMERALD:4-8"
+        - "EXPERIENCE_BOTTLE:8-16"
+    # Bonus keys roll for the top two contributors. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 2.0
-      crate-key-command: "crates key give %player% enchanter 1"
+      crate-key-chance: 0.5
+      crate-key-command: "crates key give %player% Elite 1"
 
 # ------------------------------------------------------------------------------
 # BOSS 3: XOL'THOS, THE WEEPING WIDOW
@@ -659,25 +707,45 @@ xolthos:
         - "crates key give %player% Common 1"
         - "crates key give %player% Uncommon 1"
         - "crates key give %player% Rare 1"
-      currency: 50000
-      shards: 5
+      currency: 35000
+      shards: 4
+      items:
+        - "DIAMOND:8-16"
+        - "GOLD_INGOT:8-16"
+        - "EMERALD:8-16"
+        - "NETHERITE_SCRAP:1:25%"
+        - "TOTEM_OF_UNDYING:1:25%"
+        - "EXPERIENCE_BOTTLE:24-40"
       commands:
         - "crates key give %player% potions 1"
-    rank-2-3:
-      currency: 30000
-      shards: 3
+    rank-2:
+      currency: 22000
+      shards: 2
+      items:
+        - "DIAMOND:4-8"
+        - "EXPERIENCE_BOTTLE:16-24"
       commands:
         - "crates key give %player% Rare 1"
+    rank-3:
+      currency: 15000
+      shards: 1
+      items:
+        - "DIAMOND:2-4"
+        - "EXPERIENCE_BOTTLE:8-16"
+      commands:
+        - "crates key give %player% Uncommon 1"
     participation:
       currency: 65000
-      shards: 4
-    # Bonus keys roll for MVP only. Mythic equipment is shop-only.
+      shards: 1
+      items:
+        - "DIAMOND:4-8"
+        - "GOLD_INGOT:4-8"
+        - "EMERALD:4-8"
+        - "EXPERIENCE_BOTTLE:8-16"
+    # Bonus keys roll for the top two contributors. Mythic equipment is shop-only.
     rare-drops:
-      crate-key-chance: 2.0
+      crate-key-chance: 0.5
       crate-key-command: "crates key give %player% Elite 1"
-      bonus-keys:
-        - chance: 2.0
-          command: "crates key give %player% enchanter 1"
 
 # BOSS 4: BOREALIS, THE FROSTBOUND WARDEN
 borealis:
@@ -704,6 +772,11 @@ borealis:
   bgm-p3: "coresuite:boss.borealis.p3"
   bgm-p3-duration-seconds: 48
   awakening-bgm: "coresuite:boss.awakening"
+  weakness:
+    fire-resistance-resist-chance: 50.0
+    thermal-shock-duration-seconds: 6
+    cooldown-seconds: 20
+    retry-cooldown-seconds: 10
   combat:
     # Shared healing budget across the whole fight; phases cannot heal above their entry threshold.
     maximum-healing-fraction: 0.15
@@ -728,18 +801,41 @@ borealis:
         - "crates key give %player% Common 1"
         - "crates key give %player% Uncommon 1"
         - "crates key give %player% Rare 1"
-      currency: 40000
+      currency: 30000
       shards: 4
+      items:
+        - "DIAMOND:8-16"
+        - "GOLD_INGOT:8-16"
+        - "EMERALD:8-16"
+        - "NETHERITE_SCRAP:1:25%"
+        - "TOTEM_OF_UNDYING:1:25%"
+        - "EXPERIENCE_BOTTLE:24-40"
       commands:
         - "crates key give %player% potions 1"
-    rank-2-3:
-      currency: 22000
+    rank-2:
+      currency: 20000
       shards: 2
+      items:
+        - "DIAMOND:4-8"
+        - "EXPERIENCE_BOTTLE:16-24"
       commands:
         - "crates key give %player% Rare 1"
+    rank-3:
+      currency: 12000
+      shards: 1
+      items:
+        - "DIAMOND:2-4"
+        - "EXPERIENCE_BOTTLE:8-16"
+      commands:
+        - "crates key give %player% Uncommon 1"
     participation:
       currency: 60000
-      shards: 2
+      shards: 1
+      items:
+        - "DIAMOND:4-8"
+        - "GOLD_INGOT:4-8"
+        - "EMERALD:4-8"
+        - "EXPERIENCE_BOTTLE:8-16"
     rare-drops:
-      crate-key-chance: 2.0
+      crate-key-chance: 0.5
       crate-key-command: "crates key give %player% Elite 1"
