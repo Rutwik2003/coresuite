@@ -22,6 +22,7 @@ public final class GrimoireModule extends Module
     implements Listener, CommandExecutor, TabCompleter {
   private final Map<UUID, MagicProfile> profiles = new HashMap<>();
   private final Set<UUID> loading = new HashSet<>();
+  private final CastInputGate castInputs = new CastInputGate();
   private final Map<String, SpellSpec> spells = new LinkedHashMap<>();
   private MagicStore store;
   private SpellEngine engine;
@@ -90,6 +91,7 @@ public final class GrimoireModule extends Module
           if (!state.busy) saveSession(id, state);
         });
     profiles.clear();
+    castInputs.clear();
     loading.clear();
     spells.clear();
     for (String name : List.of("grimoire", "magic", "magicadmin")) {
@@ -170,6 +172,7 @@ public final class GrimoireModule extends Module
 
   @EventHandler
   public void quit(PlayerQuitEvent event) {
+    castInputs.remove(event.getPlayer().getUniqueId());
     MagicProfile state = profiles.remove(event.getPlayer().getUniqueId());
     if (state != null && !state.busy) saveSession(event.getPlayer().getUniqueId(), state);
   }
@@ -181,12 +184,14 @@ public final class GrimoireModule extends Module
         if (seconds % 10 == 0) load(player);
         continue;
       }
+      if (seconds % 5 == 0) refreshItemModels(player);
       MagicProfile p = profiles.get(player.getUniqueId());
       if (!p.started || p.busy || !canPlay(player)) continue;
       p.regenerate(
           System.currentTimeMillis(),
           maximumMana(),
-          SpellSpec.bounded(config.getDouble("mana.regeneration-per-second", 2), 2, 0, 10));
+          SpellSpec.bounded(config.getDouble("mana.regeneration-per-second", 2), 2, 0, 10),
+          (long) (SpellSpec.bounded(config.getDouble("mana.recovery-delay-seconds", 3), 3, 0, 30) * 1000));
       if (equipped(player) && !inArena(player.getLocation())) {
         String selected = p.selectedSpell();
         String name =
@@ -231,6 +236,34 @@ public final class GrimoireModule extends Module
     return m instanceof WorldBossesModule boss
         && boss.isEnabled()
         && boss.areRaidAllies(a.getUniqueId(), b.getUniqueId());
+  }
+
+  static int tomeModel(String spell) {
+    return switch (spell) {
+      case "mana-dart" -> 71010;
+      case "fireball" -> 71011;
+      case "water-cannon" -> 71012;
+      case "frost-lance" -> 71013;
+      case "zoltraak" -> 71014;
+      case "dimension-door" -> 71015;
+      case "aura-of-the-hearth" -> 71016;
+      case "harvesters-touch" -> 71017;
+      default -> 71002;
+    };
+  }
+
+  private void refreshItemModels(Player player) {
+    for (int slot = 0; slot < player.getInventory().getSize(); slot++) {
+      ItemStack stack = player.getInventory().getItem(slot);
+      String type = kind(stack);
+      if (type == null || !type.startsWith("tome:")) continue;
+      int desired = tomeModel(type.substring(5));
+      var meta = stack.getItemMeta();
+      if (meta.hasCustomModelData() && meta.getCustomModelData() == desired) continue;
+      meta.setCustomModelData(desired);
+      stack.setItemMeta(meta);
+      player.getInventory().setItem(slot, stack);
+    }
   }
 
   private String kind(ItemStack item) {
@@ -360,7 +393,8 @@ public final class GrimoireModule extends Module
     if (e.getAction().isRightClick()) {
       e.setCancelled(true);
       if (player.isSneaking()) open(player);
-      else cast(player);
+      else if (castInputs.accept(player.getUniqueId(), System.nanoTime(),
+          Math.max(250, Math.min(1000, config.getInt("casting.repeat-gap-ms", 350))) * 1_000_000L)) cast(player);
     } else if (e.getAction().isLeftClick() && player.isSneaking()) {
       e.setCancelled(true);
       cycle(player);
@@ -429,12 +463,14 @@ public final class GrimoireModule extends Module
       }
     }
     long now = System.currentTimeMillis();
-    double cost = spell.mana();
+    int tier = p.spells.getOrDefault(spell.id(), 1);
+    double cost = spell.tierMana(tier, config.getDouble("mana.cost-reduction-per-tier", .05));
     if (p.mana < cost || now < p.globalReady || now < p.cooldowns.getOrDefault(spell.id(), 0L)) {
-      message(player, "&7Not enough mana, or the spell is recovering.");
+      if (p.mana < cost) message(player, "&b" + spell.name() + " needs " + cost + " mana; you have " + (int)p.mana + ".");
+      else message(player, "&7" + spell.name() + " recovers in "
+          + String.format(java.util.Locale.ROOT, "%.1f", Math.max(p.globalReady, p.cooldowns.getOrDefault(spell.id(), 0L)) / 1000.0 - now / 1000.0) + "s.");
       return;
     }
-    int tier = p.spells.getOrDefault(spell.id(), 1);
     change(
         player,
         next -> {
@@ -540,7 +576,8 @@ public final class GrimoireModule extends Module
       return;
     }
     if (p.discoveries.contains(encounter)) {
-      message(player, "&7You have already studied this encounter.");
+      message(player, "&7You have already met this scholar. Use /grimoire nearby for their lesson.");
+      showQuestHint(player, p);
       return;
     }
     change(
@@ -556,9 +593,19 @@ public final class GrimoireModule extends Module
         () -> {
           message(
               player,
-              "&aEncounter studied: +3 research. Open /grimoire nearby to study the scholar's"
+              "&aScholar discovered: +3 research. Open /grimoire nearby to study the scholar's"
                   + " spell.");
+          showQuestHint(player, profiles.get(player.getUniqueId()));
         });
+  }
+
+  private void showQuestHint(Player player, MagicProfile state) {
+    if (state == null) return;
+    var active = chapter(state);
+    if (active == null) return;
+    message(player, "&dCurrent task: &f" + active.getString("name", "Field Research")
+        + " &7— " + active.getString("description", "") + " &e(" + state.questProgress
+        + "/" + questGoal(state) + "). &7Use /quests to view or claim it.");
   }
 
   public void study(Player player, String spell) {
@@ -848,7 +895,7 @@ public final class GrimoireModule extends Module
               spell.icon(),
               "&d" + spell.name(),
               tier == 0 ? "&8Undiscovered" : "&7Tier " + tier,
-              "&bMana: " + spell.mana() + " | Cooldown: " + spell.cooldown() / 1000.0 + "s",
+              "&bMana: " + spell.tierMana(Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05)) + " | Cooldown: " + spell.cooldown() / 1000.0 + "s",
               p.prepared.contains(spell.id())
                   ? "&aPrepared — click to remove"
                   : "&7Click to prepare"));
@@ -1111,7 +1158,7 @@ public final class GrimoireModule extends Module
                                   "tome:" + spell,
                                   "&dSealed Tome: " + spells.get(spell).name(),
                                   Material.BOOK,
-                                  71002);
+                                  tomeModel(spell));
                           var meta = tome.getItemMeta();
                           meta.getPersistentDataContainer()
                               .set(tokenKey, PersistentDataType.STRING, token);

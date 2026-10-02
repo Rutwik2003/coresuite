@@ -29,6 +29,11 @@ public record SpellSpec(
     return Double.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
   }
 
+  public double tierMana(int tier, double reduction) {
+    double discount = bounded(reduction, .05, 0, .2);
+    return Math.ceil(mana * (1 - discount * (Math.max(1, Math.min(3, tier)) - 1)) * 10) / 10;
+  }
+
   public double tierDamage(int tier) {
     return damage * (1 + .15 * (Math.max(1, Math.min(3, tier)) - 1));
   }

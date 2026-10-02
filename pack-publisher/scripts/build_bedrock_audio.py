@@ -56,14 +56,20 @@ def build(source, output, version):
         'description': 'CoreSuite boss music and rift audio; use alongside the existing Bedrock texture pack.',
         'uuid': stable('header'), 'version': numbers, 'min_engine_version': [1,21,0]},
         'modules': [{'type': 'resources', 'uuid': stable('resources'), 'version': numbers}]}
-    texture = source / 'assets/coresuite/textures/item/astral_grimoire.png'
-    if texture.is_file():
+    atlas = {}
+    texture_dir = source / 'assets/coresuite/textures/item'
+    textures = [texture_dir / 'astral_grimoire.png', texture_dir / 'sealed_tome.png']
+    textures += sorted(texture_dir.glob('tome_*.png'))
+    for texture in textures:
+        if not texture.is_file(): continue
         if texture.is_symlink() or not texture.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):
             raise ValueError('invalid magic texture')
-        files['textures/items/coresuite_astral_grimoire.png'] = texture.read_bytes()
+        target = 'textures/items/coresuite_' + texture.stem
+        files[target + '.png'] = texture.read_bytes()
+        atlas['coresuite.' + texture.stem] = {'textures': target}
+    if atlas:
         files['textures/item_texture.json'] = json.dumps({'resource_pack_name':'coresuite_magic',
-            'texture_name':'atlas.items','texture_data':{'coresuite.astral_grimoire':
-            {'textures':'textures/items/coresuite_astral_grimoire'}}},indent=2).encode()
+            'texture_name':'atlas.items','texture_data':atlas},indent=2).encode()
         manifest['header']['name'] = 'MeerMC Music & Magic'
     files['manifest.json'] = json.dumps(manifest, indent=2).encode()
     files['sounds/sound_definitions.json'] = json.dumps({'format_version': '1.14.0', 'sound_definitions': sounds}, indent=2).encode()

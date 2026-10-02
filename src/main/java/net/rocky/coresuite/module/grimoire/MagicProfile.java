@@ -34,8 +34,15 @@ public final class MagicProfile {
   }
 
   public void regenerate(long now, double maximum, double perSecond) {
+    regenerate(now, maximum, perSecond, 3000);
+  }
+
+  public void regenerate(long now, double maximum, double perSecond, long delay) {
+    maximum = SpellSpec.bounded(maximum, 100, 20, 1000);
+    perSecond = SpellSpec.bounded(perSecond, 2, 0, 10);
+    if (!Double.isFinite(mana)) mana = 0;
     mana = Math.max(0, Math.min(maximum, mana));
-    if (now - lastCast >= 3000) mana = Math.min(maximum, mana + perSecond);
+    if (now - lastCast >= Math.max(0, delay)) mana = Math.min(maximum, mana + perSecond);
   }
 
   public String encode() {

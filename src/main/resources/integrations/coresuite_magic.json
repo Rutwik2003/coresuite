@@ -18,7 +18,87 @@
         "bedrock_identifier": "coresuite:sealed_tome",
         "display_name": "Sealed Tome",
         "bedrock_options": {
-          "icon": "coresuite.astral_grimoire",
+          "icon": "coresuite.sealed_tome",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71010,
+        "bedrock_identifier": "coresuite:tome_mana_dart",
+        "display_name": "Mana Dart",
+        "bedrock_options": {
+          "icon": "coresuite.tome_mana_dart",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71011,
+        "bedrock_identifier": "coresuite:tome_fireball",
+        "display_name": "Ember Lance",
+        "bedrock_options": {
+          "icon": "coresuite.tome_fireball",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71012,
+        "bedrock_identifier": "coresuite:tome_water_cannon",
+        "display_name": "Tidal Arrow",
+        "bedrock_options": {
+          "icon": "coresuite.tome_water_cannon",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71013,
+        "bedrock_identifier": "coresuite:tome_frost_lance",
+        "display_name": "Frost Lance",
+        "bedrock_options": {
+          "icon": "coresuite.tome_frost_lance",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71014,
+        "bedrock_identifier": "coresuite:tome_zoltraak",
+        "display_name": "Zoltraak",
+        "bedrock_options": {
+          "icon": "coresuite.tome_zoltraak",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71015,
+        "bedrock_identifier": "coresuite:tome_dimension_door",
+        "display_name": "Dimension Step",
+        "bedrock_options": {
+          "icon": "coresuite.tome_dimension_door",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71016,
+        "bedrock_identifier": "coresuite:tome_aura_of_the_hearth",
+        "display_name": "Aura of the Hearth",
+        "bedrock_options": {
+          "icon": "coresuite.tome_aura_of_the_hearth",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71017,
+        "bedrock_identifier": "coresuite:tome_harvesters_touch",
+        "display_name": "Harvester's Touch",
+        "bedrock_options": {
+          "icon": "coresuite.tome_harvesters_touch",
           "allow_offhand": true
         }
       }

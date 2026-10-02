@@ -1,8 +1,26 @@
+# Books have no reliable mouse-release event. Repeated use packets within this
+# gap are treated as holding the button; briefly release before another cast.
+casting:
+  repeat-gap-ms: 350
+targeting:
+  # Ordinary animals may be hit; tamed pets, NPCs and players remain excluded.
+  animals: true
+
 # Astral Grimoire. PvP is disabled in this release. All damage uses normal protection events.
 # Research is personal; tomes are single-use, tradeable sealed items.
 mana:
   maximum: 100
   regeneration-per-second: 2
+  # Online recovery starts this long after your latest successful cast.
+  recovery-delay-seconds: 3
+  # Tier I full cost; Tier II -5%; Tier III -10%. Does not change damage cooldowns.
+  cost-reduction-per-tier: 0.05
+hearth:
+  # Health points, not hearts. Tier II +25%; Tier III +50%. Fields do not stack.
+  health-per-second: 1.0
+harvesting:
+  # Consumes one plain matching seed/carrot/potato from inventory per replanted crop.
+  replant: true
 upgrades:
   tier-2-research: 12
   tier-2-currency: 100000

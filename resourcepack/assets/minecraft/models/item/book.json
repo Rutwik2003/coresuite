@@ -12,7 +12,67 @@
     },
     {
       "predicate": {
+        "custom_model_data": 71002
+      },
+      "model": "coresuite:item/sealed_tome"
+    },
+    {
+      "predicate": {
         "custom_model_data": 71003
+      },
+      "model": "minecraft:item/book_vanilla"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71010
+      },
+      "model": "coresuite:item/tome_mana_dart"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71011
+      },
+      "model": "coresuite:item/tome_fireball"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71012
+      },
+      "model": "coresuite:item/tome_water_cannon"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71013
+      },
+      "model": "coresuite:item/tome_frost_lance"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71014
+      },
+      "model": "coresuite:item/tome_zoltraak"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71015
+      },
+      "model": "coresuite:item/tome_dimension_door"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71016
+      },
+      "model": "coresuite:item/tome_aura_of_the_hearth"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71017
+      },
+      "model": "coresuite:item/tome_harvesters_touch"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71018
       },
       "model": "minecraft:item/book_vanilla"
     }

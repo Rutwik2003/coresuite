@@ -16,7 +16,77 @@
         }
       },
       {
+        "threshold": 71002,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/sealed_tome"
+        }
+      },
+      {
         "threshold": 71003,
+        "model": {
+          "type": "minecraft:model",
+          "model": "minecraft:item/book_vanilla"
+        }
+      },
+      {
+        "threshold": 71010,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_mana_dart"
+        }
+      },
+      {
+        "threshold": 71011,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_fireball"
+        }
+      },
+      {
+        "threshold": 71012,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_water_cannon"
+        }
+      },
+      {
+        "threshold": 71013,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_frost_lance"
+        }
+      },
+      {
+        "threshold": 71014,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_zoltraak"
+        }
+      },
+      {
+        "threshold": 71015,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_dimension_door"
+        }
+      },
+      {
+        "threshold": 71016,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_aura_of_the_hearth"
+        }
+      },
+      {
+        "threshold": 71017,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/tome_harvesters_touch"
+        }
+      },
+      {
+        "threshold": 71018,
         "model": {
           "type": "minecraft:model",
           "model": "minecraft:item/book_vanilla"

@@ -5,7 +5,10 @@ import net.rocky.coresuite.common.integration.BossProtectionGate;
 import org.bukkit.*;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.entity.*;
-import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.potion.*;
 import org.bukkit.util.Vector;
 
@@ -32,7 +35,14 @@ final class SpellEngine {
   }
 
   boolean cast(Player player, SpellSpec spell, int tier) {
-    ring(player.getLocation().add(0, .1, 0), Particle.ENCHANT);
+    ring(player.getLocation().add(0, .1, 0), switch (spell.id()) {
+      case "fireball", "aura-of-the-hearth" -> Particle.FLAME;
+      case "water-cannon" -> Particle.SPLASH;
+      case "frost-lance" -> Particle.SNOWFLAKE;
+      case "harvesters-touch" -> Particle.HAPPY_VILLAGER;
+      case "dimension-door", "zoltraak" -> Particle.PORTAL;
+      default -> Particle.END_ROD;
+    });
     switch (spell.id()) {
       case "dimension-door", "zephyr-leap" -> {
         if (module.inArena(player.getLocation())) return false;
@@ -79,11 +89,32 @@ final class SpellEngine {
                 || age.getAge() != age.getMaximumAge()) continue;
             if (!Set.of(Material.WHEAT, Material.CARROTS, Material.POTATOES, Material.BEETROOTS)
                 .contains(block.getType())) continue;
-            var event = new BlockBreakEvent(block, player);
-            Bukkit.getPluginManager().callEvent(event);
-            if (event.isCancelled()) continue;
-            if (event.isDropItems()) block.breakNaturally();
-            else block.setType(Material.AIR);
+            Material cropType = block.getType();
+            if (!player.breakBlock(block)) continue;
+            if (module.getConfig().getBoolean("harvesting.replant", true)
+                && block.getType().isAir()
+                && block.getRelative(0, -1, 0).getType() == Material.FARMLAND) {
+              Material seed = seedFor(cropType);
+              int slot = plantingSlot(player.getInventory().getStorageContents(), seed);
+              if (slot >= 0) {
+                var replaced = block.getState();
+                var planted = (Ageable) cropType.createBlockData();
+                planted.setAge(0);
+                block.setBlockData(planted, false);
+                var place = new BlockPlaceEvent(block, replaced, block.getRelative(0, -1, 0),
+                    new ItemStack(seed), player, true, EquipmentSlot.HAND);
+                Bukkit.getPluginManager().callEvent(place);
+                ItemStack supply = player.getInventory().getItem(slot);
+                if (place.isCancelled() || !place.canBuild() || supply == null
+                    || supply.getType() != seed || supply.hasItemMeta() || supply.getAmount() < 1) {
+                  replaced.update(true, false);
+                } else {
+                  supply.setAmount(supply.getAmount() - 1);
+                  player.getInventory().setItem(slot, supply.getAmount() == 0 ? null : supply);
+                }
+              }
+            }
+            crop.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, crop.clone().add(.5,.4,.5), 4, .2,.2,.2,0);
             count++;
             if (count >= 8 + tier * 4) return true;
           }
@@ -133,7 +164,16 @@ final class SpellEngine {
         Vector up = side.clone().crossProduct(b.direction).normalize();
         Vector offset =
             side.multiply(Math.cos(angle) * .16).add(up.multiply(Math.sin(angle) * .16));
-        b.at.getWorld().spawnParticle(Particle.ENCHANT, b.at.clone().add(offset), 1, 0, 0, 0, 0);
+        if (b.spell.id().equals("water-cannon")) {
+          particle(b.at.clone().add(offset.clone().multiply(2)), b.spell.id());
+          particle(b.at.clone().subtract(offset.clone().multiply(2)), b.spell.id());
+        } else if (b.spell.id().equals("frost-lance")) {
+          b.at.getWorld().spawnParticle(Particle.SNOWFLAKE, b.at, 2, .12,.12,.12,0);
+        } else if (b.spell.id().equals("fireball")) {
+          b.at.getWorld().spawnParticle(Particle.SMOKE, b.at, 1, .08,.08,.08,0);
+        } else if (b.spell.id().equals("zoltraak")) {
+          b.at.getWorld().spawnParticle(Particle.WITCH, b.at.clone().add(offset), 1,0,0,0,0);
+        }
 
         for (Entity e : b.at.getWorld().getNearbyEntities(b.at, .5, .6, .5)) {
           if (!(e instanceof LivingEntity target)
@@ -154,7 +194,7 @@ final class SpellEngine {
             b.at.getWorld().spawnParticle(Particle.FLAME, b.at, 15, .4, .4, .4, .02);
           }
           // Do not change velocity/fire after damage: protection plugins may have cancelled it.
-          ring(target.getLocation().add(0, 1, 0), Particle.ENCHANT);
+          particle(target.getLocation().add(0, 1, 0), b.spell.id());
           if (!b.spell.id().equals("zoltraak") || b.hit.size() >= b.tier) {
             ended = true;
             break;
@@ -164,6 +204,7 @@ final class SpellEngine {
       if (ended) it.remove();
       else it.set(new Bolt(b.caster, b.at, b.direction, b.spell, b.tier, b.age + 1, b.hit));
     }
+    Map<UUID, Double> healing = new HashMap<>();
     for (var it = fields.listIterator(); it.hasNext(); ) {
       Field f = it.next();
       Player caster = Bukkit.getPlayer(f.caster);
@@ -174,21 +215,52 @@ final class SpellEngine {
         it.remove();
         continue;
       }
-      if (ticks % 5 == 0) ring(f.center, Particle.HAPPY_VILLAGER);
+      if (ticks % 10 == 0) {
+        radiusRing(f.center, Particle.FLAME, 3 + f.tier, 24);
+        f.center.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, f.center.clone().add(0,.3,0), 2, .15,.1,.15,.01);
+      }
       if (ticks % 20 == 0)
         for (Player player : f.center.getWorld().getPlayers()) {
           if (player.getLocation().distanceSquared(f.center) > Math.pow(3 + f.tier, 2)
               || !module.canPlay(player)
               || !allied(caster, player)) continue;
-          // Vanilla effect refresh does not stack healing across overlapping fields.
-          player.addPotionEffect(
-              new PotionEffect(PotionEffectType.REGENERATION, 40, 0, false, true, true));
+          Vector ray = player.getEyeLocation().toVector().subtract(f.center.clone().add(0,.5,0).toVector());
+          if (ray.lengthSquared() > .01 && f.center.getWorld().rayTraceBlocks(
+              f.center.clone().add(0,.5,0), ray.clone().normalize(), ray.length(), FluidCollisionMode.NEVER, true) != null) continue;
+          double amount = SpellSpec.bounded(module.getConfig().getDouble("hearth.health-per-second", 1), 1, .1, 4)
+              * (1 + .25 * (f.tier - 1));
+          healing.merge(player.getUniqueId(), amount, Math::max);
         }
       it.set(new Field(f.caster, f.center, f.tier, f.age + 1));
     }
+    healing.forEach((id, amount) -> {
+      Player recipient = Bukkit.getPlayer(id);
+      if (recipient != null && module.canPlay(recipient)) {
+        recipient.heal(amount, EntityRegainHealthEvent.RegainReason.MAGIC);
+        recipient.getWorld().spawnParticle(Particle.HEART, recipient.getLocation().add(0,1.2,0), 1, .2,.1,.2,0);
+      }
+    });
   }
 
-  private boolean validTarget(Player caster, LivingEntity target) {
+  static Material seedFor(Material crop) {
+    return switch (crop) {
+      case WHEAT -> Material.WHEAT_SEEDS;
+      case BEETROOTS -> Material.BEETROOT_SEEDS;
+      case CARROTS -> Material.CARROT;
+      case POTATOES -> Material.POTATO;
+      default -> throw new IllegalArgumentException("Unsupported crop: " + crop);
+    };
+  }
+
+  static int plantingSlot(ItemStack[] items, Material seed) {
+    for (int i = 0; i < items.length; i++) {
+      ItemStack item = items[i];
+      if (item != null && item.getType() == seed && item.getAmount() > 0 && !item.hasItemMeta()) return i;
+    }
+    return -1;
+  }
+
+  boolean validTarget(Player caster, LivingEntity target) {
     if (target.equals(caster)
         || target.isInvulnerable()
         || target instanceof ArmorStand
@@ -200,7 +272,9 @@ final class SpellEngine {
             || target.getScoreboardTags().contains("coresuite_enchanter"))) return false;
     if (target instanceof Player)
       return false; // PvP deliberately disabled until explicit zone integration is validated.
-    return target instanceof Monster || target instanceof Slime || target instanceof Phantom;
+    return target instanceof Enemy
+        || target instanceof Monster || target instanceof Slime || target instanceof Phantom
+        || (target instanceof Animals && module.getConfig().getBoolean("targeting.animals", true));
   }
 
   private boolean allied(Player a, Player b) {
@@ -227,11 +301,15 @@ final class SpellEngine {
   }
 
   private void ring(Location at, Particle p) {
-    for (int i = 0; i < 12; i++) {
-      double angle = i * Math.PI / 6;
+    radiusRing(at, p, .7, 12);
+  }
+
+  private void radiusRing(Location at, Particle p, double radius, int points) {
+    for (int i = 0; i < points; i++) {
+      double angle = i * Math.PI * 2 / points;
       at.getWorld()
           .spawnParticle(
-              p, at.clone().add(Math.cos(angle) * .7, .2, Math.sin(angle) * .7), 1, 0, 0, 0, 0);
+              p, at.clone().add(Math.cos(angle) * radius, .2, Math.sin(angle) * radius), 1, 0, 0, 0, 0);
     }
   }
 
