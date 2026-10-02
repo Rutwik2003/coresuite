@@ -29,6 +29,18 @@ shutil.copy2(root / 'build/libs/CoreSuite-1.0.0.jar', plugins / 'CoreSuite.jar')
 shutil.copy2(root / 'build/libs/CoreSuite-SmokeProbe.jar', plugins / 'CoreSuite-SmokeProbe.jar')
 modules = plugins / 'CoreSuite/modules'
 modules.mkdir(parents=True, exist_ok=True)
+# Explicitly enable opt-in magic only inside this isolated test server.
+import re
+core_config = plugins / 'CoreSuite/config.yml'
+core_text = core_config.read_text(encoding='utf-8') if core_config.exists() else (root / 'src/main/resources/config.yml').read_text(encoding='utf-8')
+for feature in ('grimoire', 'world-encounters', 'side-quests'):
+    pattern = r'^  ' + re.escape(feature) + r':.*$'
+    if re.search(pattern, core_text, re.M):
+        core_text = re.sub(pattern, '  ' + feature + ': true', core_text, flags=re.M)
+    else:
+        core_text = core_text.replace('modules:', 'modules:\n  ' + feature + ': true', 1)
+core_config.write_text(core_text, encoding='utf-8')
+
 (modules / 'website.yml').write_text('bind-ip: "127.0.0.1"\nport: 25592\napi-key: "isolated-smoke-test-only"\n')
 java = Path(args.java_home) / 'bin/java.exe'
 process = subprocess.Popen([str(java), '-Xms512M', '-Xmx1536M', '-jar', str(server), '--nogui'], cwd=folder,

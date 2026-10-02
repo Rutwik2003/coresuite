@@ -52,6 +52,15 @@ public final class CompatibilityProbe extends JavaPlugin {
         CoreSuitePlugin core = CoreSuitePlugin.getInstance();
         if (core == null || !core.isEnabled()) throw new AssertionError("CoreSuite is not enabled");
         verifyBedrockAudio(core);
+        for (String id : java.util.List.of("grimoire", "world-encounters", "side-quests")) {
+            var magicModule = core.getModuleManager().getModule(id);
+            if (magicModule == null || !magicModule.isEnabled()) throw new AssertionError("Magic module disabled: " + id);
+        }
+        var magicBook = new ItemStack(Material.BOOK);
+        var magicMeta = magicBook.getItemMeta(); magicMeta.setCustomModelData(71001); magicBook.setItemMeta(magicMeta);
+        if (ItemStack.deserializeBytes(magicBook.serializeAsBytes()).getItemMeta().getCustomModelData() != 71001)
+            throw new AssertionError("Grimoire model data roundtrip failed");
+        getLogger().info("CORESUITE_MAGIC_STARTUP_PROBE_PASS");
         if (PaperCompat.sound("ENTITY_PLAYER_LEVELUP") != Sound.ENTITY_PLAYER_LEVELUP) throw new AssertionError("Sound adapter mismatch");
         World world = Bukkit.getWorlds().getFirst();
         Pig pig = world.spawn(world.getSpawnLocation().add(0, 3, 0), Pig.class);

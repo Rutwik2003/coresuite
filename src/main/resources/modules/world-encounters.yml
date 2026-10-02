@@ -1,0 +1,37 @@
+# No chunk generation; encounters spawn near online survival players on safe loaded terrain.
+worlds: [world]
+interval-minutes: 30
+duration-minutes: 15
+# Set this safely in-game with /encounters setenchanter at your chosen spawn location.
+enchanter:
+  enabled: false
+  world: world
+  x: 0.5
+  y: 65
+  z: 0.5
+# Empty biome lists allow any biome. Weights apply among eligible types.
+merchants:
+  hedge-mage:
+    weight: 35
+    biomes: []
+  river-sage:
+    weight: 20
+    biomes: [RIVER, FROZEN_RIVER, BEACH, OCEAN, DEEP_OCEAN, WARM_OCEAN, LUKEWARM_OCEAN]
+  illusionist:
+    weight: 15
+    biomes: [DARK_FOREST, SWAMP, MANGROVE_SWAMP]
+  ancient-scholar:
+    weight: 10
+    biomes: [STONY_PEAKS, DRIPSTONE_CAVES, BADLANDS]
+  frost-pilgrim:
+    weight: 20
+    biomes: [SNOWY_PLAINS, ICE_SPIKES, FROZEN_PEAKS, SNOWY_TAIGA]
+  hearthkeeper:
+    weight: 10
+    biomes: []
+  ember-scribe:
+    weight: 15
+    biomes: [DESERT, BADLANDS, SAVANNA]
+  greenwarden:
+    weight: 15
+    biomes: [PLAINS, FOREST, FLOWER_FOREST, MEADOW]

@@ -503,6 +503,10 @@ public class WorldBossesModule extends Module implements Listener, CommandExecut
         }
     }
 
+    public boolean areRaidAllies(java.util.UUID first, java.util.UUID second) {
+        return partyManager != null && partyManager.areAllies(first, second);
+    }
+
     public BossPortalManager getPortalManager() {
         return portalManager;
     }

@@ -27,6 +27,22 @@ softdepend:
   - Multiverse-Inventories
 
 commands:
+  grimoire:
+    description: Prepare your discovered spells
+    permission: coresuite.grimoire.use
+    aliases: [spellbook]
+  magic:
+    description: Spells, research and the quest journal
+    permission: coresuite.grimoire.use
+  magicadmin:
+    description: Administer the magic system
+    permission: coresuite.magic.admin
+  encounters:
+    description: Find traveling scholars
+    permission: coresuite.grimoire.use
+  quests:
+    description: Open your magic quest journal
+    permission: coresuite.grimoire.use
   coresuite:
     description: CoreSuite administration
     usage: /<command> [help|modules|reload|version]
@@ -258,6 +274,10 @@ commands:
     aliases: [ga, guidea]
 
 permissions:
+  coresuite.grimoire.use:
+    default: true
+  coresuite.magic.admin:
+    default: op
   coresuite.admin:
     description: Access to /coresuite admin commands
     default: op

@@ -37,6 +37,10 @@ modules:
   website: true
   world-bosses: true
   guide: true
+  # Magic is opt-in while in testing; enable these three on the test server.
+  grimoire: false
+  world-encounters: false
+  side-quests: false
 
 # Storage settings
 storage:

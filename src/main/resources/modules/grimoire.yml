@@ -1,0 +1,84 @@
+# Astral Grimoire. PvP is disabled in this release. All damage uses normal protection events.
+# Research is personal; tomes are single-use, tradeable sealed items.
+mana:
+  maximum: 100
+  regeneration-per-second: 2
+upgrades:
+  tier-2-research: 12
+  tier-2-currency: 100000
+  tier-3-research: 30
+  tier-3-currency: 350000
+binding:
+  slot-3-research: 30
+  slot-3-currency: 100000
+  slot-4-research: 60
+  slot-4-currency: 200000
+  slot-5-research: 100
+  slot-5-currency: 400000
+spells:
+  mana-dart:
+    name: Mana Dart
+    icon: AMETHYST_SHARD
+    mana: 8
+    cooldown: 1
+    damage: 4
+    range: 18
+    research-cost: 1
+  fireball:
+    name: Ember Lance
+    icon: BLAZE_POWDER
+    mana: 22
+    cooldown: 5
+    damage: 8
+    range: 24
+    research-cost: 12
+  water-cannon:
+    name: Tidal Arrow
+    icon: PRISMARINE_CRYSTALS
+    mana: 16
+    cooldown: 4
+    damage: 6
+    range: 22
+    research-cost: 8
+  frost-lance:
+    name: Frost Lance
+    icon: BLUE_ICE
+    mana: 24
+    cooldown: 6
+    damage: 9
+    range: 24
+    research-cost: 16
+  zoltraak:
+    name: Zoltraak
+    icon: END_CRYSTAL
+    mana: 35
+    cooldown: 8
+    damage: 10
+    range: 32
+    research-cost: 24
+  dimension-door:
+    name: Dimension Step
+    icon: ENDER_PEARL
+    mana: 35
+    cooldown: 25
+    damage: 0
+    range: 12
+    arena: false
+    research-cost: 16
+  aura-of-the-hearth:
+    name: Aura of the Hearth
+    icon: CAMPFIRE
+    mana: 30
+    cooldown: 25
+    damage: 0
+    range: 4
+    research-cost: 12
+  harvesters-touch:
+    name: Harvester's Touch
+    icon: WHEAT
+    mana: 20
+    cooldown: 15
+    damage: 0
+    range: 2
+    arena: false
+    research-cost: 8

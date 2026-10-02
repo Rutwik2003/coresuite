@@ -1,0 +1,27 @@
+{
+  "format_version": 2,
+  "items": {
+    "minecraft:book": [
+      {
+        "type": "legacy",
+        "custom_model_data": 71001,
+        "bedrock_identifier": "coresuite:astral_grimoire",
+        "display_name": "Astral Grimoire",
+        "bedrock_options": {
+          "icon": "coresuite.astral_grimoire",
+          "allow_offhand": true
+        }
+      },
+      {
+        "type": "legacy",
+        "custom_model_data": 71002,
+        "bedrock_identifier": "coresuite:sealed_tome",
+        "display_name": "Sealed Tome",
+        "bedrock_options": {
+          "icon": "coresuite.astral_grimoire",
+          "allow_offhand": true
+        }
+      }
+    ]
+  }
+}

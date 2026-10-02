@@ -1,0 +1,20 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "minecraft:item/book"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 71001
+      },
+      "model": "coresuite:item/astral_grimoire"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 71003
+      },
+      "model": "minecraft:item/book_vanilla"
+    }
+  ]
+}

@@ -56,6 +56,15 @@ def build(source, output, version):
         'description': 'CoreSuite boss music and rift audio; use alongside the existing Bedrock texture pack.',
         'uuid': stable('header'), 'version': numbers, 'min_engine_version': [1,21,0]},
         'modules': [{'type': 'resources', 'uuid': stable('resources'), 'version': numbers}]}
+    texture = source / 'assets/coresuite/textures/item/astral_grimoire.png'
+    if texture.is_file():
+        if texture.is_symlink() or not texture.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('invalid magic texture')
+        files['textures/items/coresuite_astral_grimoire.png'] = texture.read_bytes()
+        files['textures/item_texture.json'] = json.dumps({'resource_pack_name':'coresuite_magic',
+            'texture_name':'atlas.items','texture_data':{'coresuite.astral_grimoire':
+            {'textures':'textures/items/coresuite_astral_grimoire'}}},indent=2).encode()
+        manifest['header']['name'] = 'MeerMC Music & Magic'
     files['manifest.json'] = json.dumps(manifest, indent=2).encode()
     files['sounds/sound_definitions.json'] = json.dumps({'format_version': '1.14.0', 'sound_definitions': sounds}, indent=2).encode()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +72,7 @@ def build(source, output, version):
         for name, data in sorted(files.items()):
             info = zipfile.ZipInfo(name, date_time=(2020,1,1,0,0,0));info.compress_type=zipfile.ZIP_DEFLATED
             archive.writestr(info, data)
-    result = {'events': len(sounds), 'audio_files': len(files)-2, 'version': version,
+    result = {'events': len(sounds), 'audio_files': sum(name.endswith('.ogg') for name in files), 'version': version,
               'sha256': hashlib.sha256(output.read_bytes()).hexdigest()}
     return result
 

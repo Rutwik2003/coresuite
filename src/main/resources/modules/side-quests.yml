@@ -1,0 +1,22 @@
+# Sequential personal chapters. Supported objectives: CAST, ENCOUNTER, FISH.
+# A repeatable chapter remains active and has a 24-hour cooldown after claiming.
+chapters:
+  '1':
+    name: An Unstable Spark
+    description: Cast five spells successfully.
+    objective: CAST
+    goal: 5
+    research: 8
+  '2':
+    name: The Wider World
+    description: Study two different traveling encounters.
+    objective: ENCOUNTER
+    goal: 2
+    research: 8
+  '3':
+    name: Ripples of Mana
+    description: Catch five fish to study the currents of magic.
+    objective: FISH
+    goal: 5
+    research: 8
+    repeatable: true

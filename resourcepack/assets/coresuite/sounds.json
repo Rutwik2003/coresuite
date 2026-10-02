@@ -143,5 +143,69 @@
         "volume": 1.0
       }
     ]
+  },
+  "boss.borealis": {
+    "subtitle": "coresuite.subtitle.boss.borealis",
+    "sounds": [
+      {
+        "name": "coresuite:boss/borealis_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.borealis.p1": {
+    "subtitle": "coresuite.subtitle.boss.borealis",
+    "sounds": [
+      {
+        "name": "coresuite:boss/borealis_p1",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.borealis.p2": {
+    "subtitle": "coresuite.subtitle.boss.borealis",
+    "sounds": [
+      {
+        "name": "coresuite:boss/borealis_p2",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "boss.borealis.p3": {
+    "subtitle": "coresuite.subtitle.boss.borealis",
+    "sounds": [
+      {
+        "name": "coresuite:boss/borealis_p3",
+        "stream": true,
+        "volume": 1.0
+      }
+    ]
+  },
+  "magic.cast": {
+    "sounds": [
+      {
+        "name": "coresuite:magic/cast",
+        "stream": false
+      }
+    ]
+  },
+  "magic.discover": {
+    "sounds": [
+      {
+        "name": "coresuite:magic/discover",
+        "stream": false
+      }
+    ]
+  },
+  "magic.frost": {
+    "sounds": [
+      {
+        "name": "coresuite:magic/frost",
+        "stream": false
+      }
+    ]
   }
 }

@@ -43,6 +43,22 @@ public final class CoreSuitePlugin extends JavaPlugin {
     }
 
     @Override
+    public void onLoad() {
+        // Geyser reads mappings during startup; install only our own new file, never replace operator mappings.
+        java.nio.file.Path folder = getDataFolder().toPath().getParent().resolve("Geyser-Spigot");
+        if (java.nio.file.Files.isDirectory(folder)) {
+            java.nio.file.Path mapping = folder.resolve("custom_mappings/coresuite_magic.json");
+            try (var source = getResource("integrations/coresuite_magic.json")) {
+                if (source != null && !java.nio.file.Files.exists(mapping)) {
+                    java.nio.file.Files.createDirectories(mapping.getParent());
+                    java.nio.file.Files.copy(source, mapping);
+                    getLogger().info("Installed Grimoire Geyser item mappings for startup.");
+                }
+            } catch (java.io.IOException e) { getLogger().log(java.util.logging.Level.WARNING, "Could not install Grimoire mappings; see deployment/geyser", e); }
+        }
+    }
+
+    @Override
     public void onEnable() {
         long startTime = System.currentTimeMillis();
         instance = this;
@@ -220,6 +236,9 @@ public final class CoreSuitePlugin extends JavaPlugin {
 
         // Phase 15 — Onboarding & Player Guide
         moduleManager.registerModule(new net.rocky.coresuite.module.guide.GuideModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.grimoire.GrimoireModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.worldencounters.WorldEncountersModule(this));
+        moduleManager.registerModule(new net.rocky.coresuite.module.sidequests.SideQuestsModule(this));
     }
 
     // ── Static accessor ──
