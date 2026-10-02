@@ -1,5 +1,7 @@
 # MeerMC Grimoire, encounters and contracts
 
+**Next implementation handoff (3 October 2026): [Magic redesign plan](MAGIC_REDESIGN_HANDOFF_2026-10-03.md).** Research, proposed controls, safety invariants, GUI specification, phased tasks and independent continuation instructions.
+
 Latest visual/menu revision: [Astral Archive](ASTRAL_ARCHIVE.md), including the new acceptance checklist.
 
 ## Current build
