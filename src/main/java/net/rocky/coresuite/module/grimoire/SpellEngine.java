@@ -18,6 +18,7 @@ final class SpellEngine {
   private final List<Bolt> bolts = new ArrayList<>();
   private final List<Field> fields = new ArrayList<>();
   private long ticks;
+  private final SpellVisuals visuals;
   private Impact currentImpact;
 
   private static final class Impact {
@@ -80,19 +81,10 @@ final class SpellEngine {
 
   SpellEngine(GrimoireModule module) {
     this.module = module;
+    this.visuals = new SpellVisuals(module);
   }
 
   boolean cast(Player player, SpellSpec spell, int tier) {
-    ring(
-        player.getLocation().add(0, .1, 0),
-        switch (spell.id()) {
-          case "fireball", "aura-of-the-hearth" -> Particle.FLAME;
-          case "water-cannon" -> Particle.SPLASH;
-          case "frost-lance" -> Particle.SNOWFLAKE;
-          case "harvesters-touch" -> Particle.HAPPY_VILLAGER;
-          case "dimension-door", "zoltraak" -> Particle.PORTAL;
-          default -> Particle.END_ROD;
-        });
     switch (spell.id()) {
       case "dimension-door", "zephyr-leap" -> {
         if (module.inArena(player.getLocation())) return false;
@@ -115,13 +107,14 @@ final class SpellEngine {
         destination.setYaw(from.getYaw());
         destination.setPitch(from.getPitch());
         if (!player.teleport(destination)) return false;
-        ring(from, Particle.PORTAL);
-        ring(destination, Particle.PORTAL);
+        visuals.pulse(from.clone().add(0, 1, 0), spell.id(), direction, false);
+        visuals.pulse(destination.clone().add(0, 1, 0), spell.id(), direction, true);
         return true;
       }
       case "aura-of-the-hearth" -> {
         if (fields.size() >= 16) return false;
         if (fields.stream().anyMatch(f -> f.caster.equals(player.getUniqueId()))) return false;
+        visuals.pulse(player.getLocation().add(0, .15, 0), spell.id(), new Vector(0, 1, 0), false);
         fields.add(new Field(player.getUniqueId(), player.getLocation(), tier, 0));
         return true;
       }
@@ -178,6 +171,7 @@ final class SpellEngine {
             crop.getWorld()
                 .spawnParticle(
                     Particle.HAPPY_VILLAGER, crop.clone().add(.5, .4, .5), 4, .2, .2, .2, 0);
+            visuals.pulse(crop.clone().add(.5, .2, .5), spell.id(), new Vector(0, 1, 0), true);
             count++;
             if (count >= 8 + tier * 4) {
               module.objective(player, "HARVEST", count);
@@ -189,6 +183,7 @@ final class SpellEngine {
       }
       default -> {
         if (bolts.size() >= 96) return false;
+        visuals.pulse(player.getEyeLocation().add(player.getLocation().getDirection().multiply(1.2)), spell.id(), player.getLocation().getDirection(), false);
         bolts.add(
             new Bolt(
                 player.getUniqueId(),
@@ -205,6 +200,7 @@ final class SpellEngine {
 
   void tick() {
     ticks++;
+    visuals.tick();
     for (var it = bolts.listIterator(); it.hasNext(); ) {
       Bolt b = it.next();
       Player caster = Bukkit.getPlayer(b.caster);
@@ -219,28 +215,11 @@ final class SpellEngine {
       for (int step = 0; step < 3 && !ended; step++) {
         b.at.add(b.direction.clone().multiply(.4));
         if (!loaded(b.at) || !b.at.getBlock().isPassable()) {
+          visuals.pulse(b.at.clone().subtract(b.direction.clone().multiply(.4)), b.spell.id(), b.direction, true);
           ended = true;
           break;
         }
-        particle(b.at, b.spell.id());
-        // Twin orbiting sparks distinguish magic from a plain arrow without spawning entities.
-        double angle = (b.age * 3 + step) * .65;
-        Vector side = b.direction.clone().crossProduct(new Vector(0, 1, 0));
-        if (side.lengthSquared() < .01) side = new Vector(1, 0, 0);
-        else side.normalize();
-        Vector up = side.clone().crossProduct(b.direction).normalize();
-        Vector offset =
-            side.multiply(Math.cos(angle) * .16).add(up.multiply(Math.sin(angle) * .16));
-        if (b.spell.id().equals("water-cannon")) {
-          particle(b.at.clone().add(offset.clone().multiply(2)), b.spell.id());
-          particle(b.at.clone().subtract(offset.clone().multiply(2)), b.spell.id());
-        } else if (b.spell.id().equals("frost-lance")) {
-          b.at.getWorld().spawnParticle(Particle.SNOWFLAKE, b.at, 2, .12, .12, .12, 0);
-        } else if (b.spell.id().equals("fireball")) {
-          b.at.getWorld().spawnParticle(Particle.SMOKE, b.at, 1, .08, .08, .08, 0);
-        } else if (b.spell.id().equals("zoltraak")) {
-          b.at.getWorld().spawnParticle(Particle.WITCH, b.at.clone().add(offset), 1, 0, 0, 0, 0);
-        }
+        visuals.trail(b.at, b.direction, b.spell.id(), b.age * 3 + step);
 
         for (Entity e : b.at.getWorld().getNearbyEntities(b.at, .5, .6, .5)) {
           if (!(e instanceof LivingEntity target)
@@ -261,7 +240,7 @@ final class SpellEngine {
             b.at.getWorld().spawnParticle(Particle.FLAME, b.at, 15, .4, .4, .4, .02);
           }
           // Do not change velocity/fire after damage: protection plugins may have cancelled it.
-          particle(target.getLocation().add(0, 1, 0), b.spell.id());
+          visuals.pulse(target.getLocation().add(0, 1, 0), b.spell.id(), b.direction, true);
           if (!b.spell.id().equals("zoltraak") || b.hit.size() >= b.tier) {
             ended = true;
             break;
@@ -282,13 +261,7 @@ final class SpellEngine {
         it.remove();
         continue;
       }
-      if (ticks % 10 == 0) {
-        radiusRing(f.center, Particle.FLAME, 3 + f.tier, 24);
-        f.center
-            .getWorld()
-            .spawnParticle(
-                Particle.CAMPFIRE_COSY_SMOKE, f.center.clone().add(0, .3, 0), 2, .15, .1, .15, .01);
-      }
+      if (ticks % 4 == 0) visuals.sanctuary(f.center, 3 + f.tier, ticks);
       if (ticks % 20 == 0)
         for (Player player : f.center.getWorld().getPlayers()) {
           if (player.getLocation().distanceSquared(f.center) > Math.pow(3 + f.tier, 2)
@@ -382,38 +355,9 @@ final class SpellEngine {
         && l.getWorld().isChunkLoaded(l.getBlockX() >> 4, l.getBlockZ() >> 4);
   }
 
-  private void particle(Location at, String spell) {
-    Particle p =
-        switch (spell) {
-          case "fireball" -> Particle.FLAME;
-          case "water-cannon" -> Particle.SPLASH;
-          case "frost-lance" -> Particle.SNOWFLAKE;
-          default -> Particle.END_ROD;
-        };
-    at.getWorld().spawnParticle(p, at, 1, 0, 0, 0, 0);
-  }
-
-  private void ring(Location at, Particle p) {
-    radiusRing(at, p, .7, 12);
-  }
-
-  private void radiusRing(Location at, Particle p, double radius, int points) {
-    for (int i = 0; i < points; i++) {
-      double angle = i * Math.PI * 2 / points;
-      at.getWorld()
-          .spawnParticle(
-              p,
-              at.clone().add(Math.cos(angle) * radius, .2, Math.sin(angle) * radius),
-              1,
-              0,
-              0,
-              0,
-              0);
-    }
-  }
-
   void clear() {
     bolts.clear();
     fields.clear();
+    visuals.clear();
   }
 }

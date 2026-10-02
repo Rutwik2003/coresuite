@@ -879,8 +879,7 @@ public final class GrimoireModule extends Module
   private void openJournal(Player player) {
     MagicProfile p = profile(player);
     if (p == null) return;
-    var menu = new MagicMenu(player.getUniqueId());
-    menu.inventory = Bukkit.createInventory(menu, 54, "Scholar Contracts");
+    var menu = framed(player, "Astral | Quest Journal");
     var quests = plugin.getModuleManager().getModule("side-quests");
     var all = quests == null ? null : quests.getConfig().getConfigurationSection("contracts");
     int slot = 10;
@@ -890,21 +889,27 @@ public final class GrimoireModule extends Module
         var c = all.getConfigurationSection(id);
         if (c == null) continue;
         boolean active = id.equals(p.activeContract);
-        menu.inventory.setItem(
-            slot,
-            button(
-                active ? Material.ENCHANTED_BOOK : Material.WRITABLE_BOOK,
-                "&d" + c.getString("name", id),
-                "&7" + c.getString("description", ""),
-                "&7Scholar: " + c.getString("merchant"),
-                "&7Objectives: " + MagicProgression.costs(c, "objectives"),
-                "&7Progress: " + (active ? p.contractProgress : "not accepted"),
-                "&aResearch: "
-                    + c.getInt("research")
-                    + " | Shards: "
-                    + MagicProgression.costs(c, "shards"),
-                "&aDuplicate credit: " + c.getString("duplicate-spell", "none"),
-                active ? "&eClick to claim when complete" : "&eClick near the scholar to accept"));
+        var lines = new ArrayList<String>();
+        lines.add(active ? "&aACTIVE CONTRACT" : "&8AVAILABLE CONTRACT");
+        lines.add("&7Scholar: " + readable(c.getString("merchant", "unknown")));
+        lines.add("");
+        for (var objective : MagicProgression.costs(c, "objectives").entrySet()) {
+          String key = objective.getKey();
+          int have = active ? p.contractProgress.getOrDefault(key, 0) : 0;
+          lines.add((have >= objective.getValue() ? "&a" : "&f") + readable(key)
+              + " &8| &b" + Math.min(have, objective.getValue()) + "/" + objective.getValue());
+        }
+        lines.add("");
+        lines.add("&6REWARDS");
+        lines.add("&f" + c.getInt("research") + " research");
+        for (var reward : MagicProgression.costs(c, "shards").entrySet())
+          lines.add("&f" + reward.getValue() + " " + readable(reward.getKey()) + " shards");
+        String duplicate = c.getString("duplicate-spell");
+        if (duplicate != null) lines.add("&f" + readable(duplicate) + " duplicate credit");
+        lines.add("");
+        lines.add(active ? "&eClick to claim when complete" : "&eClick near this scholar to accept");
+        menu.inventory.setItem(slot, button(active ? Material.ENCHANTED_BOOK : Material.WRITABLE_BOOK,
+            "&d" + c.getString("name", id), lines.toArray(String[]::new)));
         menu.actions.put(
             slot,
             () -> contracts(player, active ? new String[] {"claim"} : new String[] {"accept", id}));
@@ -1494,46 +1499,124 @@ public final class GrimoireModule extends Module
     return item;
   }
 
+  private String readable(String text) {
+    return Arrays.stream(text.toLowerCase(Locale.ROOT).replace(':', ' ').replace('-', ' ').replace('_', ' ').split(" +"))
+        .filter(word -> !word.isEmpty()).map(word -> Character.toUpperCase(word.charAt(0)) + word.substring(1))
+        .collect(java.util.stream.Collectors.joining(" "));
+  }
+
+  private String readableCosts(Map<?, ?> costs) {
+    return costs.isEmpty() ? "None" : costs.entrySet().stream()
+        .map(e -> e.getValue() + " " + readable(e.getKey().toString()))
+        .collect(java.util.stream.Collectors.joining(", "));
+  }
+
+  private void confirmAction(Player player, ItemStack cost, Runnable purchase) {
+    var menu = framed(player, "Astral | Confirm purchase");
+    menu.inventory.setItem(13, cost.clone());
+    menu.inventory.setItem(29, button(Material.LIME_CONCRETE, "&aConfirm purchase", "&7Pay the displayed costs."));
+    menu.actions.put(29, () -> { player.closeInventory(); purchase.run(); });
+    menu.inventory.setItem(33, button(Material.RED_CONCRETE, "&cCancel", "&7Spend nothing and return."));
+    menu.actions.put(33, () -> openWorkshop(player));
+    player.openInventory(menu.inventory);
+  }
+
+  private MagicMenu framed(Player player, String title) {
+    var menu = new MagicMenu(player.getUniqueId());
+    menu.inventory = Bukkit.createInventory(menu, 54, title);
+    for (int slot = 0; slot < 54; slot++)
+      if (slot < 9 || slot >= 45 || slot % 9 == 0 || slot % 9 == 8)
+        menu.inventory.setItem(slot, button(Material.BLACK_STAINED_GLASS_PANE, " "));
+    for (int slot : new int[]{0, 8, 45, 53})
+      menu.inventory.setItem(slot, button(Material.PURPLE_STAINED_GLASS_PANE, " "));
+    return menu;
+  }
+
+  private ItemStack spellCard(SpellSpec spell, String... lore) {
+    ItemStack card = button(Material.BOOK, "&f&l" + spell.name(), lore);
+    var meta = card.getItemMeta();
+    meta.setCustomModelData(tomeModel(spell.id()));
+    meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ATTRIBUTES);
+    card.setItemMeta(meta);
+    return card;
+  }
+
+  private String spellSummary(String id) {
+    return switch (id) {
+      case "fireball" -> "A searing lance that bursts across nearby foes.";
+      case "water-cannon" -> "Twin currents extinguish and push your target.";
+      case "frost-lance" -> "An icy spear that briefly slows its victim.";
+      case "zoltraak" -> "A piercing ray; higher tiers pierce more foes.";
+      case "dimension-door" -> "Step forward to safe ground in your sight.";
+      case "aura-of-the-hearth" -> "A sanctuary that heals you and your allies.";
+      case "harvesters-touch" -> "Harvest ripe crops; carry seeds to replant.";
+      default -> "A precise arcane dart for a single target.";
+    };
+  }
+
   public void open(Player player) {
     MagicProfile p = profile(player);
     if (p == null) return;
-    var menu = new MagicMenu(player.getUniqueId());
-    menu.inventory = Bukkit.createInventory(menu, 54, "Astral Grimoire");
-    int index = 0;
+    var menu = framed(player, "Astral | Spell Library");
+    menu.inventory.setItem(4, button(Material.ENCHANTED_BOOK, "&d&lYOUR GRIMOIRE",
+        "&7Choose a spell below to view its abilities.",
+        "&bPrepared: &f" + p.prepared.size() + "/" + p.slots,
+        "&bResearch: &f" + p.research, "", "&7Inspect first. Prepare or upgrade on the next page."));
+    int[] slots = {10, 12, 14, 16, 28, 30, 32, 34};
+    int i = 0;
     for (SpellSpec spell : spells.values()) {
-      if (index >= 18) break;
-      int slot = index++;
-      int tier = p.spells.getOrDefault(spell.id(), 0);
-      menu.inventory.setItem(
-          slot,
-          button(
-              spell.icon(),
-              "&d" + spell.name(),
-              tier == 0 ? "&8Undiscovered" : "&7Tier " + tier,
-              "&bMana: "
-                  + spell.tierMana(
-                      Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05))
-                  + " | Cooldown: "
-                  + spell.cooldown() / 1000.0
-                  + "s",
-              p.prepared.contains(spell.id())
-                  ? "&aPrepared — click to remove"
-                  : "&7Click to prepare"));
-      menu.actions.put(
-          slot,
-          () ->
-              change(
-                  player,
-                  next -> {
-                    if (!next.spells.containsKey(spell.id())) return;
-                    if (!next.prepared.remove(spell.id()) && next.prepared.size() < next.slots)
-                      next.prepared.add(spell.id());
-                    next.selected = 0;
-                  },
-                  () -> open(player)));
-      if (tier > 0) {
+      if (i >= slots.length) break;
+      int slot = slots[i++], tier = p.spells.getOrDefault(spell.id(), 0);
+      menu.inventory.setItem(slot, spellCard(spell,
+          tier == 0 ? "&8LOCKED | Find a scholar or a tome" :
+              "&bTIER " + tier + " &8| " + (p.prepared.contains(spell.id()) ? "&aPREPARED" : "&7LEARNED"),
+          "", "&7" + spellSummary(spell.id()), "",
+          "&b" + spell.tierMana(Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05))
+              + " mana &8| &f" + spell.cooldown()/1000.0 + "s cooldown", "", "&eClick to inspect"));
+      menu.actions.put(slot, () -> openSpell(player, spell.id()));
+    }
+    menu.inventory.setItem(45, button(Material.ENCHANTING_TABLE, "&6Enchanter & resources", "&7Pages, wand, scholar lessons and rewards"));
+    menu.actions.put(45, () -> openWorkshop(player));
+    menu.inventory.setItem(47, button(Material.WRITABLE_BOOK, "&bQuest journal", "&7Contracts, objectives and rewards"));
+    menu.actions.put(47, () -> openJournal(player));
+    String selected = p.selectedSpell();
+    menu.inventory.setItem(49, button(Material.COMPASS, "&aPrepared loadout",
+        "&7" + p.prepared.stream().map(id -> spells.containsKey(id) ? spells.get(id).name() : id).collect(java.util.stream.Collectors.joining(" / ")),
+        "&fSelected: " + (selected != null && spells.containsKey(selected) ? spells.get(selected).name() : "None"),
+        "", "&eClick to select the next prepared spell"));
+    menu.actions.put(49, () -> { cycle(player); open(player); });
+    menu.inventory.setItem(51, button(Material.KNOWLEDGE_BOOK, "&fCasting controls",
+        "&bRight-click &7Cast selected spell", "&bSneak + left-click &7Select next spell",
+        "&bSneak + right-click &7Open Grimoire", "", "&7Touch: /magic cast and /magic next"));
+    menu.inventory.setItem(53, button(Material.BARRIER, "&cClose"));
+    menu.actions.put(53, player::closeInventory);
+    player.openInventory(menu.inventory);
+  }
+
+  private void openSpell(Player player, String id) {
+    MagicProfile p = profile(player);
+    SpellSpec spell = spells.get(id);
+    if (p == null || spell == null) return;
+    int tier = p.spells.getOrDefault(id, 0);
+    var menu = framed(player, "Astral | " + spell.name());
+    menu.inventory.setItem(13, spellCard(spell, "&7" + spellSummary(id), "",
+        "&bTier: &f" + (tier == 0 ? "Undiscovered" : tier + " / 3"),
+        "&bMana: &f" + spell.tierMana(Math.max(1,tier), config.getDouble("mana.cost-reduction-per-tier", .05)),
+        "&bCooldown: &f" + spell.cooldown()/1000.0 + " seconds"));
+    boolean prepared = p.prepared.contains(id), full = p.prepared.size() >= p.slots;
+    menu.inventory.setItem(29, button(tier == 0 ? Material.GRAY_DYE : prepared ? Material.LIME_DYE : Material.LIGHT_BLUE_DYE,
+        tier == 0 ? "&8Not yet learned" : prepared ? "&aRemove from loadout" : full ? "&eLoadout full" : "&bPrepare this spell",
+        tier == 0 ? "&7Find its scholar or redeem a sealed tome." : full && !prepared ? "&7Remove another spell or bind another page." : "&7Preparation is free. Your spell stays learned."));
+    if (tier > 0) menu.actions.put(29, () -> {
+      if (!prepared && full) { message(player, "&eYour loadout is full. Remove a spell first."); return; }
+      change(player, next -> {
+        if (!next.prepared.remove(id) && next.prepared.size() < next.slots) next.prepared.add(id);
+        next.selected = 0;
+      }, () -> openSpell(player, id));
+    });
+      if (tier > 0 && tier < 3) {
         menu.inventory.setItem(
-            slot + 27,
+            33,
             button(
                 Material.EXPERIENCE_BOTTLE,
                 "&6Upgrade " + spell.name(),
@@ -1562,11 +1645,34 @@ public final class GrimoireModule extends Module
                         "spells." + spell.id() + ".upgrade-tier-" + (tier + 1) + ".duplicates",
                         tier == 1 ? 1 : 2),
                 tier >= 3 ? "&aMaximum tier" : "&7Visit the Enchanter; click to upgrade"));
-        menu.actions.put(slot + 27, () -> upgrade(player, spell.id()));
+        menu.actions.put(33, () -> confirmUpgrade(player, spell.id(), menu.inventory.getItem(33)));
       }
-    }
+
+    if (tier == 0 || tier == 3) menu.inventory.setItem(33, button(Material.GRAY_DYE, tier==3 ? "&aMaximum tier reached" : "&8Learn this spell first"));
+    menu.inventory.setItem(49, button(Material.ARROW,"&fBack to spell library"));
+    menu.actions.put(49, () -> open(player));
+    player.openInventory(menu.inventory);
+  }
+
+  private void confirmUpgrade(Player player, String id, ItemStack cost) {
+    var confirm = framed(player, "Astral | Confirm upgrade");
+    confirm.inventory.setItem(13, cost.clone());
+    confirm.inventory.setItem(29, button(Material.LIME_CONCRETE,"&aConfirm upgrade", "&7Pay the listed costs once."));
+    confirm.actions.put(29, () -> { player.closeInventory(); upgrade(player,id); });
+    confirm.inventory.setItem(33, button(Material.RED_CONCRETE,"&cCancel", "&7Return without spending anything."));
+    confirm.actions.put(33, () -> openSpell(player,id));
+    player.openInventory(confirm.inventory);
+  }
+
+  private void openWorkshop(Player player) {
+    MagicProfile p = profile(player);
+    if (p == null) return;
+    var menu = framed(player, "Astral | Enchanter");
+    menu.inventory.setItem(13, button(Material.ENCHANTING_TABLE, "&6&lTHE ENCHANTER",
+        "&7Pages, focus binding and magical resources.",
+        "&7Upgrade spells from their library detail page.", "", "&eStand near the Enchanter to purchase."));
     menu.inventory.setItem(
-        45,
+        20,
         button(
             Material.PAPER,
             "&dBind a new page",
@@ -1580,34 +1686,41 @@ public final class GrimoireModule extends Module
                     config.getDouble(
                         "binding.slot-" + (p.slots + 1) + "-currency",
                         100000 * Math.pow(2, p.slots - 2)))));
-    menu.actions.put(45, () -> bind(player));
+    if (p.slots >= maximumSlots()) menu.inventory.setItem(20, button(Material.PAPER, "&aAll pages bound", "&7Your loadout has reached its configured capacity."));
+    else menu.actions.put(20, () -> confirmAction(player, menu.inventory.getItem(20), () -> bind(player)));
     menu.inventory.setItem(
-        46,
+        22,
         button(
             Material.BLAZE_ROD,
             "&dAstral Wand",
             p.wand
                 ? "&aBound — click to retrieve"
-                : "&7Endgame focus: /magic wand for requirements",
+                : "&7Requires " + maximumSlots() + " pages and " + config.getInt("wand.minimum-spells", 5) + " learned spells",
+            "&fResearch: " + config.getInt("wand.research",100),
+            "&6Money: $" + String.format("%,.0f", config.getDouble("wand.currency",500000)),
+            "&fShards: " + readableCosts(MagicProgression.costs(config,"wand.shards")),
             "&7Owned wands grant +10% mana recovery",
             "&7Carry it to use /magic cast without holding a book"));
-    menu.actions.put(46, () -> wand(player));
+    menu.actions.put(22, () -> { if (p.wand) wand(player); else confirmAction(player, menu.inventory.getItem(22), () -> wand(player)); });
     menu.inventory.setItem(
-        48,
+        24,
         button(
             Material.AMETHYST_SHARD,
             "&bMagic resources",
-            "&7Shards: " + p.shards,
-            "&7Duplicates: " + p.duplicates,
+            "&cFire: &f" + p.shards.getOrDefault("fire",0),
+            "&bIce: &f" + p.shards.getOrDefault("ice",0),
+            "&dArcane: &f" + p.shards.getOrDefault("arcane",0),
+            "&aNature: &f" + p.shards.getOrDefault("nature",0),
+            "&7View spell-specific duplicate costs in its detail page.",
             "&7Click to collect boss rewards"));
-    menu.actions.put(48, () -> collectResearch(player));
+    menu.actions.put(24, () -> collectResearch(player));
     var encounters = plugin.getModuleManager().getModule("world-encounters");
     if (encounters
         instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule merchant)
       for (SpellSpec available : spells.values())
         if (merchant.offers(player, available.id())) {
           menu.inventory.setItem(
-              47,
+              30,
               button(
                   available.icon(),
                   "&bStudy " + available.name(),
@@ -1615,34 +1728,24 @@ public final class GrimoireModule extends Module
                   "&6Cost: "
                       + config.getInt("spells." + available.id() + ".research-cost", 6)
                       + " research",
-                  "&7Materials: " + merchant.materialCost(),
-                  "&7Shards: " + merchant.shardCost(),
-                  "&7Custom fish (inventory or bag): " + merchant.fishCost(),
+                  "&7Materials: " + readableCosts(merchant.materialCost()),
+                  "&7Shards: " + readableCosts(merchant.shardCost()),
+                  "&7Fish from inventory/bag: " + readableCosts(merchant.fishCost()),
                   "&6Money: $" + merchant.lessonCurrency(),
                   "&7Shared stock limit: " + merchant.stockLimit(),
                   "&7Click to learn permanently"));
-          menu.actions.put(47, () -> study(player, available.id()));
+          menu.actions.put(30, () -> confirmAction(player, menu.inventory.getItem(30), () -> study(player, available.id())));
           break;
         }
     menu.inventory.setItem(
-        49,
+        32,
         button(
             Material.WRITABLE_BOOK,
             "&bQuest Journal",
             "&7View objectives and claim completed quests"));
-    menu.actions.put(49, () -> openJournal(player));
-    menu.inventory.setItem(
-        53,
-        button(
-            Material.ARROW,
-            "&bSelect next spell",
-            "&7Current: " + Objects.toString(p.selectedSpell(), "none")));
-    menu.actions.put(
-        53,
-        () -> {
-          cycle(player);
-          open(player);
-        });
+    menu.actions.put(32, () -> openJournal(player));
+    menu.inventory.setItem(53, button(Material.ARROW, "&fBack to Grimoire"));
+    menu.actions.put(53, () -> open(player));
     player.openInventory(menu.inventory);
   }
 

@@ -82,5 +82,8 @@ def build():
  mappings['items']['minecraft:blaze_rod']=[{'type':'legacy','custom_model_data':71030,'bedrock_identifier':'coresuite:astral_wand','display_name':'Astral Focus Wand','bedrock_options':{'icon':'coresuite.astral_wand','allow_offhand':True}}]
  write(ROOT/'deployment/geyser/custom_mappings/coresuite_magic.json',mappings)
  write(ROOT/'src/main/resources/integrations/coresuite_magic.json',mappings)
+ from magic_art_direction import finish, preview
+ for root in roots: finish(root, DESIGNS)
+ preview(roots[0], DESIGNS, ROOT/'build/resourcepacks/astral-archive-preview.png')
  print('Built',len(DESIGNS),'native models, SVG sources, icons and crossplay mappings in both local pack trees.')
 if __name__=='__main__':build()

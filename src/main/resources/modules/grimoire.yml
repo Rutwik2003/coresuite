@@ -152,3 +152,9 @@ boss-rewards:
   mvp-shards: 3
   participation-shards: 1
   signature-chance-percent: 2.0
+
+# Cosmetics share the existing spell tick and spawn no entities.
+visuals:
+  enabled: true
+  # Global ceiling for new choreographed particle points each tick (64-1600).
+  points-per-tick: 700

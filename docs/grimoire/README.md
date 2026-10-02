@@ -1,5 +1,7 @@
 # MeerMC Grimoire, encounters and contracts
 
+Latest visual/menu revision: [Astral Archive](ASTRAL_ARCHIVE.md), including the new acceptance checklist.
+
 ## Current build
 An opt-in expansion for CoreSuite: eight spells, persistent spell preparation, mana, traveling scholars, material/fish trades, shared stock, merchant contracts, elemental boss rewards, signature inscriptions, Enchanter upgrades, page binding and an advanced wand.
 
@@ -54,7 +56,7 @@ Java uses solid cuboid Grimoire/tome/wand models, compact hand transforms, disti
 
 Book IDs: 71001 Grimoire; 71002 legacy generic tome; 71010–71017 the eight spells. Blaze rod 71030 is the wand. Existing tome inventory items migrate their model ID without changing their redemption token. Vanilla items keep their normal models.
 
-Sources: `pack-publisher/scripts/build_magic_models.py`, `docs/grimoire/art/*.svg`, `resourcepack/`. Generated Java/Bedrock mappings and matching PNG icons use authored code-native geometry/rectangle primitives. No image-generation tool was used for this revision; earlier generated artwork has been replaced.
+Sources: `pack-publisher/scripts/build_magic_models.py`, `pack-publisher/scripts/magic_art_direction.py`, and `resourcepack/`. Current covers use authored vector primitives rendered with Pillow; the SVG directory retains the earlier icon drafts. Generated Java/Bedrock mappings share item IDs. No image-generation tool was used for this revision; earlier generated artwork has been replaced.
 
 Standard Geyser-Spigot layouts receive missing mappings on plugin load. Old mappings are backed up, custom entries preserved, and the original shared tome icon upgraded. Custom-ID collisions require operator review. Proxy/custom layouts use `deployment/geyser/custom_mappings/coresuite_magic.json` manually. Restart Geyser after mapping changes.
 
