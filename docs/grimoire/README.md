@@ -1,65 +1,69 @@
-# Astral Grimoire — testing release
+# MeerMC Grimoire, encounters and contracts
 
-## Restore points (before any magic changes)
-- Plugin: `e2cc0b5`, tag `backup/pre-grimoire-2026-10-02` on Rutwik2003/coresuite.
-- Resource pack: `0ff3450`, same tag on Rutwik2003/meermc-resourcepack.
-- Restore the plugin by building that tag in a separate checkout. Do not reset a checkout containing new work.
-- Pack release `pack-3-1` is the pre-magic pack. An older release needs an explicitly pinned manifest/repository arrangement; the automatic latest-release updater otherwise moves forward again.
-- Live database/config backups must be taken on the actual server before deployment. GitHub stores source, not the live player database or private plugin configs.
+## Current build
+An opt-in expansion for CoreSuite: eight spells, persistent spell preparation, mana, traveling scholars, material/fish trades, shared stock, merchant contracts, elemental boss rewards, signature inscriptions, Enchanter upgrades, page binding and an advanced wand.
 
-## Included
-Three toggleable modules: grimoire, world-encounters, side-quests. The latter exposes configurable CAST, ENCOUNTER and FISH chapters, with a daily repeatable chapter. It is not an arbitrary script execution engine.
-Personal spell collection, prepared slots (2–5), tier upgrades (I–III), shared mana, cooldowns, single-use authenticated tome tokens, particle projectiles, healing field, safe short blink, protected crop harvesting, traveling scholars and personal research.
+**Start testing with [TEST_PLAN.md](TEST_PLAN.md).** It contains setup commands, expected outcomes, costs, two-player tests and rollback instructions. The local gameplay server is deliberately stopped. No magic resource pack has been published.
 
-Research is gained through encounter discovery, introductory/repeatable quests, duplicate tomes, and boss participation (3 MVP, 2 others). Existing cash, key, shard and shop-equipment rules remain unchanged. Research from bosses is durable for offline players; collect with /magic research or on login. Tier II costs 12 research + $100k; Tier III costs 30 research + $350k. Page 3/4/5 costs 30/60/100 research and $100k/$200k/$400k. All these costs are configurable. Vault must confirm payment; uncertain transactions remain pending for admin review rather than being automatically retried. /magicadmin pending <player> inspects; /magicadmin reconcile <player> paid|cancel applies/clears after checking the economy log. Clearing an intent does not issue a refund.
-PvP magic is disabled. Damage uses the ordinary Bukkit damage pipeline and respects cancellation. No armor-bypass direct health writes, wall-passing teleports, terrain explosions, bonus crop yield, or party-wide mana regeneration loops.
-Spells: Mana Dart, Ember Lance, Tidal Arrow, Frost Lance, Zoltraak, Dimension Step, Aura of the Hearth, Harvester's Touch. Projectile spells have different effects/colors; Ember Lance splashes up to five additional visible monsters at half damage, Zoltraak gains target piercing by tier. Damage rises 15% per tier. Hearth heals without requiring hunger and gains radius/duration and Dimension Step gains a little range with higher tiers.
+## Restore points and deliverables
+- Before this expansion: CoreSuite GitHub `test` checkpoint `0739fcd`.
+- Before any magic: `e2cc0b5`, tag `backup/pre-grimoire-2026-10-02`.
+- Build: `build/libs/CoreSuite-1.0.0.jar`.
+- Java test pack: `build/resourcepacks/meermc-magic-test.zip`.
+- Bedrock test overlay: `build/resourcepacks/meermc-magic-test.mcpack`.
+- Local installed copy: `.local/local-playtest/`; safety backup: `backups/pre-phase2/` within it.
+- Source rollback and database rollback are separate: restore a matched plugin/database backup while stopped.
 
-## Quick isolated test
-1. Replace the JAR while stopped; retain existing configs. Restart (not a plugin hot reload).
-2. On the TEST server only, set `modules.grimoire`, `modules.world-encounters` and `modules.side-quests` to true in config.yml, then restart. Defaults are false. Confirm all three modules enabled. Set encounter `worlds` if survival is not named `world`.
-3. In unclaimed loaded survival terrain run `/encounters spawn hedge-mage`.
-4. Interact with the scholar; receive a Grimoire and Mana Dart. `/magicadmin start <player>` is an admin fallback.
-5. Hold the Grimoire and use it to cast. Sneak + left-click cycles; sneak + right-click opens preparation.
-6. `/magic next`, `/magic cast`, `/grimoire` and clickable GUI buttons are control alternatives. Touch casting requires a real Bedrock client check.
-7. Cast five successful spells, then `/quests` to claim the next chapter. Discover two new encounters for the next reward.
-8. Admin testing: `/magicadmin research <player> 100`, `/magicadmin unlock <player> zoltraak`, `/magicadmin tome <player> frost-lance`.
-9. `/magic study <spell>` works only near the matching active scholar. `/magic upgrade <spell>` and `/magic bind` spend personal research and configured currency.
-10. Restart/rejoin: spells, tiers, quest state, research, mana and cooldowns survive. Duplicate a test tome in creative: its seal can only unlock once globally.
+## Enabling the modules
+`config.yml` module keys `grimoire`, `world-encounters` and `side-quests` remain false by default. All three are true in the isolated gameplay copy. New YAML keys merge automatically; existing administrator values stay intact. Storage uses the shared database manager; profile writes and reward claims use revision checks and SQL transactions.
 
-## Mystic Enchanter
-Run `/encounters setenchanter` where the spawn NPC should stand. Its location is saved; interaction opens the upgrade/loadout menu. Upgrades also remain accessible through `/magic` for servers that prefer no NPC.
+## Spells and mana
+Mana Dart, Ember Lance, Tidal Arrow, Frost Lance, Zoltraak, Dimension Step, Aura of the Hearth, Harvester's Touch.
+- Default mana: 100; recovery 2 per online second after a 3-second casting pause; hunger-independent.
+- Tier II/III reduce cost 5%/10% and increase damage 15%/30%. Values are bounded; mana does not refill on book swaps or relogging.
+- Hearth heals 1 health point per second at tier I, 1.25/1.5 at tiers II/III. Overlapping fields use the highest pulse; walls block healing. Duration 8/10/12 seconds, radius 4/5/6 blocks. It does not restore hunger.
+- Harvester uses the player break pipeline and replant placement events. One plain matching inventory seed/carrot/potato is consumed per replant. With no supplies it only harvests.
+- Water extinguishes/pushes, frost slows and fire briefly burns only after accepted damage. Pets/NPCs are excluded. Ordinary animals are configurable targets.
+- Damage uses normal Bukkit protection events. Teleporting stops at walls, unloaded terrain and arena restrictions. These are deliberate improvements over the original armor-bypassing/wall-passing concept.
+- PvP is off by default. Optional zones require both players in the same configured cuboid; world PvP and normal WorldGuard damage cancellation still apply. Per-spell `pvp: false` disables individual offensive spells against players.
+- Input gestures are configurable. Held-right-click repeats use a quiet-gap filter because books do not supply a reliable release event. Commands remain available for touch clients.
 
-## Resource pack — LOCAL TEST ONLY
-No magic assets have been pushed to the live resource-pack repository and no release has been published. Do not push the pack checkout: its main branch publishes automatically. The existing main-server updater stays on the currently published pack.
+## Progression
+- Start with two prepared slots; configure starting/max slots within 2–5.
+- Duplicates redeem once per sealed token and grant five research plus a persistent spell-specific duplicate credit.
+- Tier II default: 12 research, $100k, 5 elemental shards, 1 duplicate credit.
+- Tier III: 30 research, $350k, 15 shards, 2 duplicate credits. Per-spell tier overrides supported.
+- Binding pages 3/4/5 costs 30/60/100 research and $100k/$200k/$400k; optional arcane-shard requirements.
+- `/encounters setenchanter` places the utility NPC. Upgrades/binding require proximity by default; administrators can configure that requirement.
+- Wand binding requires maximum slots, five spells, 100 research, $500k, and 25 of each elemental shard. Bound owners get +10% recovery and can use `/magic cast` with their wand carried. Gestures still require holding a focus, preserving ordinary item controls. `/magic wand` retrieves the item after binding or loss.
 
-## Resource pack assets
-Custom Grimoire art is mapped to BOOK custom model data 71001; sealed tomes use 71002. Both legacy model overrides and modern item definitions are supplied.
-Geyser `custom_mappings/coresuite_magic.json` is installed only when absent during plugin load. The deployment copy is included for custom proxy layouts. Existing mappings are never overwritten. Restart Geyser after adding a mapping; clients must reconnect for new custom item definitions.
-The existing automatic Bedrock overlay now includes the Grimoire texture and original spell sounds while preserving its stable pack UUID and the separate fish pack.
-Original generated artwork uses the built-in imagegen tool. Prompt: an isolated indigo-and-brass pixel-art ancient Grimoire with a cyan diamond rune in a violet sigil, cream page edges and a crimson bookmark, transparent background. Asset: resourcepack/assets/coresuite/textures/item/astral_grimoire.png.
-Spell accents are original synthesized chimes; existing boss BGM is preserved.
+## Encounters and contracts
+Eight temporary scholar types use safe loaded terrain near online Survival players, with configurable biome weights, worlds, duration, stock, materials, exact custom-fish species, money and virtual shard costs. Stock is global per visit and reserved transactionally; a cancelled/uncertain reservation conservatively consumes one stock slot for that visit. Scholars teach permanent unlocks rather than manufacturing tradeable items in a crash-sensitive delivery step.
 
-## Boundaries / follow-up expansion
-The full design is larger than this first testable release. Boss-shard Enchanter trades, general multi-objective quest authoring, dungeon encounters, signature boss quests, Angler fish-bag trades, wands and PvP zone integration remain expansion work. They are not represented as completed by these modules.
-Balance and touch/offhand behavior need in-game group testing. Automated tests do not establish combat feel, actual sound playback or mobile usability.
+The river scholar accepts exact custom-fish species from player inventory first, then unlocked fish-bag pages. The existing fishing Angler remains a separate NPC. Custom item names cannot substitute for authenticated fish metadata.
 
-## Testing the pack without touching production
-Java: build/resourcepacks/meermc-magic-test.zip is a local client pack. For a separate test server, disable its automatic resource-pack module and clear that test server's server.properties pack URL so the old required pack cannot overwrite the local test pack. Install this ZIP in the test client's resourcepacks folder and select it. Do not alter the main server.
-Bedrock: on the separate test Geyser only, turn off CoreSuite bedrock-audio delivery (or disable the test server's resource-pack module), replace the audio overlay with build/resourcepacks/meermc-magic-test.mcpack in Geyser's packs directory, retain the separate fish pack, install deployment/geyser/custom_mappings/coresuite_magic.json and restart. Avoid loading both old and test audio overlays: they intentionally share the same UUID. These are test deployment instructions, not changes applied to your live server.
+`/quests` opens eight configurable multi-objective contracts. One active contract per player, accepted near the matching scholar. Objectives include named spells, hostile mob kills, fish catches, magic harvesting and eligible boss participation. Rewards are saved research, shards, optional unlocks and duplicate credits. Repeat cooldowns persist. `/quests chapter` keeps the original introductory chapter progression available.
 
-## Local playtest follow-up
-- Held right-click packets are suppressed using a 350 ms quiet gap (casting.repeat-gap-ms). Books do not provide a reliable release event, so client/network behavior still needs testing. Spell/global cooldowns remain enforced independently. /magic cast remains available.
-- Combat spells target hostile mobs and ordinary animals by default. Set targeting.animals: false to spare animals. Tamed pets, NPCs, villagers and players remain excluded; damage still passes through Bukkit events.
-- Scholars now show the current journal objective after discovery and on repeat interactions. Discovery research is separate from the sequential /quests chapters; individual merchant quest chains are not implemented.
+## Boss rewards
+Magic shards are virtual and separate from boss-equipment-shop shards. Valerius → fire; Aethelgard → nature; Xolthos → arcane; Borealis → ice. Defaults: MVP 3 shards/3 research; other eligible participants 1 shard/2 research. Signature fragments have a configurable 2% default chance for Xolthos/Aethelgard. Research, shards and fragments for one reward are inserted atomically and cannot be claimed twice. Existing boss equipment remains shop-only.
 
-## Hearth, farming and mana playtest update
-Hearth now pulses direct MAGIC healing once per second, using Paper's cancellable healing API, rather than refreshing a short Regeneration potion. Base healing is 1 health point (half a heart) per second, scaling to 1.25/1.5 at tiers II/III. Overlapping fields use the strongest pulse only; walls block healing. It does not restore hunger or prevent starvation damage. Duration remains 8/10/12 seconds, radius 4/5/6 blocks.
-Harvester uses the player block-break pipeline and replants mature wheat, carrots, potatoes and beetroot using one plain matching inventory seed/produce per crop. Keep seeds in your inventory before casting. With no planting supplies it still harvests. Placement cancellation restores the empty harvested block and consumes no seed. Custom named/modelled supplies are excluded.
-Starting mana remains 100, regenerating 2 per online second after a configurable 3-second casting pause. Tier II costs 5% less; tier III costs 10% less, rounded up to tenths. No separate character XP level system was introduced. Existing saved mana and custom costs are retained; new configuration keys auto-merge. Food is not required for mana recovery. Under server lag recovery slows with ticks rather than granting catch-up bursts.
-Spell trails now have distinct elemental accents: ember smoke, twin water ribbons, frost shards, violet Zoltraak sparks, warm Hearth boundary and green harvest particles. These use existing client particles and require no pack publication.
+`/magic inscribe zoltraak` or `aura-of-the-hearth` uses signature fragments at the Enchanter. If already learned, inscription grants a duplicate credit. Boss contract progress requires being online when the new eligible reward is processed; offline currency/shard receipts remain claimable.
 
-## Native book models (local test revision)
-The original shared generated-image item is replaced by native opaque cuboid geometry on Java. This removes transparent-image extrusion from the Java book models. First-person scale is 0.48, with separate left/right-hand transforms. Each tome has a separate cover colour and embossed symbol. IDs: Grimoire 71001, generic legacy tome 71002, Mana Dart 71010, Ember Lance 71011, Tidal Arrow 71012, Frost Lance 71013, Zoltraak 71014, Dimension Step 71015, Hearth 71016, Harvester 71017. Existing tome items in online players' inventories have their appearance updated every five seconds without changing their single-use token. Stored items update after they enter a player's inventory.
-Editable icon sources are in docs/grimoire/art/*.svg; native geometry and matching pixel icons are authored by pack-publisher/scripts/build_magic_models.py. These replace the earlier generated artwork. No image-generation tool was used for this revision; the assets are code-native models and vector icon primitives. Java uses 3D book geometry; Bedrock uses matching flat inventory/held icons, not identical 3D geometry. Existing Geyser installations must install the updated deployment mapping and test mcpack, then restart. First-time mapping extraction remains automatic.
-All resource-pack work stays on the local codex/grimoire-pack-local-test branch. No release or live update was published. Cross-client visual acceptance remains an in-game check.
+## Resource pack
+Java uses solid cuboid Grimoire/tome/wand models, compact hand transforms, distinct colour/symbol pairs, and exact model-ID fallback ranges. This replaces the old transparent-image extrusion. Bedrock has matching flat icons and original spell audio; it does not yet use identical Java-style 3D held geometry.
+
+Book IDs: 71001 Grimoire; 71002 legacy generic tome; 71010–71017 the eight spells. Blaze rod 71030 is the wand. Existing tome inventory items migrate their model ID without changing their redemption token. Vanilla items keep their normal models.
+
+Sources: `pack-publisher/scripts/build_magic_models.py`, `docs/grimoire/art/*.svg`, `resourcepack/`. Generated Java/Bedrock mappings and matching PNG icons use authored code-native geometry/rectangle primitives. No image-generation tool was used for this revision; earlier generated artwork has been replaced.
+
+Standard Geyser-Spigot layouts receive missing mappings on plugin load. Old mappings are backed up, custom entries preserved, and the original shared tome icon upgraded. Custom-ID collisions require operator review. Proxy/custom layouts use `deployment/geyser/custom_mappings/coresuite_magic.json` manually. Restart Geyser after mapping changes.
+
+**The separate pack repository stays local on `codex/grimoire-pack-local-test`. Its main branch auto-publishes: do not push main or run its release workflow until explicitly approved.**
+
+## Payment safety and limits
+The database can atomically save virtual resources and stock; Vault, player inventories and fish bags are separate systems. Persisted pending intents record all costs before external debits. A failed or ambiguous payment never automatically replays charges. Inspect `/magicadmin pending PLAYER`, verify actual external payments, then reconcile `paid` or `cancel`. Cancellation does not issue a refund and does not replenish visit stock. Fish-bag payment must be confirmed saved before the spell unlock completes.
+
+Runtime bounds: one traveling scholar, 96 animated projectiles, 16 Hearth fields, bounded input/progress queues, no spell-driven chunk generation. SQL uses the shared executor/pool with closed statements/connections and indexes for receipt claims. Reload/disable removes effects and NPCs. Confirm performance under real player load in the test guide.
+
+## Validation boundary
+Automated build, SQL, input, model-mapping and progression tests complement startup checks. Real Java/Bedrock visuals, touch input, payment-provider behavior, multiplayer balance and actual MySQL deployment still require acceptance testing. Additional spell concepts (Anti-Magic Burst, Zephyr's Leap, Aura of the Sea), procedural dungeons and broader world-story campaigns are not part of this eight-spell core release.

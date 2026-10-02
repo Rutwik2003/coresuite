@@ -2,12 +2,14 @@ package net.rocky.coresuite.module.grimoire;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.*;
 import org.junit.jupiter.api.Test;
 
 class SpellTargetTest {
-  @Test void animalsAreConfigurableAndProtectedTargetsStayExcluded() {
+  @Test
+  void animalsAreConfigurableAndProtectedTargetsStayExcluded() {
     var module = mock(GrimoireModule.class);
     var config = new YamlConfiguration();
     when(module.getConfig()).thenReturn(config);

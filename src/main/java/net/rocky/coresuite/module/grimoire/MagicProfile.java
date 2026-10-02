@@ -17,6 +17,18 @@ public final class MagicProfile {
   public final Map<String, Long> cooldowns = new HashMap<>();
   public final Set<String> discoveries = new HashSet<>();
   public int selected;
+  public boolean wand, magicEnabled = true;
+  public String activeContract = "", pendingStock = "";
+  public int pendingStockLimit;
+  public final Map<String, Integer> shards = new HashMap<>(),
+      duplicates = new HashMap<>(),
+      contractProgress = new HashMap<>(),
+      pendingMaterials = new HashMap<>(),
+      pendingShards = new HashMap<>(),
+      pendingFish = new HashMap<>();
+  public final Map<String, Long> contractClaims = new HashMap<>();
+  public String pendingDuplicate = "";
+  public int pendingDuplicateCount;
 
   public String selectedSpell() {
     return prepared.isEmpty() ? null : prepared.get(Math.floorMod(selected, prepared.size()));
@@ -47,6 +59,20 @@ public final class MagicProfile {
 
   public String encode() {
     var y = new YamlConfiguration();
+    y.set("wand", wand);
+    y.set("magic-enabled", magicEnabled);
+    y.set("active-contract", activeContract);
+    y.set("pending-stock", pendingStock);
+    y.set("pending-stock-limit", pendingStockLimit);
+    y.set("pending-duplicate", pendingDuplicate);
+    y.set("pending-duplicate-count", pendingDuplicateCount);
+    shards.forEach((k, v) -> y.set("shards." + k, v));
+    duplicates.forEach((k, v) -> y.set("duplicates." + k, v));
+    contractProgress.forEach((k, v) -> y.set("contract-progress." + k, v));
+    contractClaims.forEach((k, v) -> y.set("contract-claims." + k, v));
+    pendingMaterials.forEach((k, v) -> y.set("pending-materials." + k, v));
+    pendingFish.forEach((k, v) -> y.set("pending-fish." + k, v));
+    pendingShards.forEach((k, v) -> y.set("pending-shards." + k, v));
     y.set("pending-upgrade", pendingUpgrade);
     y.set("pending-research", pendingResearch);
     y.set("pending-cash", pendingCash);
@@ -67,10 +93,33 @@ public final class MagicProfile {
     return y.saveToString();
   }
 
+  private static void readCounts(YamlConfiguration y, String path, Map<String, Integer> target) {
+    var section = y.getConfigurationSection(path);
+    if (section != null)
+      for (String key : section.getKeys(false))
+        target.put(key, Math.max(0, Math.min(100000, section.getInt(key))));
+  }
+
   public static MagicProfile decode(String text, long revision) throws Exception {
     var p = new MagicProfile();
     var y = new YamlConfiguration();
     y.loadFromString(text);
+    p.wand = y.getBoolean("wand");
+    p.magicEnabled = y.getBoolean("magic-enabled", true);
+    p.activeContract = y.getString("active-contract", "");
+    p.pendingStock = y.getString("pending-stock", "");
+    p.pendingStockLimit = y.getInt("pending-stock-limit");
+    p.pendingDuplicate = y.getString("pending-duplicate", "");
+    p.pendingDuplicateCount = Math.max(0, y.getInt("pending-duplicate-count"));
+    readCounts(y, "shards", p.shards);
+    readCounts(y, "duplicates", p.duplicates);
+    readCounts(y, "contract-progress", p.contractProgress);
+    readCounts(y, "pending-materials", p.pendingMaterials);
+    readCounts(y, "pending-shards", p.pendingShards);
+    readCounts(y, "pending-fish", p.pendingFish);
+    var claims = y.getConfigurationSection("contract-claims");
+    if (claims != null)
+      for (String key : claims.getKeys(false)) p.contractClaims.put(key, claims.getLong(key));
     p.pendingUpgrade = y.getString("pending-upgrade");
     p.pendingResearch = y.getInt("pending-research");
     p.pendingCash = y.getDouble("pending-cash");

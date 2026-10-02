@@ -58,7 +58,7 @@ def build(source, output, version):
         'modules': [{'type': 'resources', 'uuid': stable('resources'), 'version': numbers}]}
     atlas = {}
     texture_dir = source / 'assets/coresuite/textures/item'
-    textures = [texture_dir / 'astral_grimoire.png', texture_dir / 'sealed_tome.png']
+    textures = [texture_dir / 'astral_grimoire.png', texture_dir / 'sealed_tome.png', texture_dir / 'astral_wand.png']
     textures += sorted(texture_dir.glob('tome_*.png'))
     for texture in textures:
         if not texture.is_file(): continue

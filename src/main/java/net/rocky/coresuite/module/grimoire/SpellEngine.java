@@ -7,8 +7,8 @@ import org.bukkit.block.data.Ageable;
 import org.bukkit.entity.*;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.*;
 import org.bukkit.util.Vector;
 
@@ -18,6 +18,54 @@ final class SpellEngine {
   private final List<Bolt> bolts = new ArrayList<>();
   private final List<Field> fields = new ArrayList<>();
   private long ticks;
+  private Impact currentImpact;
+
+  private static final class Impact {
+    final Player caster;
+    final LivingEntity target;
+    org.bukkit.event.entity.EntityDamageByEntityEvent event;
+
+    Impact(Player caster, LivingEntity target) {
+      this.caster = caster;
+      this.target = target;
+    }
+  }
+
+  void observeDamage(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+    if (currentImpact != null
+        && event.getEntity().equals(currentImpact.target)
+        && event.getDamager().equals(currentImpact.caster)) currentImpact.event = event;
+  }
+
+  private void damage(
+      Player caster, LivingEntity target, SpellSpec spell, int tier, double multiplier) {
+    if (target instanceof Player
+        && !module.getConfig().getBoolean("spells." + spell.id() + ".pvp", true)) return;
+    Impact before = currentImpact, hit = new Impact(caster, target);
+    currentImpact = hit;
+    try {
+      target.damage(spell.tierDamage(tier) * multiplier, caster);
+    } finally {
+      currentImpact = before;
+    }
+    if (hit.event == null
+        || hit.event.isCancelled()
+        || hit.event.getFinalDamage() <= 0
+        || target.isDead()) return;
+    switch (spell.id()) {
+      case "water-cannon" -> {
+        target.setFireTicks(0);
+        Vector push = target.getLocation().toVector().subtract(caster.getLocation().toVector());
+        if (push.lengthSquared() > .01)
+          target.setVelocity(push.normalize().multiply(.35).setY(.15));
+      }
+      case "frost-lance" ->
+          target.addPotionEffect(
+              new PotionEffect(PotionEffectType.SLOWNESS, 40, 0, false, true, true));
+      case "fireball" -> target.setFireTicks(Math.max(target.getFireTicks(), 40));
+      default -> {}
+    }
+  }
 
   private record Bolt(
       UUID caster,
@@ -35,14 +83,16 @@ final class SpellEngine {
   }
 
   boolean cast(Player player, SpellSpec spell, int tier) {
-    ring(player.getLocation().add(0, .1, 0), switch (spell.id()) {
-      case "fireball", "aura-of-the-hearth" -> Particle.FLAME;
-      case "water-cannon" -> Particle.SPLASH;
-      case "frost-lance" -> Particle.SNOWFLAKE;
-      case "harvesters-touch" -> Particle.HAPPY_VILLAGER;
-      case "dimension-door", "zoltraak" -> Particle.PORTAL;
-      default -> Particle.END_ROD;
-    });
+    ring(
+        player.getLocation().add(0, .1, 0),
+        switch (spell.id()) {
+          case "fireball", "aura-of-the-hearth" -> Particle.FLAME;
+          case "water-cannon" -> Particle.SPLASH;
+          case "frost-lance" -> Particle.SNOWFLAKE;
+          case "harvesters-touch" -> Particle.HAPPY_VILLAGER;
+          case "dimension-door", "zoltraak" -> Particle.PORTAL;
+          default -> Particle.END_ROD;
+        });
     switch (spell.id()) {
       case "dimension-door", "zephyr-leap" -> {
         if (module.inArena(player.getLocation())) return false;
@@ -101,12 +151,23 @@ final class SpellEngine {
                 var planted = (Ageable) cropType.createBlockData();
                 planted.setAge(0);
                 block.setBlockData(planted, false);
-                var place = new BlockPlaceEvent(block, replaced, block.getRelative(0, -1, 0),
-                    new ItemStack(seed), player, true, EquipmentSlot.HAND);
+                var place =
+                    new BlockPlaceEvent(
+                        block,
+                        replaced,
+                        block.getRelative(0, -1, 0),
+                        new ItemStack(seed),
+                        player,
+                        true,
+                        EquipmentSlot.HAND);
                 Bukkit.getPluginManager().callEvent(place);
                 ItemStack supply = player.getInventory().getItem(slot);
-                if (place.isCancelled() || !place.canBuild() || supply == null
-                    || supply.getType() != seed || supply.hasItemMeta() || supply.getAmount() < 1) {
+                if (place.isCancelled()
+                    || !place.canBuild()
+                    || supply == null
+                    || supply.getType() != seed
+                    || supply.hasItemMeta()
+                    || supply.getAmount() < 1) {
                   replaced.update(true, false);
                 } else {
                   supply.setAmount(supply.getAmount() - 1);
@@ -114,10 +175,16 @@ final class SpellEngine {
                 }
               }
             }
-            crop.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, crop.clone().add(.5,.4,.5), 4, .2,.2,.2,0);
+            crop.getWorld()
+                .spawnParticle(
+                    Particle.HAPPY_VILLAGER, crop.clone().add(.5, .4, .5), 4, .2, .2, .2, 0);
             count++;
-            if (count >= 8 + tier * 4) return true;
+            if (count >= 8 + tier * 4) {
+              module.objective(player, "HARVEST", count);
+              return true;
+            }
           }
+        if (count > 0) module.objective(player, "HARVEST", count);
         return count > 0;
       }
       default -> {
@@ -168,11 +235,11 @@ final class SpellEngine {
           particle(b.at.clone().add(offset.clone().multiply(2)), b.spell.id());
           particle(b.at.clone().subtract(offset.clone().multiply(2)), b.spell.id());
         } else if (b.spell.id().equals("frost-lance")) {
-          b.at.getWorld().spawnParticle(Particle.SNOWFLAKE, b.at, 2, .12,.12,.12,0);
+          b.at.getWorld().spawnParticle(Particle.SNOWFLAKE, b.at, 2, .12, .12, .12, 0);
         } else if (b.spell.id().equals("fireball")) {
-          b.at.getWorld().spawnParticle(Particle.SMOKE, b.at, 1, .08,.08,.08,0);
+          b.at.getWorld().spawnParticle(Particle.SMOKE, b.at, 1, .08, .08, .08, 0);
         } else if (b.spell.id().equals("zoltraak")) {
-          b.at.getWorld().spawnParticle(Particle.WITCH, b.at.clone().add(offset), 1,0,0,0,0);
+          b.at.getWorld().spawnParticle(Particle.WITCH, b.at.clone().add(offset), 1, 0, 0, 0, 0);
         }
 
         for (Entity e : b.at.getWorld().getNearbyEntities(b.at, .5, .6, .5)) {
@@ -180,7 +247,7 @@ final class SpellEngine {
               || !validTarget(caster, target)
               || !b.hit.add(e.getUniqueId())) continue;
           if (!caster.hasLineOfSight(target)) continue;
-          target.damage(b.spell.tierDamage(b.tier), caster);
+          damage(caster, target, b.spell, b.tier, 1);
           if (b.spell.id().equals("fireball")) {
             int splashes = 0;
             for (Entity nearby : b.at.getWorld().getNearbyEntities(b.at, 2, 2, 2))
@@ -188,7 +255,7 @@ final class SpellEngine {
                   && validTarget(caster, secondary)
                   && caster.hasLineOfSight(secondary)
                   && b.hit.add(secondary.getUniqueId())) {
-                secondary.damage(b.spell.tierDamage(b.tier) * .5, caster);
+                damage(caster, secondary, b.spell, b.tier, .5);
                 if (++splashes >= 5) break;
               }
             b.at.getWorld().spawnParticle(Particle.FLAME, b.at, 15, .4, .4, .4, .02);
@@ -217,29 +284,50 @@ final class SpellEngine {
       }
       if (ticks % 10 == 0) {
         radiusRing(f.center, Particle.FLAME, 3 + f.tier, 24);
-        f.center.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, f.center.clone().add(0,.3,0), 2, .15,.1,.15,.01);
+        f.center
+            .getWorld()
+            .spawnParticle(
+                Particle.CAMPFIRE_COSY_SMOKE, f.center.clone().add(0, .3, 0), 2, .15, .1, .15, .01);
       }
       if (ticks % 20 == 0)
         for (Player player : f.center.getWorld().getPlayers()) {
           if (player.getLocation().distanceSquared(f.center) > Math.pow(3 + f.tier, 2)
               || !module.canPlay(player)
               || !allied(caster, player)) continue;
-          Vector ray = player.getEyeLocation().toVector().subtract(f.center.clone().add(0,.5,0).toVector());
-          if (ray.lengthSquared() > .01 && f.center.getWorld().rayTraceBlocks(
-              f.center.clone().add(0,.5,0), ray.clone().normalize(), ray.length(), FluidCollisionMode.NEVER, true) != null) continue;
-          double amount = SpellSpec.bounded(module.getConfig().getDouble("hearth.health-per-second", 1), 1, .1, 4)
-              * (1 + .25 * (f.tier - 1));
+          Vector ray =
+              player
+                  .getEyeLocation()
+                  .toVector()
+                  .subtract(f.center.clone().add(0, .5, 0).toVector());
+          if (ray.lengthSquared() > .01
+              && f.center
+                      .getWorld()
+                      .rayTraceBlocks(
+                          f.center.clone().add(0, .5, 0),
+                          ray.clone().normalize(),
+                          ray.length(),
+                          FluidCollisionMode.NEVER,
+                          true)
+                  != null) continue;
+          double amount =
+              SpellSpec.bounded(
+                      module.getConfig().getDouble("hearth.health-per-second", 1), 1, .1, 4)
+                  * (1 + .25 * (f.tier - 1));
           healing.merge(player.getUniqueId(), amount, Math::max);
         }
       it.set(new Field(f.caster, f.center, f.tier, f.age + 1));
     }
-    healing.forEach((id, amount) -> {
-      Player recipient = Bukkit.getPlayer(id);
-      if (recipient != null && module.canPlay(recipient)) {
-        recipient.heal(amount, EntityRegainHealthEvent.RegainReason.MAGIC);
-        recipient.getWorld().spawnParticle(Particle.HEART, recipient.getLocation().add(0,1.2,0), 1, .2,.1,.2,0);
-      }
-    });
+    healing.forEach(
+        (id, amount) -> {
+          Player recipient = Bukkit.getPlayer(id);
+          if (recipient != null && module.canPlay(recipient)) {
+            recipient.heal(amount, EntityRegainHealthEvent.RegainReason.MAGIC);
+            recipient
+                .getWorld()
+                .spawnParticle(
+                    Particle.HEART, recipient.getLocation().add(0, 1.2, 0), 1, .2, .1, .2, 0);
+          }
+        });
   }
 
   static Material seedFor(Material crop) {
@@ -255,7 +343,8 @@ final class SpellEngine {
   static int plantingSlot(ItemStack[] items, Material seed) {
     for (int i = 0; i < items.length; i++) {
       ItemStack item = items[i];
-      if (item != null && item.getType() == seed && item.getAmount() > 0 && !item.hasItemMeta()) return i;
+      if (item != null && item.getType() == seed && item.getAmount() > 0 && !item.hasItemMeta())
+        return i;
     }
     return -1;
   }
@@ -270,10 +359,14 @@ final class SpellEngine {
     if (target.hasMetadata("NPC")
         || (target.getScoreboardTags().contains("coresuite_encounter")
             || target.getScoreboardTags().contains("coresuite_enchanter"))) return false;
-    if (target instanceof Player)
-      return false; // PvP deliberately disabled until explicit zone integration is validated.
+    if (target instanceof Player other)
+      return !other.isDead()
+          && other.getGameMode() == GameMode.SURVIVAL
+          && module.canMagicPvp(caster, other);
     return target instanceof Enemy
-        || target instanceof Monster || target instanceof Slime || target instanceof Phantom
+        || target instanceof Monster
+        || target instanceof Slime
+        || target instanceof Phantom
         || (target instanceof Animals && module.getConfig().getBoolean("targeting.animals", true));
   }
 
@@ -309,7 +402,13 @@ final class SpellEngine {
       double angle = i * Math.PI * 2 / points;
       at.getWorld()
           .spawnParticle(
-              p, at.clone().add(Math.cos(angle) * radius, .2, Math.sin(angle) * radius), 1, 0, 0, 0, 0);
+              p,
+              at.clone().add(Math.cos(angle) * radius, .2, Math.sin(angle) * radius),
+              1,
+              0,
+              0,
+              0,
+              0);
     }
   }
 

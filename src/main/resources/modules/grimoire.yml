@@ -100,3 +100,55 @@ spells:
     range: 2
     arena: false
     research-cost: 8
+
+# Advanced progression. Magic shards are separate from boss-shop equipment shards.
+wand:
+  minimum-spells: 5
+  research: 100
+  currency: 500000
+  shards:
+    fire: 25
+    ice: 25
+    arcane: 25
+    nature: 25
+# Signature fragments are rare extra magic rewards; no equipment drops are added.
+inscription:
+  zoltraak:
+    research: 20
+    currency: 150000
+    shards:
+      zoltraak-fragment: 1
+      arcane: 5
+  aura-of-the-hearth:
+    research: 15
+    currency: 100000
+    shards:
+      hearth-fragment: 1
+      nature: 5
+# Both players must be inside the SAME configured box. Normal damage cancellation
+# (WorldGuard and other plugins) still applies. Empty zones disable all magic PvP.
+pvp:
+  enabled: false
+  zones: {}
+# Per-spell upgrade overrides may be added below each spells.<id> entry:
+# upgrade-tier-2: {research: 12, currency: 100000, shards: 5, duplicates: 1}
+# upgrade-tier-3: {research: 30, currency: 350000, shards: 15, duplicates: 2}
+
+# Available actions: cast, cycle, loadout, none. Commands remain touch alternatives.
+controls:
+  right-click: cast
+  sneak-right-click: loadout
+  sneak-left-click: cycle
+
+loadout:
+  starting-slots: 2
+  maximum-slots: 5
+enchanter:
+  require-for-upgrades: true
+
+boss-rewards:
+  mvp-research: 3
+  participation-research: 2
+  mvp-shards: 3
+  participation-shards: 1
+  signature-chance-percent: 2.0

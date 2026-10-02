@@ -49,12 +49,10 @@ public final class CoreSuitePlugin extends JavaPlugin {
         if (java.nio.file.Files.isDirectory(folder)) {
             java.nio.file.Path mapping = folder.resolve("custom_mappings/coresuite_magic.json");
             try (var source = getResource("integrations/coresuite_magic.json")) {
-                if (source != null && !java.nio.file.Files.exists(mapping)) {
-                    java.nio.file.Files.createDirectories(mapping.getParent());
-                    java.nio.file.Files.copy(source, mapping);
-                    getLogger().info("Installed Grimoire Geyser item mappings for startup.");
-                }
-            } catch (java.io.IOException e) { getLogger().log(java.util.logging.Level.WARNING, "Could not install Grimoire mappings; see deployment/geyser", e); }
+                if (source != null && net.rocky.coresuite.common.integration.MagicMappingUpdater.update(mapping,
+                    new String(source.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)))
+                    getLogger().info("Updated Grimoire Geyser item mappings; existing custom entries preserved.");
+            } catch (Exception e) { getLogger().log(java.util.logging.Level.WARNING, "Could not install Grimoire mappings; see deployment/geyser", e); }
         }
     }
 

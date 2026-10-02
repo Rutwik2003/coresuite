@@ -102,6 +102,18 @@
           "allow_offhand": true
         }
       }
+    ],
+    "minecraft:blaze_rod": [
+      {
+        "type": "legacy",
+        "custom_model_data": 71030,
+        "bedrock_identifier": "coresuite:astral_wand",
+        "display_name": "Astral Focus Wand",
+        "bedrock_options": {
+          "icon": "coresuite.astral_wand",
+          "allow_offhand": true
+        }
+      }
     ]
   }
 }

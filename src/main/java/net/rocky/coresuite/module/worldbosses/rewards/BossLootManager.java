@@ -147,7 +147,7 @@ public class BossLootManager {
                 mailbox.enqueue(entry.uuid(), receipts);
                 var magic = plugin.getModuleManager().getModule("grimoire");
                 if (magic instanceof net.rocky.coresuite.module.grimoire.GrimoireModule grimoire && grimoire.isEnabled())
-                    grimoire.awardBossResearch(entry.uuid(), damageTracker.getEncounterId().toString(), i == 0 ? 3 : 2);
+                    grimoire.awardBossResearch(entry.uuid(), damageTracker.getEncounterId().toString(), i == 0 ? 3 : 2, bossType.name());
                 Player recipient = Bukkit.getPlayer(entry.uuid());
                 if (recipient != null && multiplier > 1) TextUtil.sendMessage(recipient,
                         "&6Boss reward bonus: &e+" + String.format("%.0f", (multiplier - 1) * 100)

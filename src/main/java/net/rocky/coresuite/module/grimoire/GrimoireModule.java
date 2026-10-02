@@ -31,6 +31,10 @@ public final class GrimoireModule extends Module
   private NamespacedKey itemKey, tokenKey;
   private int seconds;
 
+  private record ProgressEvent(String type, int amount, String contract, int chapter) {}
+
+  private final Map<UUID, ArrayDeque<ProgressEvent>> pendingProgress = new HashMap<>();
+
   public GrimoireModule(CoreSuitePlugin plugin) {
     super(plugin, "Grimoire", "grimoire");
   }
@@ -90,6 +94,7 @@ public final class GrimoireModule extends Module
         (id, state) -> {
           if (!state.busy) saveSession(id, state);
         });
+    pendingProgress.clear();
     profiles.clear();
     castInputs.clear();
     loading.clear();
@@ -172,6 +177,7 @@ public final class GrimoireModule extends Module
 
   @EventHandler
   public void quit(PlayerQuitEvent event) {
+    pendingProgress.remove(event.getPlayer().getUniqueId());
     castInputs.remove(event.getPlayer().getUniqueId());
     MagicProfile state = profiles.remove(event.getPlayer().getUniqueId());
     if (state != null && !state.busy) saveSession(event.getPlayer().getUniqueId(), state);
@@ -187,11 +193,22 @@ public final class GrimoireModule extends Module
       if (seconds % 5 == 0) refreshItemModels(player);
       MagicProfile p = profiles.get(player.getUniqueId());
       if (!p.started || p.busy || !canPlay(player)) continue;
+      var events = pendingProgress.get(player.getUniqueId());
+      if (events != null && !events.isEmpty()) {
+        var e = events.removeFirst();
+        if (e.contract().equals(p.activeContract) && e.chapter() == p.questStage)
+          objective(player, e.type(), e.amount());
+        if (events.isEmpty()) pendingProgress.remove(player.getUniqueId());
+        if (p.busy) continue;
+      }
       p.regenerate(
           System.currentTimeMillis(),
           maximumMana(),
-          SpellSpec.bounded(config.getDouble("mana.regeneration-per-second", 2), 2, 0, 10),
-          (long) (SpellSpec.bounded(config.getDouble("mana.recovery-delay-seconds", 3), 3, 0, 30) * 1000));
+          SpellSpec.bounded(config.getDouble("mana.regeneration-per-second", 2), 2, 0, 10)
+              * (p.wand ? 1.1 : 1),
+          (long)
+              (SpellSpec.bounded(config.getDouble("mana.recovery-delay-seconds", 3), 3, 0, 30)
+                  * 1000));
       if (equipped(player) && !inArena(player.getLocation())) {
         String selected = p.selectedSpell();
         String name =
@@ -229,6 +246,28 @@ public final class GrimoireModule extends Module
         && boss.isEnabled()
         && boss.getPortalManager() != null
         && boss.getPortalManager().inArena(location);
+  }
+
+  boolean canMagicPvp(Player caster, Player target) {
+    if (!config.getBoolean("pvp.enabled", false)
+        || !caster.getWorld().equals(target.getWorld())
+        || !caster.getWorld().getPVP()
+        || inArena(caster.getLocation())
+        || inArena(target.getLocation())
+        || raidAllies(caster, target)
+        || !AuthenticationGate.isAuthenticated(target)) return false;
+    var board = Bukkit.getScoreboardManager().getMainScoreboard();
+    var team = board.getEntryTeam(caster.getName());
+    if (team != null && team.equals(board.getEntryTeam(target.getName()))) return false;
+    var zones = config.getConfigurationSection("pvp.zones");
+    if (zones == null) return false;
+    for (String key : zones.getKeys(false)) {
+      var zone = zones.getConfigurationSection(key);
+      if (zone != null
+          && MagicZone.contains(zone, caster.getLocation())
+          && MagicZone.contains(zone, target.getLocation())) return true;
+    }
+    return false;
   }
 
   boolean raidAllies(Player a, Player b) {
@@ -271,9 +310,18 @@ public final class GrimoireModule extends Module
     return item.getItemMeta().getPersistentDataContainer().get(itemKey, PersistentDataType.STRING);
   }
 
+  private boolean focus(String type) {
+    return "grimoire".equals(type) || "wand".equals(type);
+  }
+
   private boolean equipped(Player p) {
-    return "grimoire".equals(kind(p.getInventory().getItemInMainHand()))
-        || "grimoire".equals(kind(p.getInventory().getItemInOffHand()));
+    if (focus(kind(p.getInventory().getItemInMainHand()))
+        || focus(kind(p.getInventory().getItemInOffHand()))) return true;
+    MagicProfile state = profiles.get(p.getUniqueId());
+    return state != null
+        && state.wand
+        && Arrays.stream(p.getInventory().getStorageContents())
+            .anyMatch(i -> "wand".equals(kind(i)));
   }
 
   private ItemStack item(String kind, String title, Material material, int model) {
@@ -343,7 +391,13 @@ public final class GrimoireModule extends Module
           .executeAsync(
               () -> {
                 try {
-                  if (token == null) current.save(id, old.revision, payload);
+                  if (token == null
+                      && old.pendingUpgrade == null
+                      && next.pendingUpgrade != null
+                      && !next.pendingStock.isEmpty())
+                    current.saveWithStock(
+                        id, old.revision, payload, next.pendingStock, next.pendingStockLimit);
+                  else if (token == null) current.save(id, old.revision, payload);
                   else current.redeem(token, spell, id, old.revision, payload);
                   next.revision = old.revision + 1;
                   main(
@@ -374,6 +428,11 @@ public final class GrimoireModule extends Module
     }
   }
 
+  @EventHandler(priority = EventPriority.MONITOR)
+  public void spellDamage(org.bukkit.event.entity.EntityDamageByEntityEvent event) {
+    if (engine != null) engine.observeDamage(event);
+  }
+
   @EventHandler(priority = EventPriority.HIGHEST)
   public void interact(PlayerInteractEvent e) {
     Player player = e.getPlayer();
@@ -387,17 +446,32 @@ public final class GrimoireModule extends Module
     }
     if (!equipped(player)) return;
     // Main-hand food, blocks and other usable items retain their vanilla interactions.
-    if (!"grimoire".equals(kind)) return;
+    if (!focus(kind)) return;
     if (e.getHand() != org.bukkit.inventory.EquipmentSlot.HAND
-        && "grimoire".equals(kind(player.getInventory().getItemInMainHand()))) return;
+        && focus(kind(player.getInventory().getItemInMainHand()))) return;
     if (e.getAction().isRightClick()) {
       e.setCancelled(true);
-      if (player.isSneaking()) open(player);
-      else if (castInputs.accept(player.getUniqueId(), System.nanoTime(),
-          Math.max(250, Math.min(1000, config.getInt("casting.repeat-gap-ms", 350))) * 1_000_000L)) cast(player);
+      if (castInputs.accept(
+          player.getUniqueId(),
+          System.nanoTime(),
+          Math.max(250, Math.min(1000, config.getInt("casting.repeat-gap-ms", 350))) * 1_000_000L))
+        control(
+            player,
+            config.getString(
+                player.isSneaking() ? "controls.sneak-right-click" : "controls.right-click",
+                player.isSneaking() ? "loadout" : "cast"));
     } else if (e.getAction().isLeftClick() && player.isSneaking()) {
       e.setCancelled(true);
-      cycle(player);
+      control(player, config.getString("controls.sneak-left-click", "cycle"));
+    }
+  }
+
+  private void control(Player player, String action) {
+    switch (action.toLowerCase(Locale.ROOT)) {
+      case "cast" -> cast(player);
+      case "cycle" -> cycle(player);
+      case "loadout" -> open(player);
+      default -> {}
     }
   }
 
@@ -412,8 +486,10 @@ public final class GrimoireModule extends Module
     change(
         player,
         p -> {
-          if (p.spells.containsKey(spell)) p.research = Math.min(100000, p.research + 5);
-          else p.spells.put(spell, 1);
+          if (p.spells.containsKey(spell)) {
+            p.research = Math.min(100000, p.research + 5);
+            p.duplicates.merge(spell, 1, (a, b) -> Math.min(100000, a + b));
+          } else p.spells.put(spell, 1);
         },
         () -> {
           // Remove matching token wherever it moved; copied/replayed tokens cannot grant twice.
@@ -430,7 +506,7 @@ public final class GrimoireModule extends Module
           message(
               player,
               "&aTome studied! New spells are available in /grimoire; duplicates grant 5"
-                  + " research.");
+                  + " research and one saved duplicate credit for upgrades.");
         },
         token,
         spell);
@@ -446,6 +522,12 @@ public final class GrimoireModule extends Module
   private void cast(Player player) {
     MagicProfile p = profile(player);
     if (p == null || !p.started || !equipped(player)) return;
+    if (("wand".equals(kind(player.getInventory().getItemInMainHand()))
+            || "wand".equals(kind(player.getInventory().getItemInOffHand())))
+        && !p.wand) {
+      message(player, "&eThis wand is not bound to you. /magic wand");
+      return;
+    }
     SpellSpec spell = spells.get(p.selectedSpell());
     if (spell == null) {
       message(player, "&ePrepare a spell with /grimoire first.");
@@ -464,11 +546,28 @@ public final class GrimoireModule extends Module
     }
     long now = System.currentTimeMillis();
     int tier = p.spells.getOrDefault(spell.id(), 1);
+    if (!p.magicEnabled) {
+      message(player, "&7Magic is paused. /magic toggle");
+      return;
+    }
     double cost = spell.tierMana(tier, config.getDouble("mana.cost-reduction-per-tier", .05));
     if (p.mana < cost || now < p.globalReady || now < p.cooldowns.getOrDefault(spell.id(), 0L)) {
-      if (p.mana < cost) message(player, "&b" + spell.name() + " needs " + cost + " mana; you have " + (int)p.mana + ".");
-      else message(player, "&7" + spell.name() + " recovers in "
-          + String.format(java.util.Locale.ROOT, "%.1f", Math.max(p.globalReady, p.cooldowns.getOrDefault(spell.id(), 0L)) / 1000.0 - now / 1000.0) + "s.");
+      if (p.mana < cost)
+        message(
+            player,
+            "&b" + spell.name() + " needs " + cost + " mana; you have " + (int) p.mana + ".");
+      else
+        message(
+            player,
+            "&7"
+                + spell.name()
+                + " recovers in "
+                + String.format(
+                    java.util.Locale.ROOT,
+                    "%.1f",
+                    Math.max(p.globalReady, p.cooldowns.getOrDefault(spell.id(), 0L)) / 1000.0
+                        - now / 1000.0)
+                + "s.");
       return;
     }
     change(
@@ -483,7 +582,7 @@ public final class GrimoireModule extends Module
             change(player, next -> next.mana = Math.min(maximumMana(), next.mana + cost), () -> {});
             return;
           }
-          objective(player, "CAST");
+          objective(player, "CAST:" + spell.id());
           player
               .getWorld()
               .playSound(
@@ -491,28 +590,75 @@ public final class GrimoireModule extends Module
         });
   }
 
-  public void awardBossResearch(UUID player, String encounter, int amount) {
+  public void awardBossResearch(UUID player, String encounter, int amount, String boss) {
     long epoch = generation;
     MagicStore current = store;
+    boolean mvp = amount == 3;
+    int research =
+        Math.max(
+            0,
+            Math.min(
+                10,
+                config.getInt(
+                    "boss-rewards." + (mvp ? "mvp-research" : "participation-research"), amount)));
+    int shards =
+        Math.max(
+            0,
+            Math.min(
+                10,
+                config.getInt(
+                    "boss-rewards." + (mvp ? "mvp-shards" : "participation-shards"), mvp ? 3 : 1)));
+    double chance =
+        SpellSpec.bounded(config.getDouble("boss-rewards.signature-chance-percent", 2), 2, 0, 100);
+    String element =
+        switch (boss) {
+          case "VALERIUS" -> "fire";
+          case "BOREALIS" -> "ice";
+          case "AETHELGARD" -> "nature";
+          default -> "arcane";
+        };
+    String possible =
+        boss.equals("XOLTHOS")
+            ? "zoltraak-fragment"
+            : boss.equals("AETHELGARD") ? "hearth-fragment" : "";
+    String fragment =
+        !possible.isEmpty()
+                && Math.floorMod((encounter + player + possible).hashCode(), 10000) < chance * 100
+            ? possible
+            : "";
+    MagicProfile state = profiles.get(player);
+    String active = state == null ? "" : state.activeContract;
     plugin
         .getDatabaseManager()
         .executeAsync(
             () -> {
               try {
-                current.award(encounter + ":" + player, player, amount);
+                boolean first =
+                    current.awardBossBundle(
+                        encounter + ":" + player, player, research, element, shards, fragment);
                 main(
                     epoch,
                     () -> {
                       Player online = Bukkit.getPlayer(player);
-                      if (online != null)
+                      MagicProfile present = profiles.get(player);
+                      if (online != null && first) {
+                        if (present != null && present.activeContract.equals(active))
+                          objective(online, "BOSS:" + boss);
                         message(
                             online,
-                            "&dBoss research earned: +"
-                                + amount
+                            "&dBoss magic rewards: +"
+                                + research
+                                + " research, +"
+                                + shards
+                                + " "
+                                + element
+                                + " shards"
+                                + (fragment.isEmpty() ? "" : " and 1 " + fragment)
                                 + ". Collect with /magic research.");
+                      }
                     });
               } catch (Exception error) {
-                failure("record boss research", error);
+                failure("record boss magic rewards", error);
               }
             });
   }
@@ -520,6 +666,7 @@ public final class GrimoireModule extends Module
   private void collectResearch(Player player) {
     MagicProfile old = profile(player);
     if (old == null) return;
+    String latestPayload = old.encode();
     old.busy = true;
     long epoch = generation;
     MagicStore current = store;
@@ -529,7 +676,7 @@ public final class GrimoireModule extends Module
         .executeAsync(
             () -> {
               try {
-                MagicProfile claimed = current.collect(id);
+                MagicProfile claimed = current.collect(id, latestPayload, old.revision);
                 main(
                     epoch,
                     () -> {
@@ -571,12 +718,13 @@ public final class GrimoireModule extends Module
             message(
                 player,
                 "&dA Dusty Traveller: your first page awakens. Cast five spells, then open /magic"
-                    + " quests.");
+                    + " quests chapter.");
           });
       return;
     }
     if (p.discoveries.contains(encounter)) {
-      message(player, "&7You have already met this scholar. Use /grimoire nearby for their lesson.");
+      message(
+          player, "&7You have already met this scholar. Use /grimoire nearby for their lesson.");
       showQuestHint(player, p);
       return;
     }
@@ -603,9 +751,17 @@ public final class GrimoireModule extends Module
     if (state == null) return;
     var active = chapter(state);
     if (active == null) return;
-    message(player, "&dCurrent task: &f" + active.getString("name", "Field Research")
-        + " &7— " + active.getString("description", "") + " &e(" + state.questProgress
-        + "/" + questGoal(state) + "). &7Use /quests to view or claim it.");
+    message(
+        player,
+        "&dCurrent task: &f"
+            + active.getString("name", "Field Research")
+            + " &7— "
+            + active.getString("description", "")
+            + " &e("
+            + state.questProgress
+            + "/"
+            + questGoal(state)
+            + "). &7Use /quests to view or claim it.");
   }
 
   public void study(Player player, String spell) {
@@ -631,15 +787,7 @@ public final class GrimoireModule extends Module
           player, "&eRequires " + price + " research. Discover encounters and complete quests.");
       return;
     }
-    change(
-        player,
-        next -> {
-          next.research -= price;
-          next.spells.put(spell, 1);
-        },
-        () ->
-            message(
-                player, "&aLearned " + spells.get(spell).name() + "! Prepare it in /grimoire."));
+    purchaseUpgrade(player, "learn:" + spell, price, m.lessonCurrency());
   }
 
   private double maximumMana() {
@@ -666,19 +814,262 @@ public final class GrimoireModule extends Module
   }
 
   public void objective(Player player, String type) {
+    objective(player, type, 1);
+  }
+
+  public void objective(Player player, String type, int amount) {
     MagicProfile p = profiles.get(player.getUniqueId());
-    if (p == null
-        || p.busy
-        || !p.started
-        || !questType(p).equals(type)
-        || p.questProgress >= questGoal(p)) return;
-    var chapter = chapter(p);
-    if (chapter.getBoolean("repeatable") && System.currentTimeMillis() - p.lastQuestAt < 86400000L)
+    if (p == null || !p.started || amount < 1) return;
+    if (p.busy) {
+      var queue = pendingProgress.computeIfAbsent(player.getUniqueId(), id -> new ArrayDeque<>());
+      if (queue.size() < 64)
+        queue.add(new ProgressEvent(type, amount, p.activeContract, p.questStage));
       return;
+    }
+    String chapterType = type.startsWith("CAST:") ? "CAST" : type;
+    boolean chapterMatches = questType(p).equals(chapterType) && p.questProgress < questGoal(p);
+    var chapter = chapter(p);
+    if (chapterMatches
+        && chapter.getBoolean("repeatable")
+        && System.currentTimeMillis() - p.lastQuestAt < 86400000L) chapterMatches = false;
+    var contract = contract(p.activeContract);
+    String counter =
+        contract != null
+                && contract.getConfigurationSection("objectives") != null
+                && contract.getConfigurationSection("objectives").contains(type)
+            ? type
+            : chapterType;
+    boolean contractMatches =
+        contract != null
+            && contract.getConfigurationSection("objectives") != null
+            && contract.getConfigurationSection("objectives").contains(counter);
+    if (!chapterMatches && !contractMatches) return;
+    final boolean updateChapter = chapterMatches, updateContract = contractMatches;
     change(
         player,
-        next -> next.questProgress = Math.min(questGoal(next), next.questProgress + 1),
+        next -> {
+          if (updateChapter)
+            next.questProgress = Math.min(questGoal(next), next.questProgress + amount);
+          if (updateContract)
+            next.contractProgress.merge(
+                counter, Math.min(1000, amount), (x, y) -> Math.min(1000, x + y));
+        },
         () -> {});
+  }
+
+  private org.bukkit.configuration.ConfigurationSection contract(String id) {
+    var m = plugin.getModuleManager().getModule("side-quests");
+    return m == null || !m.isEnabled() || id == null || id.isEmpty()
+        ? null
+        : m.getConfig().getConfigurationSection("contracts." + id);
+  }
+
+  public void offerContract(Player player, String merchant) {
+    var m = plugin.getModuleManager().getModule("side-quests");
+    if (m == null || !m.isEnabled()) return;
+    var all = m.getConfig().getConfigurationSection("contracts");
+    if (all == null) return;
+    for (String id : all.getKeys(false))
+      if (merchant.equals(all.getString(id + ".merchant")))
+        message(
+            player,
+            "&dTask offered: " + all.getString(id + ".name", id) + ". &e/quests accept " + id);
+  }
+
+  private void openJournal(Player player) {
+    MagicProfile p = profile(player);
+    if (p == null) return;
+    var menu = new MagicMenu(player.getUniqueId());
+    menu.inventory = Bukkit.createInventory(menu, 54, "Scholar Contracts");
+    var quests = plugin.getModuleManager().getModule("side-quests");
+    var all = quests == null ? null : quests.getConfig().getConfigurationSection("contracts");
+    int slot = 10;
+    if (all != null)
+      for (String id : all.getKeys(false)) {
+        if (slot >= 44) break;
+        var c = all.getConfigurationSection(id);
+        if (c == null) continue;
+        boolean active = id.equals(p.activeContract);
+        menu.inventory.setItem(
+            slot,
+            button(
+                active ? Material.ENCHANTED_BOOK : Material.WRITABLE_BOOK,
+                "&d" + c.getString("name", id),
+                "&7" + c.getString("description", ""),
+                "&7Scholar: " + c.getString("merchant"),
+                "&7Objectives: " + MagicProgression.costs(c, "objectives"),
+                "&7Progress: " + (active ? p.contractProgress : "not accepted"),
+                "&aResearch: "
+                    + c.getInt("research")
+                    + " | Shards: "
+                    + MagicProgression.costs(c, "shards"),
+                "&aDuplicate credit: " + c.getString("duplicate-spell", "none"),
+                active ? "&eClick to claim when complete" : "&eClick near the scholar to accept"));
+        menu.actions.put(
+            slot,
+            () -> contracts(player, active ? new String[] {"claim"} : new String[] {"accept", id}));
+        slot++;
+        if (slot % 9 == 8) slot += 2;
+      }
+    menu.inventory.setItem(
+        45,
+        button(Material.BOOK, "&bIntroductory chapters", "&7View or claim your current chapter"));
+    menu.actions.put(45, () -> quest(player));
+    menu.inventory.setItem(
+        49, button(Material.PAPER, "&bProgress details", "&7Print all contract details in chat"));
+    menu.actions.put(49, () -> contracts(player, new String[] {"list"}));
+    menu.inventory.setItem(53, button(Material.ARROW, "&bGrimoire"));
+    menu.actions.put(53, () -> open(player));
+    player.openInventory(menu.inventory);
+  }
+
+  public void contracts(Player player, String[] args) {
+    MagicProfile p = profile(player);
+    if (p == null) return;
+    if (args.length == 0) {
+      openJournal(player);
+      return;
+    }
+    if (args[0].equals("list")) {
+      message(
+          player, "&dActive contract: " + (p.activeContract.isEmpty() ? "none" : p.activeContract));
+      var active = contract(p.activeContract);
+      if (active != null)
+        for (var e : MagicProgression.costs(active, "objectives").entrySet())
+          message(
+              player,
+              "&7"
+                  + e.getKey()
+                  + ": "
+                  + p.contractProgress.getOrDefault(e.getKey(), 0)
+                  + "/"
+                  + e.getValue());
+      var quests = plugin.getModuleManager().getModule("side-quests");
+      var all = quests == null ? null : quests.getConfig().getConfigurationSection("contracts");
+      if (all != null)
+        for (String id : all.getKeys(false))
+          message(
+              player,
+              "&d"
+                  + id
+                  + " &7— "
+                  + all.getString(id + ".name", id)
+                  + " | meet "
+                  + all.getString(id + ".merchant"));
+      message(player, "&7/quests accept <id> | claim | abandon | chapter");
+      return;
+    }
+    if (args[0].equals("abandon")) {
+      change(
+          player,
+          n -> {
+            n.activeContract = "";
+            n.contractProgress.clear();
+          },
+          () -> message(player, "&7Contract abandoned; no rewards granted."));
+      return;
+    }
+    if (args[0].equals("accept") && args.length > 1) {
+      if (!p.started) {
+        message(player, "&eMeet a scholar to start your Grimoire first.");
+        return;
+      }
+      var c = contract(args[1]);
+      var encounters = plugin.getModuleManager().getModule("world-encounters");
+      if (c == null
+          || !(encounters
+              instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule merchant)
+          || !Objects.equals(merchant.kind(), c.getString("merchant"))
+          || !merchant.nearScholar(player)) {
+        message(player, "&eMeet the matching scholar to accept this contract.");
+        return;
+      }
+      if (!p.activeContract.isEmpty()) {
+        message(player, "&eFinish or abandon your active contract first.");
+        return;
+      }
+      long last = p.contractClaims.getOrDefault(args[1], 0L);
+      long cooldown =
+          (long) (SpellSpec.bounded(c.getDouble("repeat-hours", 24), 24, 0, 720) * 3600000);
+      if (last > 0 && (cooldown == 0 || System.currentTimeMillis() - last < cooldown)) {
+        message(player, "&eThat contract is complete or still on cooldown.");
+        return;
+      }
+      change(
+          player,
+          n -> {
+            n.activeContract = args[1];
+            n.contractProgress.clear();
+          },
+          () -> {
+            message(
+                player,
+                "&aAccepted: "
+                    + c.getString("name", args[1])
+                    + ". "
+                    + c.getString("description", ""));
+            contracts(player, new String[0]);
+          });
+      return;
+    }
+    if (args[0].equals("claim")) {
+      var c = contract(p.activeContract);
+      if (c == null
+          || !MagicProgression.has(p.contractProgress, MagicProgression.costs(c, "objectives"))) {
+        message(player, "&eYour contract is not complete. /quests list");
+        return;
+      }
+      var requirements = MagicProgression.costs(c, "objectives");
+      if (requirements.isEmpty()) {
+        message(player, "&cContract has no objectives; ask an admin.");
+        return;
+      }
+      int reward = Math.max(0, Math.min(100, c.getInt("research", 8)));
+      var shards = MagicProgression.costs(c, "shards");
+      String unlock = c.getString("unlock", "");
+      if (!unlock.isEmpty() && !spells.containsKey(unlock)) {
+        message(player, "&cConfigured reward spell is unavailable.");
+        return;
+      }
+      change(
+          player,
+          n -> {
+            n.research = Math.min(100000, n.research + reward);
+            shards.forEach(
+                (key, value) -> n.shards.merge(key, value, (x, y) -> Math.min(100000, x + y)));
+            if (!unlock.isEmpty()) n.spells.putIfAbsent(unlock, 1);
+            String duplicate = c.getString("duplicate-spell", "");
+            if (spells.containsKey(duplicate) && n.spells.containsKey(duplicate))
+              n.duplicates.merge(duplicate, 1, (a, b) -> Math.min(100000, a + b));
+            n.contractClaims.put(n.activeContract, System.currentTimeMillis());
+            n.activeContract = "";
+            n.contractProgress.clear();
+          },
+          () ->
+              message(
+                  player,
+                  "&aContract complete: +"
+                      + reward
+                      + " research, shards "
+                      + shards
+                      + (unlock.isEmpty() ? "" : "; unlocked " + unlock)
+                      + "; duplicate credit: "
+                      + c.getString("duplicate-spell", "none")
+                      + "."));
+      return;
+    }
+    if (args[0].equals("chapter")) {
+      quest(player);
+      return;
+    }
+    message(player, "&7/quests <list|accept id|claim|abandon|chapter>");
+  }
+
+  @EventHandler(priority = EventPriority.MONITOR)
+  public void kill(org.bukkit.event.entity.EntityDeathEvent event) {
+    Player killer = event.getEntity().getKiller();
+    if (killer != null && canPlay(killer) && event.getEntity() instanceof org.bukkit.entity.Enemy)
+      objective(killer, "KILL:" + event.getEntityType().name());
   }
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -732,7 +1123,95 @@ public final class GrimoireModule extends Module
                 "&aQuest complete! +" + reward + " research. Your journal has been updated."));
   }
 
+  private void spellInfo(Player player, String id) {
+    MagicProfile p = profile(player);
+    SpellSpec spell = spells.get(id);
+    if (p == null || spell == null) return;
+    int tier = p.spells.getOrDefault(id, 0);
+    message(
+        player,
+        "&d"
+            + spell.name()
+            + " — "
+            + (tier == 0 ? "locked" : "Tier " + tier)
+            + ", mana "
+            + spell.tierMana(
+                Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05))
+            + ", cooldown "
+            + spell.cooldown() / 1000.0
+            + "s, damage "
+            + spell.tierDamage(Math.max(1, tier))
+            + ", range "
+            + spell.range()
+            + " blocks. Element: "
+            + MagicProgression.element(id));
+    message(
+        player,
+        "&7"
+            + config.getString(
+                "spells." + id + ".description",
+                "Prepare in /grimoire; cast while holding a focus."));
+  }
+
+  private void wand(Player player) {
+    MagicProfile p = profile(player);
+    if (p == null) return;
+    if (p.wand) {
+      if (Arrays.stream(player.getInventory().getContents())
+          .anyMatch(i -> "wand".equals(kind(i)))) {
+        message(player, "&7Your wand is already in your inventory.");
+        return;
+      }
+      if (player.getInventory().firstEmpty() < 0) {
+        message(player, "&eFree one slot for your wand.");
+        return;
+      }
+      player
+          .getInventory()
+          .addItem(item("wand", "&d✦ Astral Focus Wand", Material.BLAZE_ROD, 71030));
+      return;
+    }
+    int price = Math.max(0, config.getInt("wand.research", 100));
+    if (p.slots < maximumSlots()
+        || p.spells.size() < Math.max(1, config.getInt("wand.minimum-spells", 5))
+        || p.research < price) {
+      message(
+          player,
+          "&eWand binding requires 5 prepared slots, "
+              + config.getInt("wand.minimum-spells", 5)
+              + " learned spells, "
+              + price
+              + " research, $"
+              + config.getDouble("wand.currency", 500000)
+              + " and shards "
+              + MagicProgression.costs(config, "wand.shards")
+              + ".");
+      return;
+    }
+    var merchant = plugin.getModuleManager().getModule("world-encounters");
+    if (!(merchant instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule m)
+        || !m.nearEnchanter(player)) {
+      message(player, "&eVisit the Mystic Enchanter to bind your wand.");
+      return;
+    }
+    purchaseUpgrade(player, "wand", price, config.getDouble("wand.currency", 500000));
+  }
+
+  private int maximumSlots() {
+    return Math.max(2, Math.min(5, config.getInt("loadout.maximum-slots", 5)));
+  }
+
+  private boolean upgradeLocation(Player player) {
+    if (!config.getBoolean("enchanter.require-for-upgrades", true)) return true;
+    var module = plugin.getModuleManager().getModule("world-encounters");
+    if (module instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule merchant
+        && merchant.nearEnchanter(player)) return true;
+    message(player, "&eVisit the Mystic Enchanter to upgrade spells or bind pages.");
+    return false;
+  }
+
   private void upgrade(Player player, String spell) {
+    if (!upgradeLocation(player)) return;
     MagicProfile p = profile(player);
     if (p == null) return;
     if (!spells.containsKey(spell)) {
@@ -746,7 +1225,10 @@ public final class GrimoireModule extends Module
     }
     int price =
         Math.max(
-            1, config.getInt("upgrades.tier-" + (tier + 1) + "-research", tier == 1 ? 12 : 30));
+            1,
+            config.getInt(
+                "spells." + spell + ".upgrade-tier-" + (tier + 1) + ".research",
+                config.getInt("upgrades.tier-" + (tier + 1) + "-research", tier == 1 ? 12 : 30)));
     if (p.research < price) {
       message(player, "&eUpgrade requires " + price + " research.");
       return;
@@ -755,12 +1237,16 @@ public final class GrimoireModule extends Module
         player,
         "spell:" + spell,
         price,
-        config.getDouble("upgrades.tier-" + (tier + 1) + "-currency", tier == 1 ? 100000 : 350000));
+        config.getDouble(
+            "spells." + spell + ".upgrade-tier-" + (tier + 1) + ".currency",
+            config.getDouble(
+                "upgrades.tier-" + (tier + 1) + "-currency", tier == 1 ? 100000 : 350000)));
   }
 
   private void bind(Player player) {
+    if (!upgradeLocation(player)) return;
     MagicProfile p = profile(player);
-    if (p == null || p.slots >= 5) return;
+    if (p == null || p.slots >= maximumSlots()) return;
     int price =
         Math.max(1, config.getInt("binding.slot-" + (p.slots + 1) + "-research", p.slots * 15));
     if (p.research < price) {
@@ -787,6 +1273,61 @@ public final class GrimoireModule extends Module
           "&eAn earlier purchase needs review. Contact an admin; you will not be charged again.");
       return;
     }
+    Map<String, Integer> shardCost = new HashMap<>(),
+        materials = new HashMap<>(),
+        fishCost = new HashMap<>();
+    String duplicate = "", stock = "";
+    int duplicates = 0, stockLimit = 0;
+    if (upgrade.startsWith("spell:")) {
+      String id = upgrade.substring(6);
+      int target = p.spells.getOrDefault(id, 1) + 1;
+      String path = "spells." + id + ".upgrade-tier-" + target + ".";
+      int shardCount = Math.max(0, config.getInt(path + "shards", target == 2 ? 5 : 15));
+      shardCost.put(MagicProgression.element(id), shardCount);
+      duplicate = id;
+      duplicates = Math.max(0, config.getInt(path + "duplicates", target == 2 ? 1 : 2));
+    } else if (upgrade.startsWith("inscribe:"))
+      shardCost.putAll(
+          MagicProgression.costs(config, "inscription." + upgrade.substring(9) + ".shards"));
+    else if (upgrade.equals("wand"))
+      shardCost.putAll(MagicProgression.costs(config, "wand.shards"));
+    else if (upgrade.equals("page")) {
+      int n = Math.max(0, config.getInt("binding.slot-" + (p.slots + 1) + "-arcane-shards", 0));
+      if (n > 0) shardCost.put("arcane", n);
+    } else if (upgrade.startsWith("learn:")) {
+      var merchant =
+          (net.rocky.coresuite.module.worldencounters.WorldEncountersModule)
+              plugin.getModuleManager().getModule("world-encounters");
+      String id = upgrade.substring(6);
+      if (merchant == null || !merchant.offers(player, id)) return;
+      materials.putAll(merchant.materialCost());
+      stock = merchant.stockKey();
+      stockLimit = merchant.stockLimit();
+      shardCost.putAll(merchant.shardCost());
+      fishCost.putAll(merchant.fishCost());
+    }
+    if (!MagicProgression.has(p.shards, shardCost)
+        || p.duplicates.getOrDefault(duplicate, 0) < duplicates
+        || !MagicProgression.hasMaterials(player.getInventory().getStorageContents(), materials)) {
+      message(
+          player,
+          "&eRequires shards "
+              + shardCost
+              + ", duplicate credits "
+              + duplicates
+              + ", materials "
+              + materials
+              + ". /magic shards");
+      return;
+    }
+    if (!fishCost.isEmpty() && fishPlan(player, fishCost) == null) {
+      message(
+          player,
+          "&eRequires custom fish " + fishCost + " in inventory or unlocked fish-bag pages.");
+      return;
+    }
+    final String savedDuplicate = duplicate, savedStock = stock;
+    final int savedDuplicates = duplicates, savedLimit = stockLimit;
     cash = SpellSpec.bounded(cash, 100000, 0, 100000000);
     final double fee = cash;
     var economy = plugin.getEconomyManager();
@@ -807,8 +1348,49 @@ public final class GrimoireModule extends Module
           next.pendingUpgrade = upgrade;
           next.pendingResearch = research;
           next.pendingCash = fee;
+          next.pendingShards.putAll(shardCost);
+          next.pendingMaterials.putAll(materials);
+          next.pendingFish.putAll(fishCost);
+          next.pendingDuplicate = savedDuplicate;
+          next.pendingDuplicateCount = savedDuplicates;
+          next.pendingStock = savedStock;
+          next.pendingStockLimit = savedLimit;
         },
         () -> {
+          if (player.getOpenInventory().getTopInventory().getHolder()
+              instanceof net.rocky.coresuite.module.customfishing.FishBagManager.BagHolder)
+            player.closeInventory();
+          if (upgrade.startsWith("learn:")) {
+            var m = plugin.getModuleManager().getModule("world-encounters");
+            if (!(m
+                    instanceof
+                    net.rocky.coresuite.module.worldencounters.WorldEncountersModule merchant)
+                || !merchant.offers(player, upgrade.substring(6))
+                || !merchant.stockKey().equals(savedStock)) {
+              change(
+                  player,
+                  MagicProgression::clearPending,
+                  () ->
+                      message(
+                          player, "&eScholar expired or moved out of reach; no payment taken."));
+              return;
+            }
+          }
+          MagicFishPayment.Result fishPayment =
+              fishCost.isEmpty() ? null : fishPlan(player, fishCost);
+          if ((!fishCost.isEmpty() && fishPayment == null)
+              || !MagicProgression.hasMaterials(
+                  player.getInventory().getStorageContents(), materials)) {
+            change(
+                player,
+                MagicProgression::clearPending,
+                () ->
+                    message(
+                        player,
+                        "&eMaterials changed; purchase cancelled without payment. Reserved merchant"
+                            + " stock stays used."));
+            return;
+          }
           if (fee > 0 && !economy.withdraw(player, fee)) {
             // The provider did not confirm payment. Keep the intent for manual review rather than
             // risk a second debit.
@@ -826,33 +1408,66 @@ public final class GrimoireModule extends Module
                         + fee);
             return;
           }
-          change(
-              player,
-              GrimoireModule::completeUpgrade,
-              () -> {
-                message(
-                    player,
-                    "&aUpgrade completed. Paid $"
-                        + String.format("%,.0f", fee)
-                        + " and "
-                        + research
-                        + " research.");
-                open(player);
-              });
+          player
+              .getInventory()
+              .setStorageContents(
+                  MagicProgression.debitMaterials(
+                      fishPayment == null
+                          ? player.getInventory().getStorageContents()
+                          : fishPayment.inventory(),
+                      materials));
+          player.saveData();
+          Runnable finishPayment =
+              () ->
+                  change(
+                      player,
+                      GrimoireModule::completeUpgrade,
+                      () -> {
+                        message(
+                            player,
+                            "&aUpgrade completed. Paid $"
+                                + String.format("%,.0f", fee)
+                                + " and "
+                                + research
+                                + " research.");
+                        open(player);
+                      });
+          if (fishPayment != null && fishPayment.bagChanged()) {
+            var fishing =
+                (net.rocky.coresuite.module.customfishing.CustomFishingModule)
+                    plugin.getModuleManager().getModule("custom-fishing");
+            fishing.getFishBagManager().updateBag(player.getUniqueId(), fishPayment.bag());
+            fishing
+                .getFishBagManager()
+                .saveBag(
+                    player.getUniqueId(),
+                    finishPayment,
+                    () ->
+                        message(
+                            player,
+                            "&cFish payment could not be confirmed. Your pending purchase needs"
+                                + " admin review; it will not charge again."));
+          } else finishPayment.run();
         });
   }
 
+  private MagicFishPayment.Result fishPlan(Player player, Map<String, Integer> cost) {
+    var m = plugin.getModuleManager().getModule("custom-fishing");
+    if (!(m instanceof net.rocky.coresuite.module.customfishing.CustomFishingModule fishing)
+        || !m.isEnabled()) return null;
+    var data = fishing.getPlayerData(player.getUniqueId());
+    if (data == null || fishing.getFishBagManager().getBag(player.getUniqueId()) == null)
+      return null;
+    return MagicFishPayment.plan(
+        player.getInventory().getStorageContents(),
+        fishing.getFishBagManager().getBag(player.getUniqueId()),
+        Math.max(1, Math.min(10, data.bagPages)) * 45,
+        fishing.getSpeciesKey(),
+        cost);
+  }
+
   static void completeUpgrade(MagicProfile p) {
-    if (p.pendingUpgrade == null) return;
-    if (p.research < p.pendingResearch)
-      throw new IllegalStateException("Research changed during pending purchase");
-    p.research -= p.pendingResearch;
-    if (p.pendingUpgrade.equals("page")) p.slots = Math.min(5, p.slots + 1);
-    else if (p.pendingUpgrade.startsWith("spell:"))
-      p.spells.computeIfPresent(p.pendingUpgrade.substring(6), (id, tier) -> Math.min(3, tier + 1));
-    p.pendingUpgrade = null;
-    p.pendingResearch = 0;
-    p.pendingCash = 0;
+    MagicProgression.complete(p);
   }
 
   private static final class MagicMenu implements InventoryHolder {
@@ -895,7 +1510,12 @@ public final class GrimoireModule extends Module
               spell.icon(),
               "&d" + spell.name(),
               tier == 0 ? "&8Undiscovered" : "&7Tier " + tier,
-              "&bMana: " + spell.tierMana(Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05)) + " | Cooldown: " + spell.cooldown() / 1000.0 + "s",
+              "&bMana: "
+                  + spell.tierMana(
+                      Math.max(1, tier), config.getDouble("mana.cost-reduction-per-tier", .05))
+                  + " | Cooldown: "
+                  + spell.cooldown() / 1000.0
+                  + "s",
               p.prepared.contains(spell.id())
                   ? "&aPrepared — click to remove"
                   : "&7Click to prepare"));
@@ -920,14 +1540,28 @@ public final class GrimoireModule extends Module
                 "&7Tier " + tier + "/3",
                 "&7Research: "
                     + config.getInt(
-                        "upgrades.tier-" + (tier + 1) + "-research", tier == 1 ? 12 : 30),
+                        "spells." + spell.id() + ".upgrade-tier-" + (tier + 1) + ".research",
+                        config.getInt(
+                            "upgrades.tier-" + (tier + 1) + "-research", tier == 1 ? 12 : 30)),
                 "&6Cost: $"
                     + String.format(
                         "%,.0f",
                         config.getDouble(
-                            "upgrades.tier-" + (tier + 1) + "-currency",
-                            tier == 1 ? 100000 : 350000)),
-                "&7Click to purchase upgrade"));
+                            "spells." + spell.id() + ".upgrade-tier-" + (tier + 1) + ".currency",
+                            config.getDouble(
+                                "upgrades.tier-" + (tier + 1) + "-currency",
+                                tier == 1 ? 100000 : 350000))),
+                "&7Element: "
+                    + MagicProgression.element(spell.id())
+                    + " | Shards: "
+                    + config.getInt(
+                        "spells." + spell.id() + ".upgrade-tier-" + (tier + 1) + ".shards",
+                        tier == 1 ? 5 : 15),
+                "&7Duplicate credits: "
+                    + config.getInt(
+                        "spells." + spell.id() + ".upgrade-tier-" + (tier + 1) + ".duplicates",
+                        tier == 1 ? 1 : 2),
+                tier >= 3 ? "&aMaximum tier" : "&7Visit the Enchanter; click to upgrade"));
         menu.actions.put(slot + 27, () -> upgrade(player, spell.id()));
       }
     }
@@ -936,7 +1570,7 @@ public final class GrimoireModule extends Module
         button(
             Material.PAPER,
             "&dBind a new page",
-            "&7Slots: " + p.slots + "/5",
+            "&7Slots: " + p.slots + "/" + maximumSlots(),
             "&7Available research: " + p.research,
             "&7Cost: "
                 + config.getInt("binding.slot-" + (p.slots + 1) + "-research", p.slots * 15)
@@ -947,6 +1581,26 @@ public final class GrimoireModule extends Module
                         "binding.slot-" + (p.slots + 1) + "-currency",
                         100000 * Math.pow(2, p.slots - 2)))));
     menu.actions.put(45, () -> bind(player));
+    menu.inventory.setItem(
+        46,
+        button(
+            Material.BLAZE_ROD,
+            "&dAstral Wand",
+            p.wand
+                ? "&aBound — click to retrieve"
+                : "&7Endgame focus: /magic wand for requirements",
+            "&7Owned wands grant +10% mana recovery",
+            "&7Carry it to use /magic cast without holding a book"));
+    menu.actions.put(46, () -> wand(player));
+    menu.inventory.setItem(
+        48,
+        button(
+            Material.AMETHYST_SHARD,
+            "&bMagic resources",
+            "&7Shards: " + p.shards,
+            "&7Duplicates: " + p.duplicates,
+            "&7Click to collect boss rewards"));
+    menu.actions.put(48, () -> collectResearch(player));
     var encounters = plugin.getModuleManager().getModule("world-encounters");
     if (encounters
         instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule merchant)
@@ -961,6 +1615,11 @@ public final class GrimoireModule extends Module
                   "&6Cost: "
                       + config.getInt("spells." + available.id() + ".research-cost", 6)
                       + " research",
+                  "&7Materials: " + merchant.materialCost(),
+                  "&7Shards: " + merchant.shardCost(),
+                  "&7Custom fish (inventory or bag): " + merchant.fishCost(),
+                  "&6Money: $" + merchant.lessonCurrency(),
+                  "&7Shared stock limit: " + merchant.stockLimit(),
                   "&7Click to learn permanently"));
           menu.actions.put(47, () -> study(player, available.id()));
           break;
@@ -971,7 +1630,7 @@ public final class GrimoireModule extends Module
             Material.WRITABLE_BOOK,
             "&bQuest Journal",
             "&7View objectives and claim completed quests"));
-    menu.actions.put(49, () -> quest(player));
+    menu.actions.put(49, () -> openJournal(player));
     menu.inventory.setItem(
         53,
         button(
@@ -1049,7 +1708,54 @@ public final class GrimoireModule extends Module
       }
       case "next" -> cycle(p);
       case "cast" -> cast(p);
-      case "quests" -> quest(p);
+      case "quests" -> contracts(p, Arrays.copyOfRange(args, 1, args.length));
+      case "toggle" ->
+          change(
+              p,
+              n -> n.magicEnabled = !n.magicEnabled,
+              () ->
+                  message(
+                      p,
+                      "&dMagic "
+                          + (profiles.get(p.getUniqueId()).magicEnabled ? "enabled" : "paused")));
+      case "shards" -> {
+        MagicProfile state = profile(p);
+        if (state != null)
+          message(
+              p,
+              "&dShards: "
+                  + state.shards
+                  + " | Duplicate credits: "
+                  + state.duplicates
+                  + " | Research: "
+                  + state.research
+                  + ". /magic research claims boss rewards.");
+      }
+      case "wand" -> wand(p);
+      case "inscribe" -> {
+        if (args.length < 2
+            || !spells.containsKey(args[1])
+            || !config.isConfigurationSection("inscription." + args[1])) return true;
+        var merchant = plugin.getModuleManager().getModule("world-encounters");
+        if (!(merchant
+                instanceof net.rocky.coresuite.module.worldencounters.WorldEncountersModule m)
+            || !m.nearEnchanter(p)) {
+          message(p, "&eVisit the Mystic Enchanter to inscribe a signature spell.");
+          return true;
+        }
+        String path = "inscription." + args[1] + ".";
+        MagicProfile state = profile(p);
+        int research = Math.max(0, config.getInt(path + "research", 20));
+        if (state == null || state.research < research) {
+          message(p, "&eInscription requires " + research + " research.");
+          return true;
+        }
+        purchaseUpgrade(
+            p, "inscribe:" + args[1], research, config.getDouble(path + "currency", 100000));
+      }
+      case "info" -> {
+        if (args.length > 1) spellInfo(p, args[1]);
+      }
       case "research" -> collectResearch(p);
       case "study" -> {
         if (args.length > 1) study(p, args[1]);
@@ -1077,6 +1783,105 @@ public final class GrimoireModule extends Module
       return true;
     }
     switch (args[0]) {
+      case "mana", "slots", "tier", "shards", "duplicates" -> {
+        if (args.length < 3) return true;
+        String action = args[0];
+        try {
+          if (action.equals("mana")) {
+            double value = Double.parseDouble(args[2]);
+            if (!Double.isFinite(value)) throw new IllegalArgumentException();
+            change(
+                p,
+                n -> n.mana = Math.max(0, Math.min(maximumMana(), value)),
+                () -> message(sender, "&aMana updated."));
+          } else if (action.equals("slots")) {
+            int value = Integer.parseInt(args[2]);
+            if (value < 2 || value > 5) throw new IllegalArgumentException();
+            change(
+                p,
+                n -> {
+                  n.slots = value;
+                  while (n.prepared.size() > value) n.prepared.removeLast();
+                },
+                () -> message(sender, "&aSlots updated."));
+          } else {
+            if (args.length < 4) return true;
+            int value = Integer.parseInt(args[3]);
+            if (value < 0 || value > 100000) throw new IllegalArgumentException();
+            String key = args[2];
+            if (action.equals("shards")
+                && !MagicProgression.ELEMENTS.contains(key)
+                && !Set.of("zoltraak-fragment", "hearth-fragment").contains(key))
+              throw new IllegalArgumentException();
+            if (!action.equals("shards") && !spells.containsKey(key))
+              throw new IllegalArgumentException();
+            if (action.equals("tier") && (value < 1 || value > 3))
+              throw new IllegalArgumentException();
+            change(
+                p,
+                n -> {
+                  if (n.pendingUpgrade != null)
+                    throw new IllegalStateException("Resolve pending purchase first");
+                  if (action.equals("tier")) n.spells.put(key, value);
+                  else if (action.equals("shards")) n.shards.put(key, value);
+                  else n.duplicates.put(key, value);
+                },
+                () -> message(sender, "&aSaved " + action + " " + key + " = " + value + "."));
+          }
+        } catch (IllegalArgumentException error) {
+          message(sender, "&cInvalid value or ID.");
+        }
+      }
+      case "wand" ->
+          change(
+              p,
+              n -> n.wand = true,
+              () -> {
+                wand(p);
+                message(sender, "&aWand entitlement granted.");
+              });
+      case "reset" -> {
+        if (args.length < 3 || !args[2].equals("confirm")) {
+          message(
+              sender,
+              "&eUse /magicadmin reset <player> confirm to erase magic progression. Spent tome"
+                  + " seals stay spent.");
+          return true;
+        }
+        change(
+            p,
+            n -> {
+              if (n.pendingUpgrade != null)
+                throw new IllegalStateException("Resolve pending purchases before reset");
+              n.spells.clear();
+              n.prepared.clear();
+              n.shards.clear();
+              n.duplicates.clear();
+              n.contractClaims.clear();
+              n.contractProgress.clear();
+              n.activeContract = "";
+              n.wand = false;
+              n.started = false;
+              n.research = 0;
+              n.questStage = 0;
+              n.questProgress = 0;
+              n.slots = 2;
+              n.mana = maximumMana();
+              n.discoveries.clear();
+              n.cooldowns.clear();
+              n.selected = 0;
+              n.lastQuestAt = 0;
+              n.lastCast = 0;
+              n.globalReady = 0;
+              n.magicEnabled = true;
+            },
+            () -> {
+              pendingProgress.remove(p.getUniqueId());
+              message(
+                  sender,
+                  "&aMagic progression reset. Already redeemed tome seals remain unusable.");
+            });
+      }
       case "start" -> discover(p, "admin-introduction", "mana-dart");
       case "pending" -> {
         MagicProfile state = profile(p);
@@ -1089,6 +1894,14 @@ public final class GrimoireModule extends Module
                   + state.pendingCash
                   + " | research "
                   + state.pendingResearch
+                  + " | fish "
+                  + state.pendingFish
+                  + " | materials "
+                  + state.pendingMaterials
+                  + " | shards "
+                  + state.pendingShards
+                  + " | duplicate credits "
+                  + state.pendingDuplicateCount
                   + ". Verify the economy transaction before /magicadmin reconcile <player>"
                   + " paid|cancel.");
       }
@@ -1103,9 +1916,7 @@ public final class GrimoireModule extends Module
           change(
               p,
               next -> {
-                next.pendingUpgrade = null;
-                next.pendingResearch = 0;
-                next.pendingCash = 0;
+                MagicProgression.clearPending(next);
               },
               () ->
                   message(
@@ -1183,18 +1994,52 @@ public final class GrimoireModule extends Module
     if (command.getName().equals("magicadmin")) {
       if (!sender.hasPermission("coresuite.magic.admin")) return List.of();
       if (args.length == 1)
-        values = List.of("start", "research", "unlock", "tome", "pending", "reconcile");
+        values =
+            List.of(
+                "start",
+                "research",
+                "unlock",
+                "tome",
+                "pending",
+                "reconcile",
+                "mana",
+                "slots",
+                "tier",
+                "shards",
+                "duplicates",
+                "wand",
+                "reset");
       else if (args.length == 2)
         values =
             Bukkit.getOnlinePlayers().stream()
                 .filter(p -> !(sender instanceof Player viewer) || viewer.canSee(p))
                 .map(Player::getName)
                 .toList();
-      else if (args.length == 3) values = new ArrayList<>(spells.keySet());
+      else if (args.length == 3)
+        values =
+            args[0].equals("shards")
+                ? List.of("fire", "ice", "arcane", "nature", "zoltraak-fragment", "hearth-fragment")
+                : args[0].equals("reconcile")
+                    ? List.of("paid", "cancel")
+                    : new ArrayList<>(spells.keySet());
+      else if (args.length == 4 && args[0].equals("tier")) values = List.of("1", "2", "3");
     } else if (args.length == 1)
       values =
           List.of(
-              "loadout", "book", "next", "cast", "quests", "research", "study", "upgrade", "bind");
+              "loadout",
+              "book",
+              "next",
+              "cast",
+              "quests",
+              "research",
+              "study",
+              "upgrade",
+              "bind",
+              "shards",
+              "info",
+              "toggle",
+              "wand",
+              "inscribe");
     else if (args.length == 2) values = new ArrayList<>(spells.keySet());
     String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
     return values.stream().filter(v -> v.startsWith(prefix)).toList();

@@ -12,26 +12,59 @@ enchanter:
 # Empty biome lists allow any biome. Weights apply among eligible types.
 merchants:
   hedge-mage:
+    spell: harvesters-touch
+    stock: 3
+    materials: {OAK_LOG: 64}
     weight: 35
     biomes: []
   river-sage:
+    spell: water-cannon
+    stock: 3
+    materials: {PRISMARINE_SHARD: 16}
+    fish: {atlantic_cod: 3}
     weight: 20
     biomes: [RIVER, FROZEN_RIVER, BEACH, OCEAN, DEEP_OCEAN, WARM_OCEAN, LUKEWARM_OCEAN]
   illusionist:
+    spell: dimension-door
+    stock: 3
+    currency: 150000
+    materials: {ENDER_PEARL: 16}
     weight: 15
     biomes: [DARK_FOREST, SWAMP, MANGROVE_SWAMP]
   ancient-scholar:
+    spell: zoltraak
+    stock: 3
+    currency: 250000
+    shards: {arcane: 5}
     weight: 10
     biomes: [STONY_PEAKS, DRIPSTONE_CAVES, BADLANDS]
   frost-pilgrim:
+    spell: frost-lance
+    stock: 3
+    materials: {PACKED_ICE: 64}
+    shards: {ice: 3}
     weight: 20
     biomes: [SNOWY_PLAINS, ICE_SPIKES, FROZEN_PEAKS, SNOWY_TAIGA]
   hearthkeeper:
+    spell: aura-of-the-hearth
+    stock: 3
+    materials: {HONEY_BOTTLE: 16}
+    shards: {nature: 3}
     weight: 10
     biomes: []
   ember-scribe:
+    spell: fireball
+    stock: 3
+    materials: {BLAZE_ROD: 16}
+    shards: {fire: 3}
     weight: 15
     biomes: [DESERT, BADLANDS, SAVANNA]
   greenwarden:
+    spell: harvesters-touch
+    stock: 3
+    materials: {WHEAT: 64, IRON_INGOT: 32}
     weight: 15
     biomes: [PLAINS, FOREST, FLOWER_FOREST, MEADOW]
+
+# Custom fish costs use exact custom-fishing species IDs, drawing from inventory
+# first and then unlocked fish-bag pages. Named vanilla substitutes do not count.

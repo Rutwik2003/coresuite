@@ -20,3 +20,80 @@ chapters:
     goal: 5
     research: 8
     repeatable: true
+
+# One active contract per player. Accept near its scholar; claim through /quests.
+# repeat-hours: 0 means one-time. Rewards and progress are saved atomically.
+# Exact objective IDs: CAST or CAST:<spell>, KILL:<ENTITY>, FISH, HARVEST, BOSS:<BOSS>.
+contracts:
+  first-sparks:
+    merchant: hedge-mage
+    name: A Spark Worth Keeping
+    description: Practice Mana Dart ten times, then defeat five zombies.
+    objectives: {'CAST:mana-dart': 10, 'KILL:ZOMBIE': 5}
+    research: 8
+    shards: {arcane: 1}
+    duplicate-spell: mana-dart
+    repeat-hours: 24
+  river-memory:
+    merchant: river-sage
+    name: The River Remembers
+    description: Catch ten fish and cast Tidal Arrow five times.
+    objectives: {FISH: 10, 'CAST:water-cannon': 5}
+    research: 10
+    shards: {ice: 1}
+    duplicate-spell: water-cannon
+    repeat-hours: 24
+  lost-footsteps:
+    merchant: illusionist
+    name: Footsteps Between Worlds
+    description: Use Dimension Step five times and defeat eight spiders.
+    objectives: {'CAST:dimension-door': 5, 'KILL:SPIDER': 8}
+    research: 10
+    shards: {arcane: 2}
+    duplicate-spell: dimension-door
+    repeat-hours: 24
+  forbidden-thesis:
+    merchant: ancient-scholar
+    name: The Forbidden Thesis
+    description: Cast Zoltraak ten times and participate in defeating Xolthos.
+    objectives: {'CAST:zoltraak': 10, 'BOSS:XOLTHOS': 1}
+    research: 20
+    shards: {arcane: 3}
+    duplicate-spell: zoltraak
+    repeat-hours: 48
+  broken-winter:
+    merchant: frost-pilgrim
+    name: A Winter Broken
+    description: Cast Frost Lance ten times and participate in defeating Borealis.
+    objectives: {'CAST:frost-lance': 10, 'BOSS:BOREALIS': 1}
+    research: 20
+    shards: {ice: 3}
+    duplicate-spell: frost-lance
+    repeat-hours: 48
+  hearth-oath:
+    merchant: hearthkeeper
+    name: The Hearthkeeper's Oath
+    description: Cast Hearth five times and participate in defeating Aethelgard.
+    objectives: {'CAST:aura-of-the-hearth': 5, 'BOSS:AETHELGARD': 1}
+    research: 20
+    shards: {nature: 3}
+    duplicate-spell: aura-of-the-hearth
+    repeat-hours: 48
+  ash-and-embers:
+    merchant: ember-scribe
+    name: Ash and Embers
+    description: Cast Ember Lance ten times and participate in defeating Valerius.
+    objectives: {'CAST:fireball': 10, 'BOSS:VALERIUS': 1}
+    research: 20
+    shards: {fire: 3}
+    duplicate-spell: fireball
+    repeat-hours: 48
+  patient-garden:
+    merchant: greenwarden
+    name: The Patient Garden
+    description: Harvest forty mature crops with Harvester's Touch.
+    objectives: {HARVEST: 40}
+    research: 10
+    shards: {nature: 1}
+    duplicate-spell: harvesters-touch
+    repeat-hours: 24

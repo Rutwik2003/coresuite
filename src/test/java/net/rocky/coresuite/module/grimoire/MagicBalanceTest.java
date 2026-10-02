@@ -2,12 +2,14 @@ package net.rocky.coresuite.module.grimoire;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.Test;
 
 class MagicBalanceTest {
-  @Test void recoveryWaitsAfterCastingAndNeverOverfills() {
+  @Test
+  void recoveryWaitsAfterCastingAndNeverOverfills() {
     var p = new MagicProfile();
     p.mana = 95;
     p.lastCast = 1000;
@@ -22,7 +24,8 @@ class MagicBalanceTest {
     assertEquals(2, p.mana);
   }
 
-  @Test void tiersReduceCostWithoutMakingSpellsFree() {
+  @Test
+  void tiersReduceCostWithoutMakingSpellsFree() {
     var spell = new SpellSpec("test", "test", Material.BOOK, 20, 1000, 4, 20, true);
     assertEquals(20, spell.tierMana(1, .05));
     assertEquals(19, spell.tierMana(2, .05));
@@ -31,7 +34,8 @@ class MagicBalanceTest {
     assertEquals(18, spell.tierMana(3, Double.NaN));
   }
 
-  @Test void replantingSelectsOnlyPlainMatchingSupplies() {
+  @Test
+  void replantingSelectsOnlyPlainMatchingSupplies() {
     assertEquals(Material.WHEAT_SEEDS, SpellEngine.seedFor(Material.WHEAT));
     assertEquals(Material.CARROT, SpellEngine.seedFor(Material.CARROTS));
     assertEquals(Material.POTATO, SpellEngine.seedFor(Material.POTATOES));
@@ -43,8 +47,9 @@ class MagicBalanceTest {
     var plain = mock(ItemStack.class);
     when(plain.getType()).thenReturn(Material.CARROT);
     when(plain.getAmount()).thenReturn(3);
-    assertEquals(2, SpellEngine.plantingSlot(new ItemStack[]{null, custom, plain}, Material.CARROT));
-    assertEquals(-1, SpellEngine.plantingSlot(new ItemStack[]{custom}, Material.CARROT));
-    assertEquals(-1, SpellEngine.plantingSlot(new ItemStack[]{plain}, Material.POTATO));
+    assertEquals(
+        2, SpellEngine.plantingSlot(new ItemStack[] {null, custom, plain}, Material.CARROT));
+    assertEquals(-1, SpellEngine.plantingSlot(new ItemStack[] {custom}, Material.CARROT));
+    assertEquals(-1, SpellEngine.plantingSlot(new ItemStack[] {plain}, Material.POTATO));
   }
 }

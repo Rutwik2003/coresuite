@@ -435,6 +435,8 @@ public final class CompatibilityProbe extends JavaPlugin {
         config.loadFromString(module.getConfig().saveToString());
         config.set("domain.awakening-seconds", 0);
         config.set("domain.storm-weather", false);
+        // Exercise the successful counter and its cooldown deterministically.
+        config.set("borealis.weakness.fire-resistance-resist-chance", 0.0);
         int[] rewards = {0};
         var loot = new net.rocky.coresuite.module.worldbosses.rewards.BossLootManager(core, null, config) {
             @Override public void distributeRewards(net.rocky.coresuite.module.worldbosses.boss.BossType type,

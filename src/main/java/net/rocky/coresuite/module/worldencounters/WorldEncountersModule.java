@@ -56,7 +56,8 @@ public final class WorldEncountersModule extends Module
     }
     for (World world : Bukkit.getWorlds())
       for (Entity entity : world.getEntities())
-        if (entity.getScoreboardTags().contains(TAG)) entity.remove();
+        if (entity.getScoreboardTags().contains(TAG)
+            || entity.getScoreboardTags().contains("coresuite_enchanter")) entity.remove();
     restoreEnchanter();
     nextSpawn = System.currentTimeMillis() + 60000;
     registerTask(Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20, 20));
@@ -151,7 +152,7 @@ public final class WorldEncountersModule extends Module
     }
     if (destination == null) return false;
     kind = type;
-    spell = SPELLS.get(type);
+    spell = config.getString("merchants." + type + ".spell", SPELLS.get(type));
     encounterId = UUID.randomUUID().toString();
     npc =
         world.spawn(
@@ -230,6 +231,51 @@ public final class WorldEncountersModule extends Module
         && this.spell.equals(spell);
   }
 
+  public boolean nearScholar(Player player) {
+    return spell != null && offers(player, spell);
+  }
+
+  public String kind() {
+    return kind;
+  }
+
+  public String stockKey() {
+    return encounterId + ":" + spell;
+  }
+
+  public int stockLimit() {
+    return Math.max(1, Math.min(100, config.getInt("merchants." + kind + ".stock", 3)));
+  }
+
+  public double lessonCurrency() {
+    return Math.max(0, config.getDouble("merchants." + kind + ".currency", 0));
+  }
+
+  public Map<String, Integer> materialCost() {
+    return costs("materials");
+  }
+
+  public Map<String, Integer> fishCost() {
+    return costs("fish");
+  }
+
+  public Map<String, Integer> shardCost() {
+    return costs("shards");
+  }
+
+  private Map<String, Integer> costs(String suffix) {
+    Map<String, Integer> result = new HashMap<>();
+    var section = config.getConfigurationSection("merchants." + kind + "." + suffix);
+    if (section != null)
+      for (String key : section.getKeys(false)) {
+        int n = section.getInt(key);
+        if (n < 0 || n > 100000)
+          throw new IllegalArgumentException("Invalid merchant cost: " + key);
+        if (n > 0) result.put(key, n);
+      }
+    return result;
+  }
+
   @EventHandler(priority = EventPriority.HIGHEST)
   public void interact(PlayerInteractEntityEvent event) {
     if (enchanter != null
@@ -248,6 +294,8 @@ public final class WorldEncountersModule extends Module
     GrimoireModule g = magic();
     if (g != null && g.canPlay(event.getPlayer()) && offers(event.getPlayer(), spell))
       g.discover(event.getPlayer(), encounterId, spell);
+    if (g != null && g.canPlay(event.getPlayer()) && offers(event.getPlayer(), spell))
+      g.offerContract(event.getPlayer(), kind);
   }
 
   @EventHandler
@@ -260,8 +308,11 @@ public final class WorldEncountersModule extends Module
   @EventHandler
   public void chunk(ChunkLoadEvent event) {
     for (Entity e : event.getChunk().getEntities())
-      if (e.getScoreboardTags().contains(TAG)
-          && (npc == null || !npc.getUniqueId().equals(e.getUniqueId()))) e.remove();
+      if ((e.getScoreboardTags().contains(TAG)
+              && (npc == null || !npc.getUniqueId().equals(e.getUniqueId())))
+          || (e.getScoreboardTags().contains("coresuite_enchanter")
+              && (enchanter == null || !enchanter.getUniqueId().equals(e.getUniqueId()))))
+        e.remove();
   }
 
   private void close() {

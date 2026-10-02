@@ -1,0 +1,27 @@
+{
+  "model": {
+    "type": "minecraft:range_dispatch",
+    "property": "minecraft:custom_model_data",
+    "index": 0,
+    "fallback": {
+      "type": "minecraft:model",
+      "model": "minecraft:item/blaze_rod_vanilla"
+    },
+    "entries": [
+      {
+        "threshold": 71030,
+        "model": {
+          "type": "minecraft:model",
+          "model": "coresuite:item/astral_wand"
+        }
+      },
+      {
+        "threshold": 71031,
+        "model": {
+          "type": "minecraft:model",
+          "model": "minecraft:item/blaze_rod_vanilla"
+        }
+      }
+    ]
+  }
+}

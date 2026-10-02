@@ -3,7 +3,7 @@ Local asset build only: never uploads or publishes a resource pack.
 """
 from pathlib import Path
 import json, struct, zlib
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 # The 5x5 cover symbols are deliberately distinct, including in monochrome.
 DESIGNS = [
  ('astral_grimoire',71001,'Astral Grimoire','purple','#492f70',['00100','01110','11011','01110','00100']),
@@ -62,6 +62,14 @@ def build():
    path=root/f'assets/coresuite/textures/item/{name}.png';path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(png(rects))
    svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">'+''.join(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{c}"/>' for x,y,w,h,c in rects)+'</svg>'
    art=ROOT/f'docs/grimoire/art/{name}.svg';art.parent.mkdir(parents=True,exist_ok=True);art.write_text(svg)
+  wand_model={'textures':{'shaft':'minecraft:block/dark_oak_planks','gold':'minecraft:block/gold_block','gem':'minecraft:block/purple_concrete','particle':'minecraft:block/purple_concrete'},'gui_light':'front','elements':[
+    cube([7,1,7],[9,12,9],'shaft'),cube([6.5,10,6.5],[9.5,11,9.5],'gold'),cube([6,12,6],[10,15,10],'gem'),cube([6.5,11,6.5],[9.5,12,9.5],'gold')],
+    'display':{'gui':{'rotation':[0,0,-35],'scale':[.85,.85,.85]},'firstperson_righthand':{'rotation':[0,0,-15],'scale':[.45,.45,.45]},'firstperson_lefthand':{'rotation':[0,0,15],'scale':[.45,.45,.45]},'thirdperson_righthand':{'rotation':[0,0,0],'scale':[.6,.6,.6]},'thirdperson_lefthand':{'rotation':[0,0,0],'scale':[.6,.6,.6]},'ground':{'translation':[0,2,0],'scale':[.4,.4,.4]}}}
+  write(root/'assets/coresuite/models/item/astral_wand.json',wand_model)
+  write(root/'assets/minecraft/models/item/blaze_rod_vanilla.json',{'parent':'minecraft:item/generated','textures':{'layer0':'minecraft:item/blaze_rod'}})
+  write(root/'assets/minecraft/models/item/blaze_rod.json',{'parent':'minecraft:item/generated','textures':{'layer0':'minecraft:item/blaze_rod'},'overrides':[{'predicate':{'custom_model_data':71030},'model':'coresuite:item/astral_wand'},{'predicate':{'custom_model_data':71031},'model':'minecraft:item/blaze_rod_vanilla'}]})
+  write(root/'assets/minecraft/items/blaze_rod.json',{'model':{'type':'minecraft:range_dispatch','property':'minecraft:custom_model_data','index':0,'fallback':{'type':'minecraft:model','model':'minecraft:item/blaze_rod_vanilla'},'entries':[{'threshold':71030,'model':{'type':'minecraft:model','model':'coresuite:item/astral_wand'}},{'threshold':71031,'model':{'type':'minecraft:model','model':'minecraft:item/blaze_rod_vanilla'}}]}})
+  (root/'assets/coresuite/textures/item/astral_wand.png').write_bytes(png([(14,10,4,20,'#523927'),(12,10,8,3,'#dfbf73'),(11,3,10,8,'#38244f'),(13,4,6,6,'#9c65cd'),(15,5,2,2,'#ded8ff'),(13,25,6,2,'#dfbf73')]))
   entries=[]
   for name,cmd,*_ in DESIGNS:
    entries.append((cmd,'coresuite:item/'+name));entries.append((cmd+1,'minecraft:item/book_vanilla'))
@@ -71,6 +79,7 @@ def build():
   write(root/'assets/minecraft/models/item/book.json',{'parent':'minecraft:item/generated','textures':{'layer0':'minecraft:item/book'},'overrides':[{'predicate':{'custom_model_data':cmd},'model':model} for cmd,model in sorted(entries.items())]})
   write(root/'assets/minecraft/items/book.json',{'model':{'type':'minecraft:range_dispatch','property':'minecraft:custom_model_data','index':0,'fallback':{'type':'minecraft:model','model':'minecraft:item/book_vanilla'},'entries':[{'threshold':cmd,'model':{'type':'minecraft:model','model':model}} for cmd,model in sorted(entries.items())]}})
  mappings={'format_version':2,'items':{'minecraft:book':[{'type':'legacy','custom_model_data':cmd,'bedrock_identifier':'coresuite:'+name,'display_name':title,'bedrock_options':{'icon':'coresuite.'+name,'allow_offhand':True}} for name,cmd,title,*_ in DESIGNS]}}
+ mappings['items']['minecraft:blaze_rod']=[{'type':'legacy','custom_model_data':71030,'bedrock_identifier':'coresuite:astral_wand','display_name':'Astral Focus Wand','bedrock_options':{'icon':'coresuite.astral_wand','allow_offhand':True}}]
  write(ROOT/'deployment/geyser/custom_mappings/coresuite_magic.json',mappings)
  write(ROOT/'src/main/resources/integrations/coresuite_magic.json',mappings)
  print('Built',len(DESIGNS),'native models, SVG sources, icons and crossplay mappings in both local pack trees.')

@@ -13,6 +13,11 @@ final class CastInputGate {
     return previous == null || now - previous >= gap;
   }
 
-  void remove(UUID player) { lastInput.remove(player); }
-  void clear() { lastInput.clear(); }
+  void remove(UUID player) {
+    lastInput.remove(player);
+  }
+
+  void clear() {
+    lastInput.clear();
+  }
 }

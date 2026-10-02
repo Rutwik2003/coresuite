@@ -113,9 +113,11 @@ public class FishBagManager {
         });
     }
 
-    public void saveBag(UUID uuid) {
+    public void saveBag(UUID uuid) { saveBag(uuid, () -> {}, () -> {}); }
+
+    public void saveBag(UUID uuid, Runnable saved, Runnable failed) {
         ItemStack[] items = cache.get(uuid);
-        if (items == null) return;
+        if (items == null) { failed.run(); return; }
         // Serialize on the server thread: queued SQL must never observe mutable items.
         String data = toBase64(items);
         plugin.getDatabaseManager().executeAsync(() -> {
@@ -124,8 +126,10 @@ public class FishBagManager {
                 stmt.setString(1, uuid.toString());
                 stmt.setString(2, data);
                 stmt.executeUpdate();
+                if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, saved);
             } catch (SQLException e) {
                 plugin.getLogger().log(Level.SEVERE, "Failed to save fish bag for " + uuid, e);
+                if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, failed);
             }
         });
     }
